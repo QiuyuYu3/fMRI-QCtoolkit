@@ -1,0 +1,43 @@
+<!DOCTYPE html> 
+<head>
+  <meta charset="UTF-8" />
+  <!-- The title shows the participant ID followed by "_rating" -->
+  <title>{{ participant_id }}_rating</title>
+
+  <!-- Link to a CSS file for styling -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='qc_rating.css') }}" />
+</head>
+
+<body>
+  <!-- Original navigation bar at the very top -->
+  {{ nav_html|safe }}
+
+  <!-- Main container for quality control interface (your rating system) -->
+  <div id="qc-container" title="Ctrl+ to add comment, click to rate: + → - → ?">
+    <!-- Index bar to navigate different modules/runs -->
+    <div id="qc-rating-index"><div class="qc-inner"></div></div>
+
+    <!-- Rating bar where user clicks to rate each item -->
+    <div id="qc-rating-bar"><div class="qc-inner"></div></div>
+
+  </div>
+
+  <!-- This is where the dynamic HTML content is inserted (images, labels, etc.) -->
+  {{ content|safe }}
+
+  <script>
+    // Pass Python variables into JavaScript
+    window.modulesByRunJson = {{ modules_by_run | tojson }};
+    window.initialRatingsJson = {{ ratings_json | tojson }};
+    window.initialNotesJson = {{ notes_json | tojson }};
+    window.participantId = "{{ participant_id }}";
+    
+    console.log("Loaded ratings:", window.initialRatingsJson);
+    console.log("Loaded notes:", window.initialNotesJson);
+</script>
+
+  <!-- Load external JavaScript file for interactive functionality -->
+  <script src="{{ url_for('static', filename='qc_rating.js') }}"></script>
+
+</body>
+</html>

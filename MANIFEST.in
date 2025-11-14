@@ -1,0 +1,2 @@
+recursive-include fMRI_QCtoolkit *
+global-exclude __pycache__ *.py[cod] .DS_Store

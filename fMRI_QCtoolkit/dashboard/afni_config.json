@@ -1,0 +1,108 @@
+{
+    "variable_labels": {
+      "quantitative": {
+        "cens_frac": "cens fraction",
+        "cens_mot": "cens motion",
+        "cens_displace": "cens displace",
+        "DF_frac": "DF fraction",
+        "flip_guess": "flip guess",
+        "TSNR": "TSNR",
+        "GCOR": "GCOR"
+      },
+      "qualitative": {
+        "mot_rating": "motion",
+        "radcor_rating": "correlation",
+        "regr_rating": "regression",
+        "va2t_rating": "anat to template",
+        "ve2a_rating": "EPI to anat",
+        "vorig_rating": "vorig",
+        "vstat_rating": "vstat",
+        "warns_rating": "warnings",
+        "qsumm_rating": "quantitative",
+        "FINAL_rating": "final"
+      }
+    },
+    "quantitative_configs": [
+      {
+        "variable": "cens_frac",
+        "label": "Censor Fraction",
+        "min_value": 0,
+        "max_value_offset": null,
+        "default_range": [0, 0.15],
+        "step": 0.01
+      },
+      {
+        "variable": "cens_mot",
+        "label": "Average Censored Motion",
+        "min_value": 0,
+        "max_value_offset": null,
+        "default_range": [0, 0.1],
+        "step": 0.01
+      },
+      {
+        "variable": "cens_displace",
+        "label": "Max Censored Displacement",
+        "min_value": 0,
+        "max_value_offset": 20,
+        "default_range": [0, 6],
+        "step": 0.01
+      },
+      {
+        "variable": "TSNR",
+        "label": "TSNR Average",
+        "min_value": null,
+        "max_value_offset": null,
+        "default_range": null,
+        "step": 1
+      },
+      {
+        "variable": "DF_frac",
+        "label": "Final DF Fraction",
+        "min_value": 0,
+        "max_value_offset": null,
+        "default_range": [0.7, 1],
+        "step": 0.1
+      },
+      {
+        "variable": "flip_guess",
+        "label": "Flip Guess",
+        "min_value": 0,
+        "max_value_offset": null,
+        "default_range": [0, 1],
+        "step": 1
+      },
+      {
+        "variable": "GCOR",
+        "label": "GCOR",
+        "min_value": 0,
+        "max_value_offset": null,
+        "default_range": [0, 0.15],
+        "step": 0.01
+      }
+    ],
+    "frac_trs_defaults": {
+      "range": [0, 0.2],
+      "step": 0.01,
+      "marks": {
+        "0": "0",
+        "0.2": "0.2",
+        "1": "1"
+      }
+    },
+    "qualitative_options": [
+      {"label": "Good", "value": "good"},
+      {"label": "Other", "value": "other"},
+      {"label": "Bad", "value": "bad"},
+      {"label": "NA", "value": "NA"}
+    ],
+    "qualitative_defaults": ["good", "other", "bad", "NA"],
+    "heatmap_quantitative_vars": ["cens_frac", "cens_mot", "cens_displace", "TSNR", "DF_frac", "flip_guess", "GCOR"],
+    "_comments": {
+      "quantitative_configs": "min_value: null means data_min - 0.1 or 1, max_value_offset: null means data_max + 0.1 or 1, default_range: null means [min, max]",
+      "variable_labels": "Display names for variables in the dashboard",
+      "frac_trs_defaults": "Default settings for fraction TRs censored sliders",
+      "qualitative_options": "Options available in qualitative variable dropdowns",
+      "qualitative_defaults": "Default selected values for qualitative dropdowns",
+      "heatmap_quantitative_vars": "Variables to include in quantitative heatmap (in display order)"
+    }
+  }

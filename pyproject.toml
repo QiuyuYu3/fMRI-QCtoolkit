@@ -1,0 +1,48 @@
+[project]
+name = "fmri_qctoolkit"
+version = "0.1.0"
+description = "MRI Quality Control Dashboard for AFNI and fMRIPrep pipelines"
+authors = [
+  { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" },
+  { name = "Charles Geier"}
+]
+maintainers = [
+  { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "typer[all]",
+  "dash",
+  "plotly",
+  "pandas",
+  "numpy",
+  "flask",
+  "flask-cors"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=6.0",
+  "pytest-cov",
+  "black",
+  "isort",
+  "flake8",
+  "ruff"
+]
+
+[project.scripts]
+qc = "fMRI_QCtoolkit.cli:app"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["fMRI_QCtoolkit*"]
+
+[tool.setuptools.package-data]
+"fMRI_QCtoolkit" = ["*"]

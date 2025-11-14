@@ -1,0 +1,2 @@
+ID,T1mask_1_r,T1mask_1_c,Norm_1_r,Norm_1_c,SurfRecon_1_r,SurfRecon_1_c,SDC_4_r,SDC_4_c,Align_4_r,Align_4_c,Align_5_r,Align_5_c,Align_6_r,Align_6_c,CompCor_7_r,CompCor_7_c,CompCor_8_r,CompCor_8_c,Variance_3_r,Variance_3_c,BOLD_5_r,BOLD_5_c,BOLD_6_r,BOLD_6_c,Corr_7_r,Corr_7_c,Corr_8_r,Corr_8_c,Final_5_r,Final_5_c,Final_6_r,Final_6_c
+001,bad,bad,bad,good,bad,good,bad,bad,good,other,,bad,other,other,good,good,other,other,good,bad,other,bad,good,other,other,good,bad,bad,other,other,other,bad

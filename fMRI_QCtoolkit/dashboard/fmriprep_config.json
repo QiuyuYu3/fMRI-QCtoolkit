@@ -1,0 +1,128 @@
+{
+    "variable_labels": {
+      "quantitative": {
+        "fd_perc": "% Censored FD",
+        "fd_mean": "Average FD",
+        "tsnr": "TSNR",
+        "gcor": "GCOR",
+        "dvars_nstd": "DVARS",
+        "gsr_x": "Ghost to Signal Ratio X",
+        "gsr_y": "Ghost to Signal Ratio Y",
+        "aor": "AFNI's Outlier Ratio",
+        "aqi": "AFNI's Quality Index"
+      },
+      "qualitative": {
+        "Align": "Coregistration",
+        "BOLD": "BOLD Summary",
+        "CompCor": "CompCor",
+        "Corr": "Correlations",
+        "Norm": "Normalization",
+        "SDC": "SDC",
+        "SurfRecon": "Surface Recon",
+        "T1mask": "Mask & Segment",
+        "Variance": "Variance",
+        "Final": "Final"
+      }
+    },
+    "quantitative_configs": [
+      {
+        "variable": "fd_perc",
+        "label": "% of FDs above threshold",
+        "min_value": 0,
+        "max_value_offset": null,
+        "default_range": [0, 15],
+        "step": 1
+      },
+      {
+        "variable": "fd_mean",
+        "label": "Average FD",
+        "min_value": 0,
+        "max_value_offset": null,
+        "default_range": [0, 0.2],
+        "step": 0.01
+      },
+      {
+        "variable": "tsnr",
+        "label": "TSNR Average",
+        "min_value": null,
+        "max_value_offset": null,
+        "default_range": null,
+        "step": 1
+      },
+      {
+        "variable": "gcor",
+        "label": "GCOR",
+        "min_value": 0,
+        "max_value_offset": null,
+        "default_range": [0, 0.15],
+        "step": 0.01
+      },
+      {
+        "variable": "dvars_nstd",
+        "label": "DVARS",
+        "min_value": null,
+        "max_value_offset": null,
+        "default_range": null,
+        "step": 0.01
+      },
+      {
+        "variable": "gsr_x",
+        "label": "Ghost to Signal Ratio X",
+        "min_value": null,
+        "max_value_offset": null,
+        "default_range": null,
+        "step": 0.01
+      },
+      {
+        "variable": "gsr_y",
+        "label": "Ghost to Signal Ratio Y",
+        "min_value": null,
+        "max_value_offset": null,
+        "default_range": null,
+        "step": 0.01
+      },
+      {
+        "variable": "aor",
+        "label": "AFNI's Outlier Ratio",
+        "min_value": null,
+        "max_value_offset": null,
+        "default_range": null,
+        "step": 0.01
+      },
+      {
+        "variable": "aqi",
+        "label": "AFNI's Quality Index",
+        "min_value": null,
+        "max_value_offset": null,
+        "default_range": null,
+        "step": 0.01
+      },
+      {
+        "variable": "seconds_per_run",
+        "label": "seconds_per_run",
+        "min_value": null,
+        "max_value_offset": null,
+        "default_range": null,
+        "step": 1
+      }
+    ],
+    "qualitative_options": [
+      {"label": "Good", "value": "good"},
+      {"label": "Other", "value": "other"},
+      {"label": "Bad", "value": "bad"},
+      {"label": "NA", "value": "NA"}
+    ],
+    "qualitative_defaults": ["good", "other", "bad", "NA"],
+    "heatmap_quantitative_vars": ["fd_perc", "fd_mean", "tsnr", "gcor"],
+    "heatmap_settings": {
+      "group_by": ["session", "run"]
+    },
+    "_comments": {
+      "quantitative_configs": "min_value: null means data_min - 0.1 or 1, max_value_offset: null means data_max + 0.1 or 1, default_range: null means [min, max]",
+      "variable_labels": "Display names for variables in the fMRIPrep dashboard",
+      "qualitative_options": "Options available in qualitative variable dropdowns",
+      "qualitative_defaults": "Default selected values for qualitative dropdowns",
+      "heatmap_quantitative_vars": "Variables to include in quantitative heatmap (in display order)",
+      "heatmap_settings": "Settings for heatmap display, including grouping options"
+    }
+  }
