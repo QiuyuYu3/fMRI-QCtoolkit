@@ -48,7 +48,7 @@ def generate_afni_data(subject_ids, seed=42, missing_rate=0.05, save=True, filen
     return df
 
 
-def generate_fmriprep_bold_data(subject_ids, seed=42, missing_rate=0.05, save=True, filename="fmriprep_quan_data.csv"): 
+def generate_fmriprep_bold_data(subject_ids, seed=42, missing_rate=0.05, save=True, filename="fmriprep_quan_data.tsv"):
     """Generate random fMRIPrep BOLD quantitative QC table with optional missing values."""
     np.random.seed(seed)
     n_runs = np.random.randint(1, 4)
@@ -78,7 +78,7 @@ def generate_fmriprep_bold_data(subject_ids, seed=42, missing_rate=0.05, save=Tr
 
     df = pd.DataFrame(data)
     if save:
-        df.to_csv(EXAMPLES_ROOT / filename, index=False)
+        df.to_csv(EXAMPLES_ROOT / filename, index=False, sep='\t')
     return df
 
 
@@ -127,7 +127,7 @@ def generate_fmriprep_rating_data_per_subject(subject_ids, seed=42, max_repeat=3
             df.to_csv(output_dir / filename, index=False)
 
 
-def generate_fmriprep_summary(subject_ids, seed=42, missing_rate=0.05, save=True, filename="fmriprep_selected_quan_data.csv"):
+def generate_fmriprep_summary(subject_ids, seed=42, missing_rate=0.05, save=True, filename="fmriprep_selected_quan_data.tsv"):
     """Generate selected quantitative fMRIPrep QC table with optional missing values."""
     np.random.seed(seed)
     n_subjects = len(subject_ids)
@@ -149,7 +149,7 @@ def generate_fmriprep_summary(subject_ids, seed=42, missing_rate=0.05, save=True
     df = add_random_nans(df, missing_rate)
 
     if save:
-        df.to_csv(EXAMPLES_ROOT / filename, index=False)
+        df.to_csv(EXAMPLES_ROOT / filename, index=False, sep='\t')
     return df
 
 

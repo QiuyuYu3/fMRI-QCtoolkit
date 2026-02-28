@@ -207,12 +207,13 @@ class TestIntegrationWithExampleData:
         assert {"ID", "run"}.issubset(df.columns)
         assert {"ID", "Variable", "Value"}.issubset(lol.columns)
 
-    def test_process_end_to_end(self, fmriprep_examples: Path, tmp_path: Path):
+    def test_process_end_to_end(self, fmriprep_examples: Path, examples_root: Path, tmp_path: Path):
         """Test complete processing pipeline"""
         bold_file = fmriprep_examples / "group_bold.tsv"
-        rating_dir = fmriprep_examples
+        rating_dir = examples_root / "random_data" / "fmriprep_rating"
 
         assert bold_file.exists(), "Missing group_bold.tsv"
+        assert rating_dir.exists(), "Missing rating directory"
 
         out_dir = tmp_path / "out"
 

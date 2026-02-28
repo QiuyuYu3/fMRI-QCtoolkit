@@ -176,14 +176,29 @@ class FMRIPrepRatingApp:
             Tuple of (processed_html, modules_structure)
         """
         current_session = None
+        current_run = None
         session_run_counter = {}
         modules_in_order = []
         seen_task_report = False
         
         combined_pattern = re.compile(r'(<h([23])[^>]*>)(.*?)(</h\2>)', re.DOTALL)
         
+        div_run_map = {}  # div_start_pos -> (run, session)
+        for m in re.finditer(r'<div\s+id="(datatype-figures[^"]*)"', html):
+            div_id = m.group(1)
+            run_match = re.search(r'_run-(\d+)', div_id)
+            ses_match = re.search(r'_session-(\d+)', div_id)
+            if run_match:
+                div_run_map[m.start()] = int(run_match.group(1))
+        
+        def find_enclosing_div_run(pos):
+            candidates = [p for p in div_run_map if p < pos]
+            if candidates:
+                return div_run_map[max(candidates)]
+            return None
+        
         def replacer(match):
-            nonlocal current_session, seen_task_report
+            nonlocal current_session, current_run, seen_task_report
             prefix, tag_level, title, suffix = match.groups()
             
             # Handle h2 tags (session boundaries)
@@ -192,10 +207,12 @@ class FMRIPrepRatingApp:
                 if session_match:
                     current_session = session_match.group(1)
                     seen_task_report = True
+                    current_run = find_enclosing_div_run(match.start())
                     return match.group(0)
                 
                 if 'Reports for:' in title and 'task' in title and 'session' not in title:
                     current_session = None
+                    current_run = find_enclosing_div_run(match.start())
                     seen_task_report = True
                     return match.group(0)
                 
@@ -226,9 +243,14 @@ class FMRIPrepRatingApp:
                             display_name = f"{mod_short} r{run_num}"
                             session_for_storage = None
                         else:
-                            key = (title_strip, current_session)
-                            session_run_counter[key] = session_run_counter.get(key, 0) + 1
-                            run_num = session_run_counter[key]
+                            h3_div_run = find_enclosing_div_run(match.start())
+                            if h3_div_run is not None:
+                                run_num = h3_div_run
+                            else:
+                                key = (title_strip, current_session)
+                                session_run_counter[key] = session_run_counter.get(key, 0) + 1
+                                run_num = session_run_counter[key]
+                            
                             id_attr = f'{mod_short}_ses-{current_session}_run-{run_num}'
                             display_name = f"{mod_short} s{current_session} r{run_num}"
                             session_for_storage = current_session

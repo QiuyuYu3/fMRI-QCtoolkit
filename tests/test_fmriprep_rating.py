@@ -96,6 +96,59 @@ HTML_MIXED = """
 </html>
 """
 
+HTML_DIV_WITH_RUN = """
+<!DOCTYPE html>
+<html><body>
+
+<div id="datatype-figures_subject-test_suffix-dseg">
+<h3 class="run-title">Brain mask and brain tissue segmentation of the T1w</h3>
+</div>
+
+<div id="datatype-figures_desc-sdc_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h2>Reports for: session <span>01</span>, task <span>rest</span>, run <span>1</span>.</h2>
+<h3 class="run-title">Susceptibility distortion correction</h3>
+<h3 class="run-title">Alignment of functional and anatomical MRI data (coregistration)</h3>
+</div>
+
+<div id="datatype-figures_desc-sdc_run-2_session-01_subject-test_suffix-bold_task-rest">
+<h2>Reports for: session <span>01</span>, task <span>rest</span>, run <span>2</span>.</h2>
+<h3 class="run-title">Susceptibility distortion correction</h3>
+<h3 class="run-title">Alignment of functional and anatomical MRI data (coregistration)</h3>
+<h3 class="run-title">Brain mask and (anatomical/temporal) CompCor ROIs</h3>
+<h3 class="run-title">BOLD Summary</h3>
+</div>
+
+</body></html>
+"""
+
+HTML_DIV_NO_RUN_MULTITASK = """
+<!DOCTYPE html>
+<html><body>
+
+<div id="datatype-figures_subject-test_suffix-dseg">
+<h3 class="run-title">Brain mask and brain tissue segmentation of the T1w</h3>
+</div>
+
+<div id="datatype-figures_desc-sdc_session-01_subject-test_suffix-bold_task-MID1">
+<h2>Reports for: session <span>01</span>, task <span>MID1</span>.</h2>
+<h3 class="run-title">Susceptibility distortion correction</h3>
+<h3 class="run-title">Brain mask and (anatomical/temporal) CompCor ROIs</h3>
+</div>
+
+<div id="datatype-figures_desc-sdc_session-01_subject-test_suffix-bold_task-MID2">
+<h2>Reports for: session <span>01</span>, task <span>MID2</span>.</h2>
+<h3 class="run-title">Susceptibility distortion correction</h3>
+<h3 class="run-title">Brain mask and (anatomical/temporal) CompCor ROIs</h3>
+</div>
+
+<div id="datatype-figures_desc-sdc_session-01_subject-test_suffix-bold_task-rest">
+<h2>Reports for: session <span>01</span>, task <span>rest</span>.</h2>
+<h3 class="run-title">Susceptibility distortion correction</h3>
+<h3 class="run-title">Brain mask and (anatomical/temporal) CompCor ROIs</h3>
+</div>
+
+</body></html>
+"""
 
 # ============================================================================
 # Mock Rating Data
@@ -519,3 +572,44 @@ class TestIntegration:
         assert loaded_p2["T1mask_run-1"] == "2"
         assert loaded_p1["Align_ses-01_run-1"] == "2"
         assert loaded_p2["Align_ses-01_run-1"] == "1"
+
+class TestProcessHTMLModulesWithDivIds:
+
+    def test_div_run_ids_correct(self, temp_app):
+        _, modules = temp_app.process_html_modules(HTML_DIV_WITH_RUN)
+        all_ids = [m['id'] for group in modules for m in group]
+
+        assert 'SDC_ses-01_run-1' in all_ids
+        assert 'Align_ses-01_run-1' in all_ids
+
+        assert 'SDC_ses-01_run-2' in all_ids
+        assert 'Align_ses-01_run-2' in all_ids
+        assert 'CompCor_ses-01_run-2' in all_ids
+        assert 'BOLD_ses-01_run-2' in all_ids
+
+        assert 'CompCor_ses-01_run-1' not in all_ids
+        assert 'BOLD_ses-01_run-1' not in all_ids
+
+    def test_div_no_run_multitask_ids_correct(self, temp_app):
+        _, modules = temp_app.process_html_modules(HTML_DIV_NO_RUN_MULTITASK)
+        all_ids = [m['id'] for group in modules for m in group]
+
+        assert 'SDC_ses-01_run-1' in all_ids
+        assert 'SDC_ses-01_run-2' in all_ids
+        assert 'SDC_ses-01_run-3' in all_ids
+
+        assert 'CompCor_ses-01_run-1' in all_ids
+        assert 'CompCor_ses-01_run-2' in all_ids
+        assert 'CompCor_ses-01_run-3' in all_ids
+
+        sdc_ids = [id_ for id_ in all_ids if id_.startswith('SDC_ses-01')]
+        assert len(sdc_ids) == 3
+
+    def test_div_run_grouping(self, temp_app):
+        _, modules = temp_app.process_html_modules(HTML_DIV_WITH_RUN)
+
+        functional_groups = [g for g in modules if any('ses' in m['id'] for m in g)]
+        assert len(functional_groups) == 2
+
+        group_runs = sorted([g[0]['run'] for g in functional_groups])
+        assert group_runs == [1, 2]
