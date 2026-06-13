@@ -6,6 +6,7 @@ Focus on field matching across parse_tasks, process_html, load_ratings, and save
 import pytest
 import tempfile
 import csv
+import json
 from pathlib import Path
 from fMRI_QCtoolkit.dashboard.fmriprep_rating_app import FMRIPrepRatingApp
 
@@ -295,11 +296,24 @@ def save_ratings_direct(app, participant_id, ratings, notes, html_content):
     
     combined_csv = app.output_dir / f"sub-{participant_id}.csv"
     combined_row = {"ID": participant_id, **all_combined_data}
-    
+
     with combined_csv.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(combined_row.keys()))
         writer.writeheader()
         writer.writerow(combined_row)
+
+    # JSON sidecar: replicate the frontend payload (all module ids default to NA/"")
+    _, modules_by_run = app.process_html_modules(html_content)
+    full_ratings = {}
+    full_notes = {}
+    for group in modules_by_run:
+        for mod in group:
+            full_ratings[mod['id']] = ratings.get(mod['id'], "NA")
+            full_notes[mod['id']] = notes.get(mod['id'], "")
+
+    json_file = app.output_dir / f"sub-{participant_id}.json"
+    with json_file.open("w", encoding="utf-8") as f:
+        json.dump({"ratings": full_ratings, "notes": full_notes}, f, ensure_ascii=False, indent=2)
 
 
 def verify_ratings_match(loaded_ratings, expected_ratings):
@@ -397,7 +411,7 @@ class TestSaveAndLoadRatings:
         assert (temp_app.output_dir / f"sub-{participant_id}_ses-02_motor.csv").exists()
         assert (temp_app.output_dir / f"sub-{participant_id}.csv").exists()
         
-        loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id, HTML_WITH_SESSION)
+        loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id)
         verify_ratings_match(loaded_ratings, MOCK_RATINGS_WITH_SESSION)
         verify_notes_match(loaded_notes, MOCK_NOTES_WITH_SESSION)
     
@@ -407,7 +421,7 @@ class TestSaveAndLoadRatings:
         save_ratings_direct(temp_app, participant_id, MOCK_RATINGS_NO_SESSION,
                           MOCK_NOTES_NO_SESSION, HTML_NO_SESSION)
         
-        loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id, HTML_NO_SESSION)
+        loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id)
         verify_ratings_match(loaded_ratings, MOCK_RATINGS_NO_SESSION)
         verify_notes_match(loaded_notes, MOCK_NOTES_NO_SESSION)
     
@@ -415,80 +429,13 @@ class TestSaveAndLoadRatings:
         participant_id = "003"
         save_ratings_direct(temp_app, participant_id, {}, {}, HTML_WITH_SESSION)
         
-        loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id, HTML_WITH_SESSION)
+        loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id)
         assert all(v == "NA" for v in loaded_ratings.values())
     
     def test_load_nonexistent_csv(self, temp_app):
-        ratings, notes = temp_app.load_existing_ratings("999", HTML_WITH_SESSION)
+        ratings, notes = temp_app.load_existing_ratings("999")
         assert ratings == {}
         assert notes == {}
-
-
-class TestCSVColumnMapping:
-    """Test _map_csv_column_to_frontend_id function."""
-    
-    def test_format_session_task_module(self, temp_app):
-        tasks = temp_app.parse_tasks_from_html(HTML_WITH_SESSION)
-        
-        test_cases = [
-            ("ses-01_rest_Align_1_r", "Align_ses-01_run-1"),
-            ("ses-01_rest_Align_2_r", "Align_ses-01_run-2"),
-            ("ses-02_motor_Align_1_r", "Align_ses-02_run-1"),
-            ("ses-01_rest_Final_1_r", "Final_ses-01_run-1"),
-            ("ses-01_rest_BOLD_1_c", "BOLD_ses-01_run-1"),
-        ]
-        
-        for csv_col, expected_id in test_cases:
-            result = temp_app._map_csv_column_to_frontend_id(csv_col, tasks)
-            assert result == expected_id, f"Failed: {csv_col} -> expected {expected_id}, got {result}"
-    
-    def test_format_task_module_no_session(self, temp_app):
-        tasks = temp_app.parse_tasks_from_html(HTML_NO_SESSION)
-        
-        test_cases = [
-            ("localizer_Align_1_r", "Align_run-1"),
-            ("localizer_Align_2_r", "Align_run-2"),
-            ("rest_Align_1_r", "Align_run-3"),
-            ("localizer_Final_1_c", "Final_run-1"),
-            ("rest_BOLD_1_r", "BOLD_run-3"),
-        ]
-        
-        for csv_col, expected_id in test_cases:
-            result = temp_app._map_csv_column_to_frontend_id(csv_col, tasks)
-            assert result == expected_id, f"Failed: {csv_col} -> expected {expected_id}, got {result}"
-    
-    def test_format_legacy(self, temp_app):
-        tasks = temp_app.parse_tasks_from_html(HTML_WITH_SESSION)
-        
-        test_cases = [
-            ("Align_1_r", "Align_ses-01_run-1"),
-            ("BOLD_2_r", "BOLD_ses-01_run-2"),
-            ("Final_1_c", "Final_ses-01_run-1"),
-        ]
-        
-        for csv_col, expected_id in test_cases:
-            result = temp_app._map_csv_column_to_frontend_id(csv_col, tasks)
-            assert result == expected_id, f"Failed: {csv_col} -> expected {expected_id}, got {result}"
-    
-    def test_anatomical_modules_always_run1(self, temp_app):
-        tasks = temp_app.parse_tasks_from_html(HTML_WITH_SESSION)
-        
-        test_cases = [
-            ("ses-01_rest_T1mask_1_r", "T1mask_run-1"),
-            ("ses-01_rest_Norm_1_c", "Norm_run-1"),
-            ("T1mask_1_r", "T1mask_run-1"),
-        ]
-        
-        for csv_col, expected_id in test_cases:
-            result = temp_app._map_csv_column_to_frontend_id(csv_col, tasks)
-            assert result == expected_id
-    
-    def test_invalid_column_returns_none(self, temp_app):
-        tasks = temp_app.parse_tasks_from_html(HTML_WITH_SESSION)
-        
-        for col in ["InvalidModule_1_r", "completely_wrong_format"]:
-            result = temp_app._map_csv_column_to_frontend_id(col, tasks)
-            assert result is None, f"Expected None for invalid column: {col}"
 
 
 class TestEdgeCases:
@@ -503,7 +450,7 @@ class TestEdgeCases:
         }
         
         save_ratings_direct(temp_app, participant_id, anat_ratings, {}, HTML_WITH_SESSION)
-        loaded, _ = temp_app.load_existing_ratings(participant_id, HTML_WITH_SESSION)
+        loaded, _ = temp_app.load_existing_ratings(participant_id)
         
         assert loaded["T1mask_run-1"] == "1"
         assert loaded["Norm_run-1"] == "2"
@@ -517,7 +464,7 @@ class TestEdgeCases:
         }
         
         save_ratings_direct(temp_app, participant_id, partial_ratings, {}, HTML_WITH_SESSION)
-        loaded, _ = temp_app.load_existing_ratings(participant_id, HTML_WITH_SESSION)
+        loaded, _ = temp_app.load_existing_ratings(participant_id)
         
         assert loaded["Align_ses-01_run-1"] == "1"
         assert loaded["Final_ses-01_run-1"] == "2"
@@ -528,7 +475,7 @@ class TestEdgeCases:
         notes = {"Align_ses-01_run-1": "Note without rating"}
         
         save_ratings_direct(temp_app, participant_id, {}, notes, HTML_WITH_SESSION)
-        loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id, HTML_WITH_SESSION)
+        loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id)
         
         assert loaded_notes["Align_ses-01_run-1"] == "Note without rating"
         assert loaded_ratings["Align_ses-01_run-1"] == "NA"
@@ -552,7 +499,7 @@ class TestIntegration:
         
         # Save and load
         save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_WITH_SESSION)
-        loaded_ratings, _ = temp_app.load_existing_ratings(participant_id, HTML_WITH_SESSION)
+        loaded_ratings, _ = temp_app.load_existing_ratings(participant_id)
         
         for key in ratings:
             assert key in loaded_ratings
@@ -565,8 +512,8 @@ class TestIntegration:
         save_ratings_direct(temp_app, "p1", ratings_p1, {}, HTML_WITH_SESSION)
         save_ratings_direct(temp_app, "p2", ratings_p2, {}, HTML_WITH_SESSION)
         
-        loaded_p1, _ = temp_app.load_existing_ratings("p1", HTML_WITH_SESSION)
-        loaded_p2, _ = temp_app.load_existing_ratings("p2", HTML_WITH_SESSION)
+        loaded_p1, _ = temp_app.load_existing_ratings("p1")
+        loaded_p2, _ = temp_app.load_existing_ratings("p2")
         
         assert loaded_p1["T1mask_run-1"] == "1"
         assert loaded_p2["T1mask_run-1"] == "2"

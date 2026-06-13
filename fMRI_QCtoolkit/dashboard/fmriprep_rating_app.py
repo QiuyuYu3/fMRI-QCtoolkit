@@ -2,18 +2,15 @@
 fMRIPrep QC Rating Application
 Combines data processing and web interface for rating fMRIPrep quality control reports.
 
-Most people use JSON files instead of CSV for a reason:
-
-- JSON supports nested structures, making it faster to store and process than CSV.
-- Parsing CSV to map back to the frontend requires substantial extra code.
-- JSON processing is also faster when handling multiple windows (unlikely to open 100 at once?).
-
-Originally, this program outputted CSV, which was suitable for simpler data processing.
-Future versions may refactor this script to output JSON if necessary.
+Reload source vs. export format:
+- A JSON sidecar (sub-{ID}.json) stores ratings/notes keyed by frontend module id and
+  is the single source of truth when reopening a subject.
+- CSV files are still written as an export consumed by the downstream `qc prep` step.
 """
 
 import os
 import csv
+import json
 import re
 import time
 import webbrowser
@@ -22,7 +19,7 @@ import logging
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from markupsafe import Markup
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 from ..utils.port_utils import find_free_port
 
 
@@ -312,113 +309,23 @@ class FMRIPrepRatingApp:
         # self.logger.info(f"Processed HTML: {len(anatomical_mods)} anatomical modules, {len(run_groups)} run groups")
         return html_processed, final_structure
     
-    def load_existing_ratings(self, participant_id: str, html_content: str) -> Tuple[Dict[str, str], Dict[str, str]]:
-        """Load previously saved ratings from combined CSV file (subject level)."""
-        ratings = {}
-        notes = {}
-        
-        combined_csv = self.output_dir / f"sub-{participant_id}.csv"
-        
-        if not combined_csv.exists():
-            self.logger.debug(f"No combined CSV found for sub-{participant_id}")
-            return ratings, notes
-        
-        tasks = self.parse_tasks_from_html(html_content)
-        
-        with combined_csv.open("r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            
-            for row in reader:
-                for col, value in row.items():
-                    if col == "ID":
-                        continue
-                    
-                    frontend_id = self._map_csv_column_to_frontend_id(col, tasks)
-                    
-                    if frontend_id:
-                        if col.endswith('_r'):
-                            ratings[frontend_id] = value or "NA"
-                        elif col.endswith('_c'):
-                            notes[frontend_id] = value or ""
-        
+    def load_existing_ratings(self, participant_id: str) -> Tuple[Dict[str, str], Dict[str, str]]:
+        """Load previously saved ratings from the JSON sidecar (subject level)."""
+        json_file = self.output_dir / f"sub-{participant_id}.json"
+
+        if not json_file.exists():
+            self.logger.debug(f"No JSON ratings found for sub-{participant_id}")
+            return {}, {}
+
+        with json_file.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        ratings = data.get("ratings", {})
+        notes = data.get("notes", {})
+
         self.logger.info(f"Loaded {len(ratings)} ratings for sub-{participant_id}")
         return ratings, notes
-    
-    def _map_csv_column_to_frontend_id(self, col: str, tasks: List[Dict]) -> Optional[str]:
-        """Map CSV column name to frontend module ID."""
-        col_base = col[:-2] if col.endswith(('_r', '_c')) else col
-        
-        # Format 1: ses-XX_taskname_ModuleName_localrun
-        match1 = re.match(r"^ses-(\d+)_(\w+)_(.+?)_(\d+)$", col_base)
-        if match1:
-            csv_session, csv_task, mod_name, local_run_str = match1.groups()
-            local_run = int(local_run_str)
-            
-            task_run_start = 1
-            for task_info in tasks:
-                if task_info['session'] == csv_session and task_info['name'] == csv_task:
-                    break
-                if task_info['session'] == csv_session:
-                    task_run_start += task_info['runs']
-            
-            global_run = task_run_start + local_run - 1
-            
-            if mod_name in self.COMMON_MODULES:
-                return f"{mod_name}_run-1"
-            else:
-                return f"{mod_name}_ses-{csv_session}_run-{global_run}"
-        
-        # Format 2: taskname_ModuleName_localrun (no session)
-        no_session_tasks = [t['name'] for t in tasks if t['session'] is None]
-        for task_name in no_session_tasks:
-            match2 = re.match(f"^{task_name}_([a-zA-Z0-9]+)_(\\d+)$", col_base)
-            if match2:
-                mod_name, local_run_str = match2.groups()
-                local_run = int(local_run_str)
-                
-                all_module_names = list(self.MODULE_MAP.values()) + ["Final"]
-                if mod_name not in all_module_names:
-                    continue
-                
-                task_run_start = 1
-                for task_info in tasks:
-                    if task_info['name'] == task_name and task_info['session'] is None:
-                        break
-                    if task_info['session'] is None:
-                        task_run_start += task_info['runs']
-                
-                global_run = task_run_start + local_run - 1
-                
-                if mod_name in self.COMMON_MODULES:
-                    return f"{mod_name}_run-1"
-                else:
-                    return f"{mod_name}_run-{global_run}"
-        
-        # Format 3: ModuleName_localrun
-        match3 = re.match(r"^([a-zA-Z0-9]+)_(\d+)$", col_base)
-        if match3:
-            mod_name, local_run_str = match3.groups()
-            
-            all_module_names = list(self.MODULE_MAP.values()) + ["Final"]
-            if mod_name not in all_module_names:
-                return None
-            
-            local_run = int(local_run_str)
-            
-            if mod_name in self.COMMON_MODULES:
-                return f"{mod_name}_run-1"
-            else:
-                sessions_in_html = [t.get('session') for t in tasks if t.get('session') is not None]
-                no_session_tasks = [t for t in tasks if t.get('session') is None]
-                
-                if sessions_in_html and not no_session_tasks:
-                    default_session = min(sessions_in_html)
-                    return f"{mod_name}_ses-{default_session}_run-{local_run}"
-                else:
-                    return f"{mod_name}_run-{local_run}"
-        
-        return None
-    
+
     def handle_participant(self, pid: str):
         """Handle participant route."""
         pid_clean = pid.strip().lstrip("sub-")
@@ -431,7 +338,7 @@ class FMRIPrepRatingApp:
         html_content = html_file.read_text(encoding="utf-8")
         
         # Load existing ratings
-        all_ratings, all_notes = self.load_existing_ratings(pid_clean, html_content)
+        all_ratings, all_notes = self.load_existing_ratings(pid_clean)
         
         # Extract navigation
         nav_matches = re.findall(r'(<nav[\s\S]*?</nav>)', html_content, re.IGNORECASE)
@@ -562,7 +469,12 @@ class FMRIPrepRatingApp:
                 writer = csv.DictWriter(f, fieldnames=list(combined_row.keys()))
                 writer.writeheader()
                 writer.writerow(combined_row)
-            
+
+            # Save JSON sidecar as the authoritative reload source
+            json_file = self.output_dir / f"sub-{participant_id}.json"
+            with json_file.open("w", encoding="utf-8") as f:
+                json.dump({"ratings": ratings, "notes": notes}, f, ensure_ascii=False, indent=2)
+
             # self.logger.info(f"Saved ratings for sub-{participant_id}")
             return jsonify({"status": "success"})
             

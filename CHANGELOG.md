@@ -4,6 +4,12 @@
 ### Added
 - "Select All (filtered)" and "Clear" buttons in the dashboard table.
 
+### Changed
+- fMRIPrep rating now reloads from a JSON sidecar; CSV is kept as export only.
+
+### Removed
+- CSV-column reverse-mapping on rating reload.
+
 
 ## [0.10.0-beta.1] - 2025-11-04
 ### Added
