@@ -5,6 +5,10 @@ Plotting utilities for MRI QC dashboards: heatmaps and lollipop charts
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
+import pandas as pd
+
+_LOLLIPOP_COLORS = ['#A6CEE3', '#1F78B4', '#B2DF8A', '#33A02C', '#FB9A99',
+                    '#E31A1C', '#FDBF6F', '#FF7F00', '#CAB2D6', '#6A3D9A']
 
 def create_heatmap(data, variable_labels, title="", 
                    group_by=None, target_width=1200, cell_size=16):
@@ -188,25 +192,26 @@ def create_heatmap(data, variable_labels, title="",
                 row.append("<br>".join(hover_parts))
             hovertext.append(row)
 
-        # Add heatmap trace
+        # Build square-marker grid (discrete colors, no interpolation)
+        marker_size = max(6, cell_size - 4)
+        xs, ys, cell_colors, cell_hover = [], [], [], []
+        for var_idx in range(n_variables):
+            for subj_idx in range(n_subjects):
+                xs.append(subj_idx)
+                ys.append(var_idx)
+                status_num = int(pivot_data_num.iloc[var_idx, subj_idx])
+                cell_colors.append(status_colors.get(status_num, status_colors[0]))
+                cell_hover.append(hovertext[var_idx][subj_idx])
+
         fig.add_trace(
-            go.Heatmap(
-                z=pivot_data_num.values,
-                x=x_coords,
-                y=y_coords,
-                colorscale=[
-                    [0.0, status_colors[0]],   # NA
-                    [0.33, status_colors[1]],  # bad
-                    [0.66, status_colors[2]],  # other
-                    [1.0, status_colors[3]]    # good
-                ],
-                showscale=False,
-                xgap=2,
-                ygap=2,
-                hoverinfo="text",
-                hovertext=hovertext,
-                zmin=0,
-                zmax=3
+            go.Scatter(
+                x=xs, y=ys,
+                mode="markers",
+                marker=dict(symbol="square", size=marker_size,
+                            color=cell_colors, line=dict(width=0)),
+                text=cell_hover,
+                hovertemplate="%{text}<extra></extra>",
+                showlegend=False
             ),
             row=i, col=1
         )
@@ -220,9 +225,10 @@ def create_heatmap(data, variable_labels, title="",
             showline=False,
             showgrid=False,
             zeroline=False,
+            range=[-0.5, n_subjects - 0.5],
             row=i, col=1
         )
-        
+
         fig.update_yaxes(
             tickmode="array",
             tickvals=y_coords,
@@ -230,6 +236,7 @@ def create_heatmap(data, variable_labels, title="",
             showline=False,
             showgrid=False,
             zeroline=False,
+            range=[-0.5, n_variables - 0.5],
             row=i, col=1
         )
 
@@ -248,62 +255,104 @@ def create_heatmap(data, variable_labels, title="",
 
     return fig
 
-def create_lollipop_plot(data):
-    """
-    Create lollipop chart for standardized variables.
-    """
-    fig = go.Figure()
-    
-    colors = ['#A6CEE3', '#1F78B4', '#B2DF8A', '#33A02C', '#FB9A99', 
-              '#E31A1C', '#FDBF6F', '#FF7F00', '#CAB2D6', '#6A3D9A']
-    
-    variables = data['Variable'].unique()
-    
-    for i, var in enumerate(variables):
-        var_data = data[data['Variable'] == var]
-        
-        # Add jitter to x positions
-        x_jittered = var_data['row_number'] + np.random.uniform(-0.15, 0.15, len(var_data))
-        
-        # Add scatter points
+def _lollipop_groups(data, group_by):
+    """Split lollipop data into (title, subset) panels. Falls back to a single panel."""
+    if isinstance(group_by, str):
+        group_by = [group_by]
+    cols = [c for c in (group_by or []) if c in data.columns]
+    if not cols:
+        return [("", data)]
+
+    combos = data[cols].drop_duplicates().sort_values(cols)
+    groups = []
+    for _, combo in combos.iterrows():
+        mask = pd.Series(True, index=data.index)
+        parts = []
+        for c in cols:
+            mask &= data[c] == combo[c]
+            if c == "session":
+                parts.append(f"Session {int(combo[c]):02d}")
+            elif c == "run":
+                parts.append(f"Run {int(combo[c])}")
+            else:
+                parts.append(f"{c} {combo[c]}")
+        groups.append((" - ".join(parts), data[mask]))
+    return groups
+
+
+def _add_lollipop_panel(fig, data, row, show_legend):
+    """Add lollipop markers + stems for one panel, with x ordered within the panel."""
+    d = data.copy()
+    d["ID_int"] = pd.to_numeric(d["ID"], errors="coerce")
+    d = d.sort_values(["Variable", "ID_int"]).reset_index(drop=True)
+    d["x_pos"] = range(1, len(d) + 1)
+
+    for i, var in enumerate(d["Variable"].unique()):
+        color = _LOLLIPOP_COLORS[i % len(_LOLLIPOP_COLORS)]
+        var_data = d[d["Variable"] == var]
+        x_jittered = var_data["x_pos"] + np.random.uniform(-0.15, 0.15, len(var_data))
+
+        # Stems: one trace per variable, segments separated by None
+        stem_x, stem_y = [], []
+        for xj, val in zip(x_jittered, var_data["Value"]):
+            stem_x += [xj, xj, None]
+            stem_y += [0, val, None]
+        fig.add_trace(go.Scatter(
+            x=stem_x,
+            y=stem_y,
+            mode="lines",
+            line=dict(color=color, width=1),
+            legendgroup=var,
+            showlegend=False,
+            hoverinfo="skip"
+        ), row=row, col=1)
+
         fig.add_trace(go.Scatter(
             x=x_jittered,
-            y=var_data['Value'],
-            mode='markers',
-            marker=dict(size=8, color=colors[i % len(colors)]),
+            y=var_data["Value"],
+            mode="markers",
+            marker=dict(size=8, color=color),
             name=var,
+            legendgroup=var,
+            showlegend=show_legend,
             hovertemplate='<b>ID:</b> %{customdata[0]}<br>' +
                          '<b>Value:</b> %{y}<br>' +
                          '<b>Variable:</b> %{customdata[1]}<br>' +
                          '<b>Mean:</b> %{customdata[2]:.4f}<extra></extra>',
-            customdata=var_data[['ID', 'Variable', 'mean_value']].values
-        ))
-        
-        # Add segments from 0 to each point
-        for idx, (_, row) in enumerate(var_data.iterrows()):
-            fig.add_trace(go.Scatter(
-                x=[x_jittered.iloc[idx], x_jittered.iloc[idx]],
-                y=[0, row['Value']],
-                mode='lines',
-                line=dict(color=colors[i % len(colors)], width=1),
-                showlegend=False,
-                hoverinfo='skip'
-            ))
-    
+            customdata=var_data[["ID", "Variable", "mean_value"]].values
+        ), row=row, col=1)
+
+
+def create_lollipop_plot(data, group_by=None):
+    """
+    Create lollipop chart for standardized variables.
+    If group_by columns (e.g. session/run) are present, draw one stacked panel per group.
+    """
+    if data is None or len(data) == 0:
+        return go.Figure()
+
+    groups = _lollipop_groups(data, group_by)
+    n = len(groups)
+
+    fig = make_subplots(
+        rows=n, cols=1,
+        subplot_titles=[title for title, _ in groups],
+        vertical_spacing=(0.15 / (n - 1)) if n > 1 else 0.15
+    )
+
+    for i, (_, group_subset) in enumerate(groups, start=1):
+        _add_lollipop_panel(fig, group_subset, row=i, show_legend=(i == 1))
+        fig.update_xaxes(title_text="Variables", showgrid=True, zeroline=True, row=i, col=1)
+        fig.update_yaxes(title_text="Standardized Value", showgrid=True,
+                         zeroline=True, zerolinewidth=2, row=i, col=1)
+
     fig.update_layout(
         title="",
-        xaxis_title="Variables",
-        yaxis_title="Standardized Value",
-        height=600,
-        hovermode='closest',
-        template='plotly_white',
+        height=max(400, 380 * n),
+        hovermode="closest",
+        template="plotly_white",
         margin=dict(t=60, b=60, l=60, r=60),
-        xaxis=dict(showgrid=True, zeroline=True),
-        yaxis=dict(showgrid=True, zeroline=True, zerolinewidth=2),
-        hoverlabel=dict(
-            bgcolor="rgb(40, 40, 40)",
-            font=dict(size=10, color="white")
-        )
+        hoverlabel=dict(bgcolor="rgb(40, 40, 40)", font=dict(size=10, color="white"))
     )
 
     return fig

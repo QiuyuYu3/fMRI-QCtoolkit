@@ -184,10 +184,16 @@ class BaseDashboard(ABC):
                                     html.H4("Quality Control Heatmaps"),
                                     html.Div([
                                         html.H5("Quantitative Metrics"),
-                                        dcc.Graph(id='quantitative-heatmap'),
-                                        
+                                        html.Div(
+                                            dcc.Graph(id='quantitative-heatmap'),
+                                            style={'overflowX': 'auto', 'width': '100%'}
+                                        ),
+
                                         html.H5("Qualitative Ratings"),
-                                        dcc.Graph(id='qualitative-heatmap')
+                                        html.Div(
+                                            dcc.Graph(id='qualitative-heatmap'),
+                                            style={'overflowX': 'auto', 'width': '100%'}
+                                        )
                                     ])
                                 ], style={
                                     'background-color': '#f8f9fa',
@@ -228,7 +234,8 @@ class BaseDashboard(ABC):
             [Input('lollipop-chart', 'id')]
         )
         def initialize_lollipop_chart(chart_id):
-            return create_lollipop_plot(self.processor.lollipop_chart_data)
+            group_by = self.config.get("heatmap_settings", {}).get("group_by")
+            return create_lollipop_plot(self.processor.lollipop_chart_data, group_by=group_by)
     
     def _get_extended_vars(self):
         """Safely extend the variable list to include new variables from the configuration file."""

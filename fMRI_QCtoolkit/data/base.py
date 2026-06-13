@@ -64,11 +64,12 @@ class BaseDataProcessor(ABC):
             if var in scaled_data.columns and std_values[var] != 0:
                 scaled_data[var] = (scaled_data[var] - mean_values[var]) / std_values[var]
         
-        # Pivot to long format for visualization
+        # Pivot to long format for visualization (keep session/run for grouping)
+        id_vars = ["ID"] + [c for c in ("session", "run") if c in scaled_data.columns]
         lollipop_data = scaled_data.melt(
-            id_vars=["ID"], 
+            id_vars=id_vars,
             value_vars=vars_of_interest,
-            var_name="Variable", 
+            var_name="Variable",
             value_name="Value"
         )
         

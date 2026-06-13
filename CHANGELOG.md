@@ -1,11 +1,14 @@
 # Change Log
 
-## [Unreleased]
+## [0.11.0] - 2026-06-12
 ### Added
 - "Select All (filtered)" and "Clear" buttons in the dashboard table.
+- Horizontal scroll for the heatmap when there are many subjects.
 
 ### Changed
 - fMRIPrep rating now reloads from a JSON sidecar; CSV is kept as export only.
+- Heatmap redrawn as a discrete square-marker grid.
+- Lollipop chart split into stacked panels by session and run.
 
 ### Removed
 - CSV-column reverse-mapping on rating reload.
