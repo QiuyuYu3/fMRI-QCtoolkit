@@ -103,6 +103,33 @@ class BaseDashboard(ABC):
                                     )
                                 ], style={'margin-bottom': '10px', 'display': 'flex', 'align-items': 'center'}),
                                 
+                                # Selection toolbar
+                                html.Div([
+                                    html.Button("Select All (filtered)",
+                                              id="select-all-button",
+                                              n_clicks=0,
+                                              style={
+                                                  'background-color': '#6c757d',
+                                                  'color': 'white',
+                                                  'border': 'none',
+                                                  'padding': '6px 12px',
+                                                  'border-radius': '4px',
+                                                  'cursor': 'pointer',
+                                                  'margin-right': '8px'
+                                              }),
+                                    html.Button("Clear",
+                                              id="clear-selection-button",
+                                              n_clicks=0,
+                                              style={
+                                                  'background-color': '#6c757d',
+                                                  'color': 'white',
+                                                  'border': 'none',
+                                                  'padding': '6px 12px',
+                                                  'border-radius': '4px',
+                                                  'cursor': 'pointer'
+                                              })
+                                ], style={'margin-bottom': '10px'}),
+
                                 # Data table
                                 dash_table.DataTable(
                                     id='datatable',
@@ -237,8 +264,11 @@ class BaseDashboard(ABC):
         na_inputs = [Input(f"{var}_na", "value") for var in available_vars]
         dropdown_inputs = [Input(f"{group}_dropdown", "value") for group in self.processor.checkbox_groups]
         
-        all_inputs = slider_inputs + na_inputs + dropdown_inputs
-        
+        all_inputs = slider_inputs + na_inputs + dropdown_inputs + [
+            Input('select-all-button', 'n_clicks'),
+            Input('clear-selection-button', 'n_clicks')
+        ]
+
         @self.app.callback(
             [
                 Output('datatable', 'data'),
@@ -261,8 +291,9 @@ class BaseDashboard(ABC):
             
             range_vals = args[:num_numeric_vars]
             include_na_flags = args[num_numeric_vars:2*num_numeric_vars]
-            categorical_values = args[categorical_start_index:-2]
-            
+            # Trailing args: select-all click, clear click, then two States
+            categorical_values = args[categorical_start_index:-4]
+
             prev_selected_rows = args[-2]
             prev_filtered_data = args[-1]
 
@@ -365,18 +396,26 @@ class BaseDashboard(ABC):
             qual_df = pd.DataFrame(qual_data)
             qual_fig = create_heatmap(qual_df, qual_labels, group_by=group_by)
             
-            selected_ids = []
-            if prev_selected_rows and prev_filtered_data:
-                try:
-                    prev_df = pd.DataFrame(prev_filtered_data)
-                    selected_ids = prev_df.iloc[prev_selected_rows]['ID'].tolist()
-                except Exception as e:
-                    print("Failed to extract previous selected IDs:", e)
+            triggered = dash.callback_context.triggered
+            trigger_id = triggered[0]['prop_id'].split('.')[0] if triggered else None
 
-            new_selected_rows = []
-            if selected_ids:
-                id_to_index = {row['ID']: i for i, row in df.reset_index().iterrows()}
-                new_selected_rows = [id_to_index[id_] for id_ in selected_ids if id_ in id_to_index]
+            if trigger_id == 'select-all-button':
+                new_selected_rows = list(range(len(df)))
+            elif trigger_id == 'clear-selection-button':
+                new_selected_rows = []
+            else:
+                selected_ids = []
+                if prev_selected_rows and prev_filtered_data:
+                    try:
+                        prev_df = pd.DataFrame(prev_filtered_data)
+                        selected_ids = prev_df.iloc[prev_selected_rows]['ID'].tolist()
+                    except Exception as e:
+                        print("Failed to extract previous selected IDs:", e)
+
+                new_selected_rows = []
+                if selected_ids:
+                    id_to_index = {row['ID']: i for i, row in df.reset_index().iterrows()}
+                    new_selected_rows = [id_to_index[id_] for id_ in selected_ids if id_ in id_to_index]
 
             return (
                 df.to_dict('records'),

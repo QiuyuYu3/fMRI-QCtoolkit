@@ -1,5 +1,10 @@
 # Change Log
 
+## [Unreleased]
+### Added
+- "Select All (filtered)" and "Clear" buttons in the dashboard table.
+
+
 ## [0.10.0-beta.1] - 2025-11-04
 ### Added
 - Added a test script for fMRIPrep rating.
