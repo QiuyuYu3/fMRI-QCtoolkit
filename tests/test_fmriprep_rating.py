@@ -151,6 +151,151 @@ HTML_DIV_NO_RUN_MULTITASK = """
 </body></html>
 """
 
+# Two tasks in one session, both carrying BIDS run numbers in the div id.
+# Mirrors real fMRIPrep output: the "Reports for:" h2 sits inside the group's
+# first reportlet div (desc-summary, which has no run-title), modules follow in
+# their own divs. Tasks are ordered alphabetically, as nireports emits them.
+HTML_MULTITASK_WITH_RUNS = """
+<!DOCTYPE html>
+<html><body>
+
+<div id="datatype-figures_subject-test_suffix-dseg">
+<h3 class="run-title">Brain mask and brain tissue segmentation of the T1w</h3>
+</div>
+
+<div id="datatype-figures_desc-summary_run-1_session-01_subject-test_suffix-bold_task-nback">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">nback</span>, run <span class="bids-entity">1</span>.</h2>
+</div>
+<div id="datatype-figures_desc-sdc_run-1_session-01_subject-test_suffix-bold_task-nback">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+<div id="datatype-figures_desc-coreg_run-1_session-01_subject-test_suffix-bold_task-nback">
+<h3 class="run-title">Alignment of functional and anatomical MRI data (coregistration)</h3>
+</div>
+
+<div id="datatype-figures_desc-summary_run-2_session-01_subject-test_suffix-bold_task-nback">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">nback</span>, run <span class="bids-entity">2</span>.</h2>
+</div>
+<div id="datatype-figures_desc-sdc_run-2_session-01_subject-test_suffix-bold_task-nback">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+<div id="datatype-figures_desc-coreg_run-2_session-01_subject-test_suffix-bold_task-nback">
+<h3 class="run-title">Alignment of functional and anatomical MRI data (coregistration)</h3>
+</div>
+
+<div id="datatype-figures_desc-summary_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>, run <span class="bids-entity">1</span>.</h2>
+</div>
+<div id="datatype-figures_desc-sdc_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+<div id="datatype-figures_desc-coreg_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Alignment of functional and anatomical MRI data (coregistration)</h3>
+</div>
+
+<div id="datatype-figures_desc-summary_run-2_session-01_subject-test_suffix-bold_task-rest">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>, run <span class="bids-entity">2</span>.</h2>
+</div>
+<div id="datatype-figures_desc-sdc_run-2_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+<div id="datatype-figures_desc-coreg_run-2_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Alignment of functional and anatomical MRI data (coregistration)</h3>
+</div>
+
+</body></html>
+"""
+
+# Two acquisitions of one task, each with two runs. `acquisition` sits between
+# task and run in the heading, and sorts ahead of `datatype` in the div id --
+# both taken from a real fMRIPrep 25.2.5 report (OpenNeuro ds027).
+HTML_ACQ_BETWEEN_TASK_AND_RUN = """
+<!DOCTYPE html>
+<html><body>
+
+<div id="datatype-figures_subject-test_suffix-dseg">
+<h3 class="run-title">Brain mask and brain tissue segmentation of the T1w</h3>
+</div>
+
+<div id="acquisition-seq_datatype-figures_desc-summary_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>, acquisition <span class="bids-entity">seq</span>, run <span class="bids-entity">1</span>.</h2>
+</div>
+<div id="acquisition-seq_datatype-figures_desc-sdc_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+
+<div id="acquisition-seq_datatype-figures_desc-summary_run-2_session-01_subject-test_suffix-bold_task-rest">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>, acquisition <span class="bids-entity">seq</span>, run <span class="bids-entity">2</span>.</h2>
+</div>
+<div id="acquisition-seq_datatype-figures_desc-sdc_run-2_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+
+<div id="acquisition-mb_datatype-figures_desc-summary_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>, acquisition <span class="bids-entity">mb</span>, run <span class="bids-entity">1</span>.</h2>
+</div>
+<div id="acquisition-mb_datatype-figures_desc-sdc_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+
+<div id="acquisition-mb_datatype-figures_desc-summary_run-2_session-01_subject-test_suffix-bold_task-rest">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>, acquisition <span class="bids-entity">mb</span>, run <span class="bids-entity">2</span>.</h2>
+</div>
+<div id="acquisition-mb_datatype-figures_desc-sdc_run-2_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+
+</body></html>
+"""
+
+# Fieldmap groups carry session/run/fmapid but no task, and must not become tasks.
+HTML_FIELDMAP_GROUPS = """
+<!DOCTYPE html>
+<html><body>
+
+<div id="datatype-figures_desc-anat_fmapid-auto00002_run-1_session-01_subject-test_suffix-fieldmap">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, run <span class="bids-entity">1</span>, fmapid <span class="bids-entity">auto00002</span>.</h2>
+<h3 class="run-title">Preprocessed estimation by nonlinear registration to an anatomical scan</h3>
+</div>
+
+<div id="datatype-figures_desc-summary_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>, run <span class="bids-entity">1</span>.</h2>
+</div>
+<div id="datatype-figures_desc-sdc_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+
+</body></html>
+"""
+
+# One task whose BIDS run labels are not contiguous (run-1 and run-3). The labels
+# must survive into the module ids and CSV columns so `qc prep` can join them
+# against the run numbers in MRIQC's group_bold.tsv.
+HTML_GAPPED_RUNS = """
+<!DOCTYPE html>
+<html><body>
+
+<div id="datatype-figures_subject-test_suffix-dseg">
+<h3 class="run-title">Brain mask and brain tissue segmentation of the T1w</h3>
+</div>
+
+<div id="datatype-figures_desc-summary_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>, run <span class="bids-entity">1</span>.</h2>
+</div>
+<div id="datatype-figures_desc-sdc_run-1_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+
+<div id="datatype-figures_desc-summary_run-3_session-01_subject-test_suffix-bold_task-rest">
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>, run <span class="bids-entity">3</span>.</h2>
+</div>
+<div id="datatype-figures_desc-sdc_run-3_session-01_subject-test_suffix-bold_task-rest">
+<h3 class="run-title">Susceptibility distortion correction</h3>
+</div>
+
+</body></html>
+"""
+
 # ============================================================================
 # Mock Rating Data
 # ============================================================================
@@ -176,20 +321,20 @@ MOCK_NOTES_WITH_SESSION = {
 
 MOCK_RATINGS_NO_SESSION = {
     "T1mask_run-1": "1",
-    "Align_run-1": "2",
-    "BOLD_run-1": "1",
-    "Final_run-1": "2",
-    "Align_run-2": "1",
-    "BOLD_run-2": "2",
-    "Final_run-2": "1",
-    "Align_run-3": "1",
-    "BOLD_run-3": "1",
-    "Final_run-3": "2",
+    "Align_task-localizer_run-1": "2",
+    "BOLD_task-localizer_run-1": "1",
+    "Final_task-localizer_run-1": "2",
+    "Align_task-localizer_run-2": "1",
+    "BOLD_task-localizer_run-2": "2",
+    "Final_task-localizer_run-2": "1",
+    "Align_task-rest_run-1": "1",
+    "BOLD_task-rest_run-1": "1",
+    "Final_task-rest_run-1": "2",
 }
 
 MOCK_NOTES_NO_SESSION = {
-    "Align_run-1": "First run looks good",
-    "BOLD_run-3": "Last run has motion",
+    "Align_task-localizer_run-1": "First run looks good",
+    "BOLD_task-rest_run-1": "Last run has motion",
 }
 
 
@@ -226,73 +371,47 @@ def temp_app_debug():
 # ============================================================================
 
 def save_ratings_direct(app, participant_id, ratings, notes, html_content):
-    """Direct save method for testing (bypasses Flask)."""
+    """Direct save method for testing (bypasses Flask); mirrors FMRIPrepRatingApp.save_ratings."""
     tasks = app.parse_tasks_from_html(html_content)
-    
+
     if not tasks:
         raise ValueError("No tasks found")
-    
-    tasks_by_session = {}
+
+    all_combined_data = {}
+
     for task_info in tasks:
         session = task_info['session']
-        if session not in tasks_by_session:
-            tasks_by_session[session] = []
-        tasks_by_session[session].append(task_info)
-    
-    all_combined_data = {}
-    
-    for session in sorted(tasks_by_session.keys(), key=lambda x: (x is None, x or '')):
-        session_tasks = tasks_by_session[session]
-        session_run_counter = 1
-        
-        for task_info in session_tasks:
-            task_name = task_info['name']
-            task_runs = task_info['runs']
-            
-            row_data = {"ID": participant_id}
-            
-            for mod in app.COMMON_MODULES:
-                frontend_key = f"{mod}_run-1"
-                row_data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
-                row_data[f"{mod}_1_c"] = notes.get(frontend_key, "")
-            
-            for local_run in range(1, task_runs + 1):
-                global_run = session_run_counter + local_run - 1
-                
-                for mod in app.FUNCTIONAL_MODULES:
-                    if session is None:
-                        frontend_key = f"{mod}_run-{global_run}"
-                    else:
-                        frontend_key = f"{mod}_ses-{session}_run-{global_run}"
-                    
-                    row_data[f"{mod}_{local_run}_r"] = ratings.get(frontend_key, "NA")
-                    row_data[f"{mod}_{local_run}_c"] = notes.get(frontend_key, "")
-                
-                if session is None:
-                    final_key = f"Final_run-{global_run}"
-                else:
-                    final_key = f"Final_ses-{session}_run-{global_run}"
-                
-                row_data[f"Final_{local_run}_r"] = ratings.get(final_key, "NA")
-                row_data[f"Final_{local_run}_c"] = notes.get(final_key, "")
-            
-            if session is None:
-                csv_file = app.output_dir / f"sub-{participant_id}_{task_name}.csv"
-                csv_prefix = task_name
-            else:
-                csv_file = app.output_dir / f"sub-{participant_id}_ses-{session}_{task_name}.csv"
-                csv_prefix = f"ses-{session}_{task_name}"
-            
-            with csv_file.open("w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=list(row_data.keys()))
-                writer.writeheader()
-                writer.writerow(row_data)
-            
-            for key, value in row_data.items():
-                if key != "ID":
-                    all_combined_data[f"{csv_prefix}_{key}"] = value
-            
-            session_run_counter += task_runs
+        task_name = task_info['name']
+
+        row_data = {"ID": participant_id}
+
+        for mod in app.COMMON_MODULES:
+            frontend_key = f"{mod}_run-1"
+            row_data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
+            row_data[f"{mod}_1_c"] = notes.get(frontend_key, "")
+
+        for run_label, suffix in zip(task_info['runs'], task_info['suffixes']):
+            for mod in app.FUNCTIONAL_MODULES + ["Final"]:
+                frontend_key = f"{mod}{suffix}"
+                row_data[f"{mod}_{run_label}_r"] = ratings.get(frontend_key, "NA")
+                row_data[f"{mod}_{run_label}_c"] = notes.get(frontend_key, "")
+
+        name_parts = []
+        if session is not None:
+            name_parts.append(f"ses-{session}")
+        name_parts.append(task_name)
+        name_parts += [f"{k}-{v}" for k, v in task_info['extras'].items()]
+        csv_prefix = "_".join(name_parts)
+        csv_file = app.output_dir / f"sub-{participant_id}_{csv_prefix}.csv"
+
+        with csv_file.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(row_data.keys()))
+            writer.writeheader()
+            writer.writerow(row_data)
+
+        for key, value in row_data.items():
+            if key != "ID":
+                all_combined_data[f"{csv_prefix}_{key}"] = value
     
     combined_csv = app.output_dir / f"sub-{participant_id}.csv"
     combined_row = {"ID": participant_id, **all_combined_data}
@@ -340,20 +459,20 @@ class TestParseTasksFromHTML:
     def test_session_with_multiple_runs(self, temp_app):
         tasks = temp_app.parse_tasks_from_html(HTML_WITH_SESSION)
         assert len(tasks) == 2
-        assert tasks[0] == {'name': 'rest', 'runs': 2, 'session': '01'}
-        assert tasks[1] == {'name': 'motor', 'runs': 1, 'session': '02'}
+        assert (tasks[0]['name'], tasks[0]['session'], tasks[0]['runs']) == ('rest', '01', ['1', '2'])
+        assert (tasks[1]['name'], tasks[1]['session'], tasks[1]['runs']) == ('motor', '02', ['1'])
     
     def test_no_session_with_runs(self, temp_app):
         tasks = temp_app.parse_tasks_from_html(HTML_NO_SESSION)
         assert len(tasks) == 2
-        assert tasks[0] == {'name': 'localizer', 'runs': 2, 'session': None}
-        assert tasks[1] == {'name': 'rest', 'runs': 1, 'session': None}
+        assert (tasks[0]['name'], tasks[0]['session'], tasks[0]['runs']) == ('localizer', None, ['1', '2'])
+        assert (tasks[1]['name'], tasks[1]['session'], tasks[1]['runs']) == ('rest', None, ['1'])
     
     def test_mixed_sessions(self, temp_app):
         tasks = temp_app.parse_tasks_from_html(HTML_MIXED)
         assert len(tasks) == 2
-        assert tasks[0] == {'name': 'rest', 'runs': 1, 'session': '01'}
-        assert tasks[1] == {'name': 'localizer', 'runs': 1, 'session': None}
+        assert (tasks[0]['name'], tasks[0]['session'], tasks[0]['runs']) == ('rest', '01', ['1'])
+        assert (tasks[1]['name'], tasks[1]['session'], tasks[1]['runs']) == ('localizer', None, ['1'])
     
     def test_empty_html(self, temp_app):
         tasks = temp_app.parse_tasks_from_html("")
@@ -384,8 +503,8 @@ class TestProcessHTMLModules:
         
         all_ids = [m['id'] for group in modules for m in group]
         expected_ids = [
-            'Align_run-1', 'Align_run-2', 'Align_run-3',
-            'Final_run-1', 'Final_run-2', 'Final_run-3'
+            'Align_task-localizer_run-1', 'Align_task-localizer_run-2', 'Align_task-rest_run-1',
+            'Final_task-localizer_run-1', 'Final_task-localizer_run-2', 'Final_task-rest_run-1'
         ]
         assert all(id in all_ids for id in expected_ids)
     
@@ -541,13 +660,9 @@ class TestProcessHTMLModulesWithDivIds:
         _, modules = temp_app.process_html_modules(HTML_DIV_NO_RUN_MULTITASK)
         all_ids = [m['id'] for group in modules for m in group]
 
-        assert 'SDC_ses-01_run-1' in all_ids
-        assert 'SDC_ses-01_run-2' in all_ids
-        assert 'SDC_ses-01_run-3' in all_ids
-
-        assert 'CompCor_ses-01_run-1' in all_ids
-        assert 'CompCor_ses-01_run-2' in all_ids
-        assert 'CompCor_ses-01_run-3' in all_ids
+        for task in ('MID1', 'MID2', 'rest'):
+            assert f'SDC_ses-01_task-{task}_run-1' in all_ids
+            assert f'CompCor_ses-01_task-{task}_run-1' in all_ids
 
         sdc_ids = [id_ for id_ in all_ids if id_.startswith('SDC_ses-01')]
         assert len(sdc_ids) == 3
@@ -560,3 +675,127 @@ class TestProcessHTMLModulesWithDivIds:
 
         group_runs = sorted([g[0]['run'] for g in functional_groups])
         assert group_runs == [1, 2]
+
+class TestMultiTaskWithBIDSRuns:
+    """Two tasks in one session, both with BIDS run numbers.
+
+    Regression guard: the task has to appear in the module id, or the two tasks
+    collide on the same ids and the second one's ratings never reach its CSV.
+    """
+
+    def test_module_ids_are_unique(self, temp_app):
+        _, modules = temp_app.process_html_modules(HTML_MULTITASK_WITH_RUNS)
+        all_ids = [m['id'] for group in modules for m in group]
+        duplicates = sorted({i for i in all_ids if all_ids.count(i) > 1})
+
+        assert not duplicates, f"colliding ids: {duplicates}"
+
+    def test_every_save_key_exists_in_frontend(self, temp_app):
+        _, modules = temp_app.process_html_modules(HTML_MULTITASK_WITH_RUNS)
+        all_ids = {m['id'] for group in modules for m in group}
+
+        missing = [
+            f"SDC{suffix}"
+            for task_info in temp_app.parse_tasks_from_html(HTML_MULTITASK_WITH_RUNS)
+            for suffix in task_info['suffixes']
+            if f"SDC{suffix}" not in all_ids
+        ]
+
+        assert not missing, f"save_ratings looks up keys the frontend never created: {missing}"
+
+    def test_both_tasks_keep_their_ratings(self, temp_app):
+        participant_id = "900"
+        _, modules = temp_app.process_html_modules(HTML_MULTITASK_WITH_RUNS)
+
+        # Rate every module the frontend actually renders
+        ratings = {m['id']: "1" for group in modules for m in group}
+
+        save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_MULTITASK_WITH_RUNS)
+
+        for task in ("rest", "nback"):
+            csv_file = temp_app.output_dir / f"sub-{participant_id}_ses-01_{task}.csv"
+            assert csv_file.exists(), f"{task} CSV was not written"
+
+            with csv_file.open(newline="", encoding="utf-8") as f:
+                row = next(csv.DictReader(f))
+
+            na_cols = sorted(c for c, v in row.items() if c.endswith("_r") and v == "NA")
+            assert not na_cols, f"{task} lost these ratings: {na_cols}"
+
+
+class TestExtraEntitiesBetweenTaskAndRun:
+    """Entities other than session/task/run in the heading and the div id."""
+
+    def test_each_acquisition_becomes_its_own_unit(self, temp_app):
+        tasks = temp_app.parse_tasks_from_html(HTML_ACQ_BETWEEN_TASK_AND_RUN)
+
+        assert [(t['name'], t['extras'], t['runs']) for t in tasks] == [
+            ('rest', {'acq': 'seq'}, ['1', '2']),
+            ('rest', {'acq': 'mb'}, ['1', '2']),
+        ]
+
+    def test_acquisitions_get_distinct_ids(self, temp_app):
+        _, modules = temp_app.process_html_modules(HTML_ACQ_BETWEEN_TASK_AND_RUN)
+        sdc_ids = [m['id'] for group in modules for m in group if m['id'].startswith('SDC_')]
+
+        assert sdc_ids == ['SDC_ses-01_acq-seq_run-1', 'SDC_ses-01_acq-seq_run-2',
+                           'SDC_ses-01_acq-mb_run-1', 'SDC_ses-01_acq-mb_run-2']
+
+    def test_each_acquisition_gets_its_own_csv(self, temp_app):
+        participant_id = "901"
+        _, modules = temp_app.process_html_modules(HTML_ACQ_BETWEEN_TASK_AND_RUN)
+        ratings = {m['id']: "1" for group in modules for m in group}
+
+        save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_ACQ_BETWEEN_TASK_AND_RUN)
+
+        for acq in ("seq", "mb"):
+            csv_file = temp_app.output_dir / f"sub-{participant_id}_ses-01_rest_acq-{acq}.csv"
+            assert csv_file.exists(), f"acq-{acq} CSV was not written"
+
+            with csv_file.open(newline="", encoding="utf-8") as f:
+                row = next(csv.DictReader(f))
+
+            assert [row["SDC_1_r"], row["SDC_2_r"]] == ["1", "1"]
+
+
+class TestFieldmapGroups:
+    """Fieldmap headings have no task and must not be mistaken for one."""
+
+    def test_fieldmap_group_is_not_a_task(self, temp_app):
+        tasks = temp_app.parse_tasks_from_html(HTML_FIELDMAP_GROUPS)
+
+        assert len(tasks) == 1
+        assert (tasks[0]['name'], tasks[0]['session'], tasks[0]['runs']) == ('rest', '01', ['1'])
+
+    def test_fieldmap_group_does_not_shift_run_numbers(self, temp_app):
+        _, modules = temp_app.process_html_modules(HTML_FIELDMAP_GROUPS)
+        all_ids = [m['id'] for group in modules for m in group]
+
+        assert 'SDC_ses-01_run-1' in all_ids
+
+
+class TestRunNumbersFollowBIDS:
+    """The run number in an id and in a CSV column is the BIDS run label."""
+
+    def test_gapped_runs_keep_their_labels(self, temp_app):
+        tasks = temp_app.parse_tasks_from_html(HTML_GAPPED_RUNS)
+        assert tasks[0]['runs'] == ['1', '3']
+
+        _, modules = temp_app.process_html_modules(HTML_GAPPED_RUNS)
+        sdc_ids = [m['id'] for group in modules for m in group if m['id'].startswith('SDC_')]
+        assert sdc_ids == ['SDC_ses-01_run-1', 'SDC_ses-01_run-3']
+
+    def test_gapped_runs_land_in_matching_csv_columns(self, temp_app):
+        participant_id = "902"
+        _, modules = temp_app.process_html_modules(HTML_GAPPED_RUNS)
+        ratings = {m['id']: "1" for group in modules for m in group}
+
+        save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_GAPPED_RUNS)
+
+        csv_file = temp_app.output_dir / f"sub-{participant_id}_ses-01_rest.csv"
+        with csv_file.open(newline="", encoding="utf-8") as f:
+            row = next(csv.DictReader(f))
+
+        assert row["SDC_1_r"] == "1"
+        assert row["SDC_3_r"] == "1"
+        assert "SDC_2_r" not in row

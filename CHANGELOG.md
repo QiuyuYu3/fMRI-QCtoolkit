@@ -1,5 +1,28 @@
 # Change Log
 
+## [Unreleased]
+### Fixed
+- fMRIPrep rating: module ids now name the task (and any acquisition / direction / echo that
+  varies inside a task) whenever a session holds more than one report group of the same shape.
+  Two tasks in one session that both carried BIDS run numbers used to collide on the same ids,
+  and the second task's ratings were written to its CSV as `NA`.
+- fMRIPrep rating: `Reports for:` headings are parsed generically, so entities between task and
+  run (`acquisition`, `ceagent`, `reconstruction`, `direction`, `echo`) no longer merge separate
+  report groups into one. Each value gets its own CSV, e.g. `sub-001_ses-01_rest_acq-seq.csv`.
+- fMRIPrep rating: reportlet div ids are no longer parsed. They are ordered alphabetically by
+  entity name, so ids beginning with `acquisition-` were never matched.
+- fMRIPrep rating: fieldmap report groups, which carry no task, are skipped instead of
+  consuming a run number.
+
+### Changed
+- `parse_tasks_from_html` returns one entry per output CSV, with `runs` holding the BIDS run
+  labels of that unit rather than a run count.
+
+### Notes
+- Anatomical modules (T1mask / Norm / SurfRecon) may show multiple figures under one rating
+  widget when a subject's `figures/` directory holds output from more than one fMRIPrep run.
+
+
 ## [0.11.0] - 2026-06-12
 ### Added
 - "Select All (filtered)" and "Clear" buttons in the dashboard table.

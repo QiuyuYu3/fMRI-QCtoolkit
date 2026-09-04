@@ -39,8 +39,25 @@ class FMRIPrepRatingApp:
         "Correlations among nuisance regressors": "Corr",
     }
     
+    # One rating per module; an anatomical <h3> may cover several figures (see README)
     COMMON_MODULES = ["T1mask", "Norm", "SurfRecon"]
     FUNCTIONAL_MODULES = ["SDC", "Align", "CompCor", "Variance", "BOLD", "Corr"]
+
+    # nireports renders group headings as `<h2>Reports for: {entity} <span>{value}</span>, ...</h2>`
+    # and repeats them as navbar `<a>` links. Entities vary: session, task, acquisition,
+    # ceagent, reconstruction, direction, run, echo -- and fmapid for fieldmap groups.
+    GROUP_HEADING_PATTERN = re.compile(r'Reports for:(.*?)</(?:h2|a)>', re.DOTALL)
+    GROUP_ENTITY_PATTERN = re.compile(r'([A-Za-z]+)\s*<span[^>]*>([^<]*)</span>')
+
+    # session/task/run shape the module id directly; anything else only earns a place
+    # in the id when it takes more than one value inside the same (session, task).
+    GROUP_FIXED_ENTITIES = ('session', 'task', 'run')
+    ENTITY_ABBREV = {
+        'acquisition': 'acq',
+        'ceagent': 'ce',
+        'reconstruction': 'rec',
+        'direction': 'dir',
+    }
     
     def __init__(self, data_dir, output_dir, subjects=None, debug=False):
         self.data_dir = Path(data_dir)
@@ -78,93 +95,118 @@ class FMRIPrepRatingApp:
         def save_ratings():
             return self.save_ratings()
     
+    def _group_entities(self, segment: str) -> Dict[str, str]:
+        """BIDS entities of one "Reports for:" heading, keyed by entity name."""
+        found = self.GROUP_ENTITY_PATTERN.findall(segment)
+        return {k: v.strip() for k, v in found if v.strip() and v.strip() != 'None'}
+
+    def _report_groups(self, html_content: str) -> List[Dict[str, str]]:
+        """Functional report groups in document order; fieldmap groups carry no task and are skipped."""
+        groups = []
+        seen = set()
+        for match in self.GROUP_HEADING_PATTERN.finditer(html_content):
+            entities = self._group_entities(match.group(1))
+            if 'task' not in entities:
+                continue
+            # The same heading is emitted twice: once in the navbar, once in the body
+            identity = tuple(sorted(entities.items()))
+            if identity in seen:
+                continue
+            seen.add(identity)
+            groups.append(entities)
+        return groups
+
+    def _label_groups(self, groups: List[Dict[str, str]]) -> List[Dict]:
+        """Give every group an id suffix, naming only the entities needed to keep it unique."""
+        tasks_per_session = {}
+        extra_values = {}
+        for entities in groups:
+            unit = (entities.get('session'), entities['task'])
+            tasks_per_session.setdefault(unit[0], set()).add(unit[1])
+            for key, value in entities.items():
+                if key not in self.GROUP_FIXED_ENTITIES:
+                    extra_values.setdefault((unit, key), set()).add(value)
+
+        labelled = []
+        sequence = {}
+        for entities in groups:
+            session = entities.get('session')
+            task = entities['task']
+            unit = (session, task)
+            extras = {
+                self.ENTITY_ABBREV.get(key, key): value
+                for key, value in sorted(entities.items())
+                if key not in self.GROUP_FIXED_ENTITIES and len(extra_values[(unit, key)]) > 1
+            }
+
+            unit_key = (session, task, tuple(extras.items()))
+            run = entities.get('run')
+            if run is None:
+                sequence[unit_key] = sequence.get(unit_key, 0) + 1
+                run = str(sequence[unit_key])
+
+            suffix = f'_ses-{session}' if session is not None else ''
+            display = f's{session} ' if session is not None else ''
+            if len(tasks_per_session[session]) > 1:
+                suffix += f'_task-{task}'
+                display += f'{task} '
+            for key, value in extras.items():
+                suffix += f'_{key}-{value}'
+                display += f'{value} '
+            suffix += f'_run-{run}'
+            display += f'r{run}'
+
+            labelled.append({
+                'identity': tuple(sorted(entities.items())),
+                'session': session,
+                'task': task,
+                'extras': extras,
+                'run': run,
+                'suffix': suffix,
+                'display': display,
+            })
+        return labelled
+
     def parse_tasks_from_html(self, html_content: str) -> List[Dict[str, any]]:
-        """
-        By extracting the field beginning with “Reports for:” from the HTML file, locate the session and run numbers. 
-        It is possible that both exist, both are missing, or only one is present.
-        
-        Handles four cases:
-        1. "Reports for: session XX, task YY, run Z" (with explicit run)
-        2. "Reports for: session XX, task YY" (no run, inferred as 1)
-        3. "Reports for: task YY, run Z" (no session)
-        4. "Reports for: task YY" (no session, no run)
-        
-        Returns:
-            List of task dictionaries with 'name', 'runs', and 'session' keys
-        """
-        tasks = []
-        seen_tasks = set()
-        
-        # Case 1: session + task + run (must have ", run" after task)
-        pattern1 = r'Reports for:\s*session\s*<span[^>]*>(\d+)</span>[^<]*,\s*task\s*<span[^>]*>(\w+)</span>[^<]*,\s*run\s*<span[^>]*>(\d+)</span>'
-        matches1 = re.findall(pattern1, html_content)
-        self.logger.debug(f"Case 1 (ses+task+run): {len(matches1)} matches")
-        
-        if matches1:
-            task_runs = {}
-            for session, task, run in matches1:
-                key = (session, task)
-                run_num = int(run)
-                task_runs[key] = max(task_runs.get(key, 0), run_num)
-            
-            for (session, task), max_run in task_runs.items():
-                task_key = (session, task, max_run)
-                if task_key not in seen_tasks:
-                    tasks.append({'name': task, 'runs': max_run, 'session': session})
-                    seen_tasks.add(task_key)
-        
-        # Case 2: session + task (no run - must NOT be followed by ", run")
-        pattern2 = r'Reports for:\s*session\s*<span[^>]*>(\d+)</span>[^<]*,\s*task\s*<span[^>]*>(\w+)</span>(?![^<]*,\s*run)'
-        matches2 = re.findall(pattern2, html_content)
-        self.logger.debug(f"Case 2 (ses+task, no run): {len(matches2)} matches")
-        
-        for session, task in matches2:
-            task_key = (session, task, 1)
-            if task_key not in seen_tasks:
-                tasks.append({'name': task, 'runs': 1, 'session': session})
-                seen_tasks.add(task_key)
-        
-        # Case 3: task + run (no session - must not have "session" before)
-        pattern3 = r'Reports for:\s*(?!.*session)task\s*<span[^>]*>(\w+)</span>[^<]*,\s*run\s*<span[^>]*>(\d+)</span>'
-        matches3 = re.findall(pattern3, html_content)
-        self.logger.debug(f"Case 3 (task+run, no session): {len(matches3)} matches")
-        
-        if matches3:
-            task_runs_no_session = {}
-            for task, run in matches3:
-                run_num = int(run)
-                task_runs_no_session[task] = max(task_runs_no_session.get(task, 0), run_num)
-            
-            for task, max_run in task_runs_no_session.items():
-                task_key = (None, task, max_run)
-                if task_key not in seen_tasks:
-                    tasks.append({'name': task, 'runs': max_run, 'session': None})
-                    seen_tasks.add(task_key)
-        
-        # Case 4: task only (no session, no run)
-        pattern4 = r'Reports for:\s*(?!.*session)task\s*<span[^>]*>(\w+)</span>(?![^<]*,\s*run)'
-        matches4 = re.findall(pattern4, html_content)
-        self.logger.debug(f"Case 4 (task only): {len(matches4)} matches")
-        
-        for task in matches4:
-            task_key = (None, task, 1)
-            if task_key not in seen_tasks:
-                tasks.append({'name': task, 'runs': 1, 'session': None})
-                seen_tasks.add(task_key)
-        
+        """One entry per output CSV: a (session, task) plus any entity that varies inside it."""
+        units = {}
+        order = []
+
+        for group in self._label_groups(self._report_groups(html_content)):
+            key = (group['session'], group['task'], tuple(group['extras'].items()))
+            if key not in units:
+                units[key] = {
+                    'name': group['task'],
+                    'session': group['session'],
+                    'extras': group['extras'],
+                    'runs': [],
+                    'suffixes': [],
+                }
+                order.append(key)
+            units[key]['runs'].append(group['run'])
+            units[key]['suffixes'].append(group['suffix'])
+
+        tasks = [units[key] for key in order]
+
         # backup format fallback
         if not tasks:
             backup_pattern = r'Task:\s*(\w+)\s*\((\d+)\s*runs?\)'
-            backup_matches = re.findall(backup_pattern, html_content)
-            for task_name, run_count in backup_matches:
-                tasks.append({'name': task_name, 'runs': int(run_count), 'session': None})
-        
-        # Sort: tasks with session first (by session number), then tasks without session
-        tasks.sort(key=lambda x: (x['session'] is None, x['session'] or '', x['name']))
-        
-        # self.logger.info(f"Parsed {len(tasks)} tasks from HTML")
+            for task_name, run_count in re.findall(backup_pattern, html_content):
+                runs = [str(i) for i in range(1, int(run_count) + 1)]
+                tasks.append({
+                    'name': task_name,
+                    'session': None,
+                    'extras': {},
+                    'runs': runs,
+                    'suffixes': [f'_run-{r}' for r in runs],
+                })
+
+        # Sessions first (by label), then session-less; document order kept within a session
+        tasks.sort(key=lambda x: (x['session'] is None, x['session'] or ''))
+
+        self.logger.debug(f"Parsed {len(tasks)} task units from HTML")
         return tasks
-    
+
     def process_html_modules(self, html: str) -> Tuple[str, List[List[Dict]]]:
         """
         Process HTML content to insert IDs and track module run count.
@@ -172,52 +214,35 @@ class FMRIPrepRatingApp:
         Returns:
             Tuple of (processed_html, modules_structure)
         """
-        current_session = None
-        current_run = None
-        session_run_counter = {}
+        labelled = self._label_groups(self._report_groups(html))
+        group_by_identity = {group['identity']: group for group in labelled}
+        group_by_suffix = {group['suffix']: group for group in labelled}
+
+        current_group = None
         modules_in_order = []
         seen_task_report = False
-        
+
         combined_pattern = re.compile(r'(<h([23])[^>]*>)(.*?)(</h\2>)', re.DOTALL)
-        
-        div_run_map = {}  # div_start_pos -> (run, session)
-        for m in re.finditer(r'<div\s+id="(datatype-figures[^"]*)"', html):
-            div_id = m.group(1)
-            run_match = re.search(r'_run-(\d+)', div_id)
-            ses_match = re.search(r'_session-(\d+)', div_id)
-            if run_match:
-                div_run_map[m.start()] = int(run_match.group(1))
-        
-        def find_enclosing_div_run(pos):
-            candidates = [p for p in div_run_map if p < pos]
-            if candidates:
-                return div_run_map[max(candidates)]
-            return None
-        
+
         def replacer(match):
-            nonlocal current_session, current_run, seen_task_report
+            nonlocal current_group, seen_task_report
             prefix, tag_level, title, suffix = match.groups()
-            
-            # Handle h2 tags (session boundaries)
+
+            # Handle h2 tags (report group boundaries)
             if tag_level == '2':
-                session_match = re.search(r'session\s*<span[^>]*>(\d+)</span>', title)
-                if session_match:
-                    current_session = session_match.group(1)
-                    seen_task_report = True
-                    current_run = find_enclosing_div_run(match.start())
+                if 'Reports for:' in title:
+                    entities = self._group_entities(title.split('Reports for:', 1)[1])
+                    label = group_by_identity.get(tuple(sorted(entities.items())))
+                    if label is not None:
+                        current_group = label
+                        seen_task_report = True
                     return match.group(0)
-                
-                if 'Reports for:' in title and 'task' in title and 'session' not in title:
-                    current_session = None
-                    current_run = find_enclosing_div_run(match.start())
-                    seen_task_report = True
-                    return match.group(0)
-                
+
                 if not seen_task_report:
-                    current_session = None
-                
+                    current_group = None
+
                 return match.group(0)
-            
+
             # Handle h3 tags with run-title class
             if tag_level == '3':
                 class_match = re.search(r'class=["\']([^"\']*)["\']', prefix)
@@ -225,88 +250,71 @@ class FMRIPrepRatingApp:
                     title_strip = title.strip()
                     if title_strip in self.MODULE_MAP:
                         mod_short = self.MODULE_MAP[title_strip]
-                        is_common = mod_short in self.COMMON_MODULES
-                        
-                        if is_common:
-                            id_attr = f'{mod_short}_run-1'
-                            display_name = mod_short
-                            run_num = 1
-                            session_for_storage = None
-                        elif current_session is None:
-                            key = (title_strip, None)
-                            session_run_counter[key] = session_run_counter.get(key, 0) + 1
-                            run_num = session_run_counter[key]
-                            id_attr = f'{mod_short}_run-{run_num}'
-                            display_name = f"{mod_short} r{run_num}"
-                            session_for_storage = None
+
+                        if mod_short in self.COMMON_MODULES:
+                            module = {"id": f'{mod_short}_run-1', "name": mod_short,
+                                      "session": None, "run": 1, "group": None}
+                        elif current_group is None:
+                            # A rated module before any group heading: keep the legacy fallback
+                            module = {"id": f'{mod_short}_run-1', "name": f'{mod_short} r1',
+                                      "session": None, "run": 1, "group": '_run-1'}
                         else:
-                            h3_div_run = find_enclosing_div_run(match.start())
-                            if h3_div_run is not None:
-                                run_num = h3_div_run
-                            else:
-                                key = (title_strip, current_session)
-                                session_run_counter[key] = session_run_counter.get(key, 0) + 1
-                                run_num = session_run_counter[key]
-                            
-                            id_attr = f'{mod_short}_ses-{current_session}_run-{run_num}'
-                            display_name = f"{mod_short} s{current_session} r{run_num}"
-                            session_for_storage = current_session
-                        
-                        modules_in_order.append({
-                            "id": id_attr,
-                            "name": display_name,
-                            "session": session_for_storage,
-                            "run": run_num
-                        })
-                        
+                            run = current_group['run']
+                            module = {
+                                "id": f'{mod_short}{current_group["suffix"]}',
+                                "name": f'{mod_short} {current_group["display"]}',
+                                "session": current_group['session'],
+                                "run": int(run) if run.isdigit() else run,
+                                "group": current_group['suffix'],
+                            }
+
+                        modules_in_order.append(module)
+
                         prefix_no_id = re.sub(r' id=["\'][^"\']*["\']', '', prefix)
-                        return f'{prefix_no_id[:-1]} id="{id_attr}">{title_strip}{suffix}'
-            
+                        return f'{prefix_no_id[:-1]} id="{module["id"]}">{title_strip}{suffix}'
+
             return match.group(0)
-        
+
         html_processed = combined_pattern.sub(replacer, html)
-        
-        # Group modules by (session, run)
+
+        # Group modules by report group, in document order
         run_groups = {}
+        group_order = []
         anatomical_mods = []
-        
+
         for mod in modules_in_order:
-            mod_short_name = mod['id'].split('_')[0]
-            
-            if mod_short_name in self.COMMON_MODULES:
+            if mod['group'] is None:
                 anatomical_mods.append(mod)
             else:
-                key = (mod['session'], mod['run'])
-                if key not in run_groups:
-                    run_groups[key] = []
-                run_groups[key].append(mod)
-        
+                if mod['group'] not in run_groups:
+                    run_groups[mod['group']] = []
+                    group_order.append(mod['group'])
+                run_groups[mod['group']].append(mod)
+
         # Build final structure
         final_structure = []
-        
+
         if anatomical_mods:
             final_structure.append(anatomical_mods)
-        
+
         # Add functional modules with Final at the end of each group
-        for (session, run) in sorted(run_groups.keys(), key=lambda x: (x[0] is None, x[0] or '', x[1])):
-            run_modules = run_groups[(session, run)]
-            
-            if session is None:
-                final_id = f"Final_run-{run}"
-                final_name = f"Final r{run}"
-            else:
-                final_id = f"Final_ses-{session}_run-{run}"
-                final_name = f"Final s{session} r{run}"
-            
+        for group_suffix in group_order:
+            run_modules = run_groups[group_suffix]
+            label = group_by_suffix.get(group_suffix)
+
             run_modules.append({
-                "id": final_id,
-                "name": final_name,
-                "session": session,
-                "run": run
+                "id": f"Final{group_suffix}",
+                "name": f"Final {label['display']}" if label else "Final r1",
+                "session": run_modules[0]['session'],
+                "run": run_modules[0]['run'],
+                "group": group_suffix,
             })
             final_structure.append(run_modules)
-        
-        # self.logger.info(f"Processed HTML: {len(anatomical_mods)} anatomical modules, {len(run_groups)} run groups")
+
+        # `group` is internal bookkeeping and never reaches the frontend
+        for module in modules_in_order + [m for g in final_structure for m in g]:
+            module.pop("group", None)
+
         return html_processed, final_structure
     
     def load_existing_ratings(self, participant_id: str) -> Tuple[Dict[str, str], Dict[str, str]]:
@@ -392,74 +400,46 @@ class FMRIPrepRatingApp:
             if not tasks:
                 return jsonify({"status": "fail", "message": "No tasks found in HTML"}), 400
             
-            # Group tasks by session
-            tasks_by_session = {}
+            all_combined_data = {}
+
             for task_info in tasks:
                 session = task_info['session']
-                if session not in tasks_by_session:
-                    tasks_by_session[session] = []
-                tasks_by_session[session].append(task_info)
-            
-            all_combined_data = {}
-            
-            # Process each session group
-            for session in sorted(tasks_by_session.keys(), key=lambda x: (x is None, x or '')):
-                session_tasks = tasks_by_session[session]
-                session_run_counter = 1
-                
-                for task_info in session_tasks:
-                    task_name = task_info['name']
-                    task_runs = task_info['runs']
-                    
-                    row_data = {"ID": participant_id}
-                    
-                    # Common modules
-                    for mod in self.COMMON_MODULES:
-                        frontend_key = f"{mod}_run-1"
-                        row_data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
-                        row_data[f"{mod}_1_c"] = notes.get(frontend_key, "")
-                    
-                    # Functional modules + Final
-                    for local_run in range(1, task_runs + 1):
-                        global_run = session_run_counter + local_run - 1
-                        
-                        for mod in self.FUNCTIONAL_MODULES:
-                            if session is None:
-                                frontend_key = f"{mod}_run-{global_run}"
-                            else:
-                                frontend_key = f"{mod}_ses-{session}_run-{global_run}"
-                            
-                            row_data[f"{mod}_{local_run}_r"] = ratings.get(frontend_key, "NA")
-                            row_data[f"{mod}_{local_run}_c"] = notes.get(frontend_key, "")
-                        
-                        # Final module
-                        if session is None:
-                            final_key = f"Final_run-{global_run}"
-                        else:
-                            final_key = f"Final_ses-{session}_run-{global_run}"
-                        
-                        row_data[f"Final_{local_run}_r"] = ratings.get(final_key, "NA")
-                        row_data[f"Final_{local_run}_c"] = notes.get(final_key, "")
-                    
-                    # Save per-task CSV
-                    if session is None:
-                        csv_file = self.output_dir / f"sub-{participant_id}_{task_name}.csv"
-                        csv_prefix = task_name
-                    else:
-                        csv_file = self.output_dir / f"sub-{participant_id}_ses-{session}_{task_name}.csv"
-                        csv_prefix = f"ses-{session}_{task_name}"
-                    
-                    with csv_file.open("w", newline="", encoding="utf-8") as f:
-                        writer = csv.DictWriter(f, fieldnames=list(row_data.keys()))
-                        writer.writeheader()
-                        writer.writerow(row_data)
-                    
-                    # Collect for combined CSV
-                    for key, value in row_data.items():
-                        if key != "ID":
-                            all_combined_data[f"{csv_prefix}_{key}"] = value
-                    
-                    session_run_counter += task_runs
+                task_name = task_info['name']
+
+                row_data = {"ID": participant_id}
+
+                # Common modules
+                for mod in self.COMMON_MODULES:
+                    frontend_key = f"{mod}_run-1"
+                    row_data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
+                    row_data[f"{mod}_1_c"] = notes.get(frontend_key, "")
+
+                # Functional modules + Final, one column set per report group.
+                # The column index is the BIDS run label, so it lines up with group_bold.tsv.
+                for run_label, suffix in zip(task_info['runs'], task_info['suffixes']):
+                    for mod in self.FUNCTIONAL_MODULES + ["Final"]:
+                        frontend_key = f"{mod}{suffix}"
+                        row_data[f"{mod}_{run_label}_r"] = ratings.get(frontend_key, "NA")
+                        row_data[f"{mod}_{run_label}_c"] = notes.get(frontend_key, "")
+
+                # Save per-task CSV
+                name_parts = []
+                if session is not None:
+                    name_parts.append(f"ses-{session}")
+                name_parts.append(task_name)
+                name_parts += [f"{k}-{v}" for k, v in task_info['extras'].items()]
+                csv_prefix = "_".join(name_parts)
+                csv_file = self.output_dir / f"sub-{participant_id}_{csv_prefix}.csv"
+
+                with csv_file.open("w", newline="", encoding="utf-8") as f:
+                    writer = csv.DictWriter(f, fieldnames=list(row_data.keys()))
+                    writer.writeheader()
+                    writer.writerow(row_data)
+
+                # Collect for combined CSV
+                for key, value in row_data.items():
+                    if key != "ID":
+                        all_combined_data[f"{csv_prefix}_{key}"] = value
             
             # Save combined CSV
             combined_csv = self.output_dir / f"sub-{participant_id}.csv"
