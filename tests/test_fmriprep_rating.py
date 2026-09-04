@@ -799,3 +799,20 @@ class TestRunNumbersFollowBIDS:
         assert row["SDC_1_r"] == "1"
         assert row["SDC_3_r"] == "1"
         assert "SDC_2_r" not in row
+
+
+class TestUnsupportedEntityWarning:
+    """Raters are told up front when a task is split by an entity qc prep cannot use."""
+
+    def test_split_task_is_reported(self, temp_app, caplog):
+        with caplog.at_level("WARNING"):
+            temp_app._warn_unsupported_entities("001", HTML_ACQ_BETWEEN_TASK_AND_RUN)
+
+        assert "acq-seq" in caplog.text and "acq-mb" in caplog.text
+        assert "qc prep" in caplog.text
+
+    def test_plain_task_is_silent(self, temp_app, caplog):
+        with caplog.at_level("WARNING"):
+            temp_app._warn_unsupported_entities("001", HTML_WITH_SESSION)
+
+        assert caplog.text == ""

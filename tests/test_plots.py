@@ -1,5 +1,5 @@
 import pandas as pd
-from fMRI_QCtoolkit.utils.plots import create_heatmap, create_lollipop_plot
+from fMRI_QCtoolkit.utils.plots import create_heatmap, create_lollipop_plot, format_session
 
 
 class TestCreateHeatmap:
@@ -51,3 +51,15 @@ class TestCreateLollipopPlot:
         assert fig is not None
         # Should create traces for each variable
         assert len(fig.data) > 2
+
+class TestFormatSession:
+    """BIDS session labels need not be numeric."""
+
+    def test_numeric_labels_keep_zero_padding(self):
+        assert format_session("01") == "01"
+        assert format_session("1") == "01"
+        assert format_session(1) == "01"
+
+    def test_non_numeric_labels_pass_through(self):
+        assert format_session("pre") == "pre"
+        assert format_session("V1") == "V1"

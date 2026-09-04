@@ -236,3 +236,45 @@ class TestIntegrationWithExampleData:
         assert not df.empty and not lol.empty
         assert {"ID", "run"}.issubset(df.columns)
         assert {"ID", "Variable", "Value"}.issubset(lol.columns)
+
+class TestNonNumericSessionLabels:
+    """BIDS session labels need not be numeric (ses-pre, ses-V1)."""
+
+    @pytest.mark.parametrize("bids_name,expected_session", [
+        ('sub-101_ses-01_task-rest_run-1_bold', '01'),
+        ('sub-101_ses-pre_task-rest_run-1_bold', 'pre'),
+        ('sub-101_ses-V1_task-rest_run-1_bold', 'V1'),
+        ('sub-101_task-rest_run-1_bold', '1'),
+    ])
+    def test_bold_session_is_read_as_a_label(self, temp_dir, random_bold_data,
+                                             bids_name, expected_session):
+        bold_data = random_bold_data.head(1).copy()
+        bold_data['bids_name'] = bids_name
+
+        bold_file, rating_dir = setup_fmriprep_env(temp_dir, bold_data)
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_bold_data()
+
+        assert pipeline.bold_data['session'].iloc[0] == expected_session
+
+    def test_rating_session_is_read_as_a_label(self, temp_dir, random_bold_data,
+                                               random_rating_data):
+        bold_file, rating_dir = setup_fmriprep_env(temp_dir, random_bold_data)
+        row = random_rating_data.head(1)
+        (rating_dir / "sub-101_ses-pre_rest.csv").write_text(row.to_csv(index=False))
+
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_rating_data()
+
+        assert pipeline.rating_data['session'].iloc[0] == 'pre'
+
+    def test_both_sides_share_a_dtype_so_the_merge_holds(self, temp_dir, random_bold_data,
+                                                        random_rating_data):
+        bold_file, rating_dir = setup_fmriprep_env(
+            temp_dir, random_bold_data, random_rating_data
+        )
+
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_raw_data()
+
+        assert pipeline.bold_data['session'].dtype == pipeline.rating_data['session'].dtype

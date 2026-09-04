@@ -69,18 +69,25 @@ class TestQuantitativeHeatmapRows:
         assert row["StatusStr"] == "NA"
 
     def test_session_and_run_are_carried_through(self, dashboard):
-        df = pd.DataFrame({"ID": ["001"], "session": [2], "run": [3], "fd_mean": [0.1]})
+        df = pd.DataFrame({"ID": ["001"], "session": ["02"], "run": [3], "fd_mean": [0.1]})
 
         row = dashboard.quantitative_heatmap_rows(df, ["fd_mean"])[0]
 
-        assert (row["session"], row["run"]) == (2, 3)
+        assert (row["session"], row["run"]) == ("02", 3)
+
+    def test_non_numeric_session_label_is_kept(self, dashboard):
+        df = pd.DataFrame({"ID": ["001"], "session": ["pre"], "run": [1], "fd_mean": [0.1]})
+
+        row = dashboard.quantitative_heatmap_rows(df, ["fd_mean"])[0]
+
+        assert row["session"] == "pre"
 
     def test_absent_session_and_run_default_to_one(self, dashboard):
         df = pd.DataFrame({"ID": ["001"], "fd_mean": [0.1]})
 
         row = dashboard.quantitative_heatmap_rows(df, ["fd_mean"])[0]
 
-        assert (row["session"], row["run"]) == (1, 1)
+        assert (row["session"], row["run"]) == ("1", 1)
 
     def test_missing_session_and_run_default_to_one(self, dashboard):
         df = pd.DataFrame({"ID": ["001"], "session": [float("nan")],
@@ -88,7 +95,7 @@ class TestQuantitativeHeatmapRows:
 
         row = dashboard.quantitative_heatmap_rows(df, ["fd_mean"])[0]
 
-        assert (row["session"], row["run"]) == (1, 1)
+        assert (row["session"], row["run"]) == ("1", 1)
 
     def test_no_variables_gives_no_rows(self, dashboard):
         df = pd.DataFrame({"ID": ["001"], "session": [1], "run": [1], "fd_mean": [0.1]})

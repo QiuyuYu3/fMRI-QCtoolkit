@@ -55,7 +55,7 @@ class FMRIPrepPipeline(BaseDataProcessor):
         # Extract fields from 'bids_name'
         bold['ID'] = bold['bids_name'].str.extract(r'sub-(\d+)').astype(int)
         bold['run'] = bold['bids_name'].str.extract(r'run-(\d+)')[0].astype(float).fillna(1).astype(int)
-        bold['session'] = bold['bids_name'].str.extract(r'ses-(\d+)').fillna('1').astype(int)
+        bold['session'] = bold['bids_name'].str.extract(r'ses-([A-Za-z0-9]+)')[0].fillna('1')
         bold['modality'] = bold['bids_name'].str.extract(r'task-([a-zA-Z0-9]+)')
 
         # Filter for specified task
@@ -79,7 +79,14 @@ class FMRIPrepPipeline(BaseDataProcessor):
         # Find session-task-specific CSV files: sub-{ID}_ses-{session}_{task}.csv
         csv_pattern = f"sub-*_{self.task}.csv"
         csv_files = glob.glob(str(self.rating_dir / csv_pattern))
-       
+
+        # The rating app writes one CSV per acquisition/direction/echo when a task has
+        # several. The dashboard has no such dimension, so they are reported and skipped.
+        split_files = glob.glob(str(self.rating_dir / f"sub-*_{self.task}_*-*.csv"))
+        if split_files:
+            print(f"WARNING: skipping {len(split_files)} rating file(s) split by an entity "
+                  f"the dashboard cannot represent, e.g. {Path(split_files[0]).name}")
+
         # If still not found, fall back to generic sub-*.csv files
         if not csv_files:
             print(f"No task-specific files found, trying generic pattern...")
@@ -99,13 +106,13 @@ class FMRIPrepPipeline(BaseDataProcessor):
             
             # Extract session from filename
             filename = Path(csv_file).stem
-            session_match = re.search(r'_ses-(\d+)', filename)
-            
+            session_match = re.search(r'_ses-([A-Za-z0-9]+)', filename)
+
             if session_match:
-                df['session'] = int(session_match.group(1))
+                df['session'] = session_match.group(1)
             else:
                 # If no session in filename, default to 1
-                df['session'] = 1
+                df['session'] = '1'
             
             # df['modality'] = self.task
             

@@ -343,6 +343,18 @@ class FMRIPrepRatingApp:
         self.logger.info(f"Loaded {len(ratings)} ratings for sub-{participant_id}")
         return ratings, notes
 
+    def _warn_unsupported_entities(self, participant_id: str, html_content: str):
+        """Say up front that acquisition/direction variants get rated but not plotted."""
+        split_units = [t for t in self.parse_tasks_from_html(html_content) if t['extras']]
+        if not split_units:
+            return
+
+        entities = sorted({f"{k}-{v}" for unit in split_units for k, v in unit['extras'].items()})
+        self.logger.warning(
+            f"sub-{participant_id}: task(s) split by {', '.join(entities)}. "
+            "Ratings are saved, but `qc prep` cannot feed them to the dashboard yet."
+        )
+
     def handle_participant(self, pid: str):
         """Handle participant route."""
         pid_clean = pid.strip().lstrip("sub-")
@@ -367,7 +379,9 @@ class FMRIPrepRatingApp:
         
         # Process HTML
         processed_html, modules_by_run = self.process_html_modules(html_content)
-        
+
+        self._warn_unsupported_entities(pid_clean, html_content)
+
         return render_template(
             "base.html",
             nav_html=nav_html,

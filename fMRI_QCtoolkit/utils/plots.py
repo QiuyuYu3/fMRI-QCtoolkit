@@ -10,6 +10,12 @@ import pandas as pd
 _LOLLIPOP_COLORS = ['#A6CEE3', '#1F78B4', '#B2DF8A', '#33A02C', '#FB9A99',
                     '#E31A1C', '#FDBF6F', '#FF7F00', '#CAB2D6', '#6A3D9A']
 
+
+def format_session(value):
+    """BIDS session labels need not be numeric; numeric ones keep their zero padding."""
+    label = str(value)
+    return label.zfill(2) if label.isdigit() else label
+
 def create_heatmap(data, variable_labels, title="", 
                    group_by=None, target_width=1200, cell_size=16):
     """
@@ -46,7 +52,7 @@ def create_heatmap(data, variable_labels, title="",
     # Add default session if not present
     if 'session' not in data.columns:
         data = data.copy()
-        data['session'] = 1
+        data['session'] = '1'
 
     # Auto-detect grouping strategy if not specified
     if group_by is None:
@@ -184,7 +190,7 @@ def create_heatmap(data, variable_labels, title="",
                 if not subj_data.empty:
                     if 'session' in subj_data.columns:
                         session_val = subj_data['session'].iloc[0]
-                        hover_parts.insert(1, f"Session: {int(session_val):02d}")
+                        hover_parts.insert(1, f"Session: {format_session(session_val)}")
                     if 'run' in subj_data.columns:
                         run_val = subj_data['run'].iloc[0]
                         hover_parts.insert(2, f"Run: {int(run_val)}")
@@ -271,7 +277,7 @@ def _lollipop_groups(data, group_by):
         for c in cols:
             mask &= data[c] == combo[c]
             if c == "session":
-                parts.append(f"Session {int(combo[c]):02d}")
+                parts.append(f"Session {format_session(combo[c])}")
             elif c == "run":
                 parts.append(f"Run {int(combo[c])}")
             else:

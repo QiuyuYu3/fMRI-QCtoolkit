@@ -404,10 +404,15 @@ class BaseDashboard(ABC):
 
     @staticmethod
     def _row_index(row):
-        """Identifiers the heatmap groups by; absent or missing values fall back to 1."""
+        """Identifiers the heatmap groups by; absent or missing values fall back to 1.
+
+        `session` stays a string because BIDS session labels need not be numeric
+        (ses-pre, ses-V1); `run` is a BIDS index and is always an integer.
+        """
+        run, session = row.get('run', 1), row.get('session', '1')
         return {
-            'run': int(row.get('run', 1)) if pd.notna(row.get('run', 1)) else 1,
-            'session': int(row.get('session', 1)) if pd.notna(row.get('session', 1)) else 1,
+            'run': int(run) if pd.notna(run) else 1,
+            'session': str(session) if pd.notna(session) else '1',
         }
 
     def quantitative_heatmap_rows(self, df, quant_vars):
