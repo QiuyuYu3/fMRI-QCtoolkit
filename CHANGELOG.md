@@ -17,6 +17,11 @@
 ### Changed
 - `parse_tasks_from_html` returns one entry per output CSV, with `runs` holding the BIDS run
   labels of that unit rather than a run count.
+- Heatmap row building moved out of the dashboard callback into
+  `BaseDashboard.quantitative_heatmap_rows` / `qualitative_heatmap_rows`, which are now tested.
+
+### Added
+- `tests/test_dashboard.py`, the first coverage of `dashboard/base_app.py`.
 
 ### Notes
 - Anatomical modules (T1mask / Norm / SurfRecon) may show multiple figures under one rating

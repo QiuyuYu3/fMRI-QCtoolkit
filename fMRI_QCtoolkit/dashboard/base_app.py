@@ -13,6 +13,8 @@ from ..utils.plots import create_lollipop_plot, create_heatmap
 class BaseDashboard(ABC):
     """Base class for QC dashboards."""
 
+    STATUS_TO_NUM = {'NA': 0, 'bad': 1, 'other': 2, 'good': 3}
+
     def __init__(self, data_processor, task=None):
         self.processor = data_processor
         self.task = task or "unknown"
@@ -358,49 +360,13 @@ class BaseDashboard(ABC):
             quant_vars = self._get_heatmap_quantitative_vars()
             quant_vars = [var for var in quant_vars if var in df.columns]
 
-            status_to_num = {'NA': 0, 'bad': 1, 'other': 2, 'good': 3}
-
-            quant_data = []
-            for _, row in df.iterrows():
-                for var in quant_vars:
-                    value = row[var]
-                    status_str = self.assign_status(value, var)
-                    status_num = status_to_num[status_str]
-
-                    quant_data.append({
-                        'ID': str(row['ID']),
-                        'Variables': str(var),
-                        'Value': float(value) if pd.notna(value) else None,
-                        'Status': int(status_num),
-                        'StatusStr': str(status_str),
-                        'run': int(row.get('run', 1)) if pd.notna(row.get('run', 1)) else 1,
-                        'session': int(row.get('session', 1)) if pd.notna(row.get('session', 1)) else 1
-                    })
-
-            quant_df = pd.DataFrame(quant_data)
+            quant_df = pd.DataFrame(self.quantitative_heatmap_rows(df, quant_vars))
             quant_labels, qual_labels = self.get_variable_labels()
 
             group_by = self.config.get("heatmap_settings", {}).get("group_by", "run")
             quant_fig = create_heatmap(quant_df, quant_labels, group_by=group_by)
 
-            # Prepare qualitative heatmap
-            qual_data = []
-            for _, row in df.iterrows():
-                for var in self.processor.checkbox_groups:
-                    if var in row:
-                        status_str = str(row[var]) if pd.notna(row[var]) else 'NA'
-                        status_num = status_to_num.get(status_str, 0)
-
-                        qual_data.append({
-                            'ID': str(row['ID']),
-                            'Variables': str(var),
-                            'Status': int(status_num),
-                            'StatusStr': str(status_str),
-                            'run': int(row.get('run', 1)) if pd.notna(row.get('run', 1)) else 1,
-                            'session': int(row.get('session', 1)) if pd.notna(row.get('session', 1)) else 1
-                        })
-
-            qual_df = pd.DataFrame(qual_data)
+            qual_df = pd.DataFrame(self.qualitative_heatmap_rows(df))
             qual_fig = create_heatmap(qual_df, qual_labels, group_by=group_by)
             
             triggered = dash.callback_context.triggered
@@ -435,6 +401,48 @@ class BaseDashboard(ABC):
     def _get_heatmap_quantitative_vars(self):
         """Get quantitative variables for heatmap from config."""
         return self.config.get("heatmap_quantitative_vars", [])
+
+    @staticmethod
+    def _row_index(row):
+        """Identifiers the heatmap groups by; absent or missing values fall back to 1."""
+        return {
+            'run': int(row.get('run', 1)) if pd.notna(row.get('run', 1)) else 1,
+            'session': int(row.get('session', 1)) if pd.notna(row.get('session', 1)) else 1,
+        }
+
+    def quantitative_heatmap_rows(self, df, quant_vars):
+        """Long-format rows for the quantitative heatmap."""
+        rows = []
+        for _, row in df.iterrows():
+            for var in quant_vars:
+                value = row[var]
+                status_str = self.assign_status(value, var)
+                rows.append({
+                    'ID': str(row['ID']),
+                    'Variables': str(var),
+                    'Value': float(value) if pd.notna(value) else None,
+                    'Status': int(self.STATUS_TO_NUM[status_str]),
+                    'StatusStr': str(status_str),
+                    **self._row_index(row),
+                })
+        return rows
+
+    def qualitative_heatmap_rows(self, df):
+        """Long-format rows for the qualitative heatmap."""
+        rows = []
+        for _, row in df.iterrows():
+            for var in self.processor.checkbox_groups:
+                if var not in row:
+                    continue
+                status_str = str(row[var]) if pd.notna(row[var]) else 'NA'
+                rows.append({
+                    'ID': str(row['ID']),
+                    'Variables': str(var),
+                    'Status': int(self.STATUS_TO_NUM.get(status_str, 0)),
+                    'StatusStr': str(status_str),
+                    **self._row_index(row),
+                })
+        return rows
     
     def _setup_common_callbacks(self):
         """Setup common callbacks for table interactions."""

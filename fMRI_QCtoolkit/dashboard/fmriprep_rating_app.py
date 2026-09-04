@@ -6,6 +6,15 @@ Reload source vs. export format:
 - A JSON sidecar (sub-{ID}.json) stores ratings/notes keyed by frontend module id and
   is the single source of truth when reopening a subject.
 - CSV files are still written as an export consumed by the downstream `qc prep` step.
+
+Module ids:
+- An id is the short module name plus the entities identifying its report group:
+  `_ses-{s}`, `_task-{t}`, `_{acq|ce|rec|dir|echo}-{v}`, `_run-{r}`.
+- Only the entities needed to keep ids apart are named. `task` appears when a session
+  holds more than one; the others when they vary inside a single (session, task). A
+  single-task dataset therefore keeps the short `SDC_ses-01_run-1` form.
+- `_run-` carries the BIDS run label, not a position, so the CSV column index matches
+  the run numbers in MRIQC's group_bold.tsv. Groups with no run entity count 1..N.
 """
 
 import os
