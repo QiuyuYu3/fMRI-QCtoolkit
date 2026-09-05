@@ -56,9 +56,9 @@ class TestFMRIPrepPipelineInit:
 class TestLoadBoldData:
     
     @pytest.mark.parametrize("bids_name,task,expected_id,expected_run", [
-        ('sub-101_ses-1_task-rest_run-1_bold', 'rest', 101, 1),
-        ('sub-102_ses-1_task-rest_run-2_bold', 'rest', 102, 2),
-        ('sub-103_task-rest_run-1_bold', 'rest', 103, 1),
+        ('sub-101_ses-1_task-rest_run-1_bold', 'rest', '101', 1),
+        ('sub-102_ses-1_task-rest_run-2_bold', 'rest', '102', 2),
+        ('sub-103_task-rest_run-1_bold', 'rest', '103', 1),
     ])
     def test_parses_bids_name(self, temp_dir, random_bold_data, bids_name, task, expected_id, expected_run):
         """Test BIDS name parsing - use first row from random data, override bids_name"""
@@ -90,7 +90,8 @@ class TestLoadBoldData:
         assert all(col in pipeline.bold_data.columns for col in required_cols)
         
         # Verify data types
-        assert pipeline.bold_data['ID'].dtype in ['int64', 'int32']
+        # ID is a BIDS label, kept as a string so zero-padding survives
+        assert pd.api.types.is_string_dtype(pipeline.bold_data['ID'])
         assert pipeline.bold_data['run'].dtype in ['int64', 'int32']
     
     def test_filters_by_task(self, temp_dir, random_bold_data):
@@ -278,3 +279,79 @@ class TestNonNumericSessionLabels:
         pipeline._load_raw_data()
 
         assert pipeline.bold_data['session'].dtype == pipeline.rating_data['session'].dtype
+
+
+class TestSubjectIdIsABIDSLabel:
+    """ID is a BIDS label, not a number: zero-padding is significant and non-numeric is legal."""
+
+    def _bold(self, random_bold_data, bids_names):
+        rows = [random_bold_data.head(1).copy().assign(bids_name=n) for n in bids_names]
+        return pd.concat(rows, ignore_index=True)
+
+    def test_padded_and_unpadded_ids_stay_distinct(self, temp_dir, random_bold_data):
+        """sub-0030 and sub-30 are different people; as ints they silently merge into one."""
+        bold_data = self._bold(random_bold_data, [
+            'sub-0030_ses-1_task-rest_run-1_bold',
+            'sub-30_ses-1_task-rest_run-1_bold',
+            'sub-090_ses-1_task-rest_run-1_bold',
+            'sub-90_ses-1_task-rest_run-1_bold',
+        ])
+        bold_file, rating_dir = setup_fmriprep_env(temp_dir, bold_data)
+
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_bold_data()
+
+        assert sorted(pipeline.bold_data['ID']) == ['0030', '090', '30', '90']
+
+    def test_non_numeric_id_does_not_crash(self, temp_dir, random_bold_data):
+        bold_data = self._bold(random_bold_data, ['sub-A01_ses-1_task-rest_run-1_bold'])
+        bold_file, rating_dir = setup_fmriprep_env(temp_dir, bold_data)
+
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_bold_data()
+
+        assert pipeline.bold_data['ID'].iloc[0] == 'A01'
+
+    def test_rating_csv_keeps_leading_zeros(self, temp_dir, random_bold_data, random_rating_data):
+        bold_file, rating_dir = setup_fmriprep_env(temp_dir, random_bold_data)
+        row = random_rating_data.head(1).copy()
+        row['ID'] = '0030'
+        (rating_dir / "sub-0030_ses-01_rest.csv").write_text(row.to_csv(index=False))
+
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_rating_data()
+
+        assert pipeline.rating_data['ID'].iloc[0] == '0030'
+
+    def test_both_sides_share_a_dtype_so_the_merge_holds(self, temp_dir, random_bold_data,
+                                                         random_rating_data):
+        bold_file, rating_dir = setup_fmriprep_env(
+            temp_dir, random_bold_data, random_rating_data
+        )
+
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_raw_data()
+
+        assert pipeline.bold_data['ID'].dtype == pipeline.rating_data['ID'].dtype
+
+    def test_padding_survives_the_round_trip_through_saved_csv(self, temp_dir,
+                                                               sample_fmriprep_data):
+        """qc dash re-reads df_final.csv, so the zeros have to survive that read too."""
+        data_file = temp_dir / "df_final.csv"
+        lollipop_file = temp_dir / "lollipop_chart_data.csv"
+
+        df = sample_fmriprep_data.head(2).copy()
+        df['ID'] = ['0030', '090']
+        df.to_csv(data_file, index=False)
+        pd.DataFrame({
+            'ID': ['0030', '090'],
+            'Variable': ['fd_perc', 'fd_perc'],
+            'Value': df['fd_perc'].values,
+        }).to_csv(lollipop_file, index=False)
+
+        pipeline = FMRIPrepPipeline.from_saved_data(
+            data_file=data_file, lollipop_file=lollipop_file, task="rest"
+        )
+
+        assert list(pipeline.df_final['ID']) == ['0030', '090']
+        assert list(pipeline.lollipop_chart_data['ID']) == ['0030', '090']

@@ -245,8 +245,8 @@ class AFNIPipeline(BaseDataProcessor):
         instance.output_dir = Path(output_dir) if output_dir else Path(".")
         
         # load csv files
-        instance.df_final = pd.read_csv(data_file)
-        instance.lollipop_chart_data = pd.read_csv(lollipop_file)
+        instance.df_final = pd.read_csv(data_file, dtype={'ID': str})
+        instance.lollipop_chart_data = pd.read_csv(lollipop_file, dtype={'ID': str})
         
         instance._set_variables()
         

@@ -32,6 +32,17 @@ def test_parse_subjects_input_from_string_list_random(random_subject_ids):
     assert subjects == expected
 
 
+def test_parse_subjects_input_strips_prefix_not_characters():
+    """`sub-` is a prefix, not a character set: an ID starting with s/u/b must survive."""
+    subjects = parse_subjects_input("s001, sub-0030, bus-12, sub-sub-1, u7")
+    assert subjects == ["s001", "0030", "bus-12", "sub-1", "u7"]
+
+
+def test_parse_subjects_input_keeps_leading_zeros():
+    subjects = parse_subjects_input("sub-0030, 090, sub-001")
+    assert subjects == ["0030", "090", "001"]
+
+
 def test_parse_subjects_input_from_file(tmp_path: Path):
     content = "sub-1001,sub-1002, 1003"
     file_path = tmp_path / "subs.txt"

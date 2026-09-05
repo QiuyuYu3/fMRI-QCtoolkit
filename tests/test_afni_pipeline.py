@@ -162,3 +162,26 @@ class TestFromSavedData:
         
         assert pipeline.df_final is not None
         assert len(pipeline.df_final) > 0  # Use flexible assertion for random data
+
+class TestSubjectIdIsABIDSLabel:
+    """AFNI keeps IDs as strings through prep; the dashboard's re-read must not undo that."""
+
+    def test_padding_survives_the_round_trip_through_saved_csv(self, temp_dir, sample_afni_data):
+        data_file = temp_dir / "df_final.csv"
+        lollipop_file = temp_dir / "lollipop_chart_data.csv"
+
+        df = sample_afni_data.head(2).copy()
+        df['ID'] = ['0030', '090']
+        df.to_csv(data_file, index=False)
+        pd.DataFrame({
+            'ID': ['0030', '090'],
+            'Variable': ['cens_frac', 'cens_frac'],
+            'Value': [0.1, 0.2],
+        }).to_csv(lollipop_file, index=False)
+
+        pipeline = AFNIPipeline.from_saved_data(
+            data_file=data_file, lollipop_file=lollipop_file, task="rest"
+        )
+
+        assert list(pipeline.df_final['ID']) == ['0030', '090']
+        assert list(pipeline.lollipop_chart_data['ID']) == ['0030', '090']

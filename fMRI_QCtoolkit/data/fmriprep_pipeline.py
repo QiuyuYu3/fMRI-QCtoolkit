@@ -53,7 +53,7 @@ class FMRIPrepPipeline(BaseDataProcessor):
         bold = pd.read_csv(self.bold_file, sep='\t')
         
         # Extract fields from 'bids_name'
-        bold['ID'] = bold['bids_name'].str.extract(r'sub-(\d+)').astype(int)
+        bold['ID'] = bold['bids_name'].str.extract(r'sub-([A-Za-z0-9]+)')[0]
         bold['run'] = bold['bids_name'].str.extract(r'run-(\d+)')[0].astype(float).fillna(1).astype(int)
         bold['session'] = bold['bids_name'].str.extract(r'ses-([A-Za-z0-9]+)')[0].fillna('1')
         bold['modality'] = bold['bids_name'].str.extract(r'task-([a-zA-Z0-9]+)')
@@ -102,7 +102,7 @@ class FMRIPrepPipeline(BaseDataProcessor):
         all_ratings = []
         
         for csv_file in csv_files:
-            df = pd.read_csv(csv_file)
+            df = pd.read_csv(csv_file, dtype={'ID': str})
             
             # Extract session from filename
             filename = Path(csv_file).stem
@@ -257,8 +257,8 @@ class FMRIPrepPipeline(BaseDataProcessor):
         instance.task = task or ""
         instance.output_dir = Path(output_dir) if output_dir else Path(".")
         
-        instance.df_final = pd.read_csv(data_file)
-        instance.lollipop_chart_data = pd.read_csv(lollipop_file)
+        instance.df_final = pd.read_csv(data_file, dtype={'ID': str})
+        instance.lollipop_chart_data = pd.read_csv(lollipop_file, dtype={'ID': str})
         
         instance._set_variables()
         

@@ -24,8 +24,8 @@ class BaseDataProcessor(ABC):
     def from_files(cls, data_file, lollipop_file):
         """Create processor from pre-processed files."""
         processor = cls()
-        processor.df_final = pd.read_csv(data_file)
-        processor.lollipop_chart_data = pd.read_csv(lollipop_file)
+        processor.df_final = pd.read_csv(data_file, dtype={'ID': str})
+        processor.lollipop_chart_data = pd.read_csv(lollipop_file, dtype={'ID': str})
         processor._set_variables()
         return processor
     

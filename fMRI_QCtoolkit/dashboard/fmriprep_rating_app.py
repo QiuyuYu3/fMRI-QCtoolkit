@@ -357,7 +357,7 @@ class FMRIPrepRatingApp:
 
     def handle_participant(self, pid: str):
         """Handle participant route."""
-        pid_clean = pid.strip().lstrip("sub-")
+        pid_clean = pid.strip().removeprefix("sub-")
         html_file = self.data_dir / f"sub-{pid_clean}.html"
         
         if not html_file.exists():
@@ -394,7 +394,7 @@ class FMRIPrepRatingApp:
     
     def serve_figures(self, pid: str, filename: str):
         """Serve figure files for a participant."""
-        pid_clean = pid.strip().lstrip("sub-")
+        pid_clean = pid.strip().removeprefix("sub-")
         base_path = self.data_dir / f"sub-{pid_clean}" / "figures"
         
         if not base_path.exists():
@@ -410,7 +410,7 @@ class FMRIPrepRatingApp:
         if not data or "ratings" not in data or "id" not in data:
             return jsonify({"status": "fail", "message": "Missing ratings or ID"}), 400
         
-        participant_id = data["id"].strip().lstrip("sub-")
+        participant_id = data["id"].strip().removeprefix("sub-")
         ratings = data.get("ratings", {})
         notes = data.get("notes", {})
         

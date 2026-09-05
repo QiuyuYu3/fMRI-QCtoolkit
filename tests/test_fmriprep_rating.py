@@ -819,3 +819,44 @@ class TestUnsupportedEntityWarning:
             temp_app._warn_unsupported_entities("001", HTML_WITH_SESSION)
 
         assert caplog.text == ""
+
+
+class TestParticipantIdIsPreserved:
+    """The subject label is a BIDS string: leading zeros stay, and `sub-` is a prefix."""
+
+    def test_leading_zeros_survive_the_save(self, temp_app):
+        participant_id = "0030"
+        _, modules = temp_app.process_html_modules(HTML_WITH_SESSION)
+        ratings = {m['id']: "1" for group in modules for m in group}
+
+        save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_WITH_SESSION)
+
+        csv_file = temp_app.output_dir / f"sub-{participant_id}_ses-01_rest.csv"
+        with csv_file.open(newline="", encoding="utf-8") as f:
+            row = next(csv.DictReader(f))
+
+        assert row["ID"] == "0030"
+
+    def test_route_keeps_the_id_intact(self, temp_app):
+        """URL -> template -> POST -> disk, for an id that both starts with 's' and is padded."""
+        (temp_app.data_dir / "sub-0030.html").write_text(HTML_WITH_SESSION, encoding="utf-8")
+        client = temp_app.app.test_client()
+
+        page = client.get("/sub-0030").get_data(as_text=True)
+        assert 'window.participantId = "0030"' in page
+
+        _, modules = temp_app.process_html_modules(HTML_WITH_SESSION)
+        ratings = {m['id']: "1" for group in modules for m in group}
+        resp = client.post("/save_ratings", json={"id": "0030", "ratings": ratings, "notes": {}})
+
+        assert resp.status_code == 200
+        saved = json.loads((temp_app.output_dir / "sub-0030.json").read_text(encoding="utf-8"))
+        assert saved["ratings"] == ratings
+
+    def test_prefix_strip_does_not_eat_id_characters(self, temp_app):
+        (temp_app.data_dir / "sub-s001.html").write_text(HTML_WITH_SESSION, encoding="utf-8")
+        client = temp_app.app.test_client()
+
+        page = client.get("/sub-s001").get_data(as_text=True)
+
+        assert 'window.participantId = "s001"' in page

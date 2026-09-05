@@ -25,7 +25,7 @@ def parse_subjects_input(subjects_input: str) -> list:
     subjects = [s for s in subjects if s]  # Remove empty strings
     
     # Clean up subject IDs (remove 'sub-' prefix if present)
-    subjects = [str(s).strip().lstrip('sub-') for s in subjects]
+    subjects = [str(s).strip().removeprefix('sub-') for s in subjects]
     
     typer.echo(f"Found {len(subjects)} subjects: {', '.join(subjects[:5])}{'...' if len(subjects) > 5 else ''}")
     return subjects
