@@ -709,6 +709,7 @@ class TestMultiTaskWithBIDSRuns:
 
         # Rate every module the frontend actually renders
         ratings = {m['id']: "1" for group in modules for m in group}
+        rendered = {m['id'].split('_', 1)[0] for group in modules for m in group}
 
         save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_MULTITASK_WITH_RUNS)
 
@@ -719,7 +720,9 @@ class TestMultiTaskWithBIDSRuns:
             with csv_file.open(newline="", encoding="utf-8") as f:
                 row = next(csv.DictReader(f))
 
-            na_cols = sorted(c for c, v in row.items() if c.endswith("_r") and v == "NA")
+            # Modules absent from the HTML get a column too, and it is legitimately NA
+            na_cols = sorted(c for c, v in row.items()
+                             if c.endswith("_r") and v == "NA" and c.rsplit("_", 2)[0] in rendered)
             assert not na_cols, f"{task} lost these ratings: {na_cols}"
 
 
