@@ -28,12 +28,12 @@ exclude_ids = [ ]  # IDs to exclude
 bold = pd.read_csv(bold_file, sep='\t')
 
 # Extract fields from 'bids_name'
-bold['ID'] = bold['bids_name'].str.extract(r'sub-(\d+)').astype(int)
+bold['ID'] = bold['bids_name'].str.extract(r'sub-([A-Za-z0-9]+)')[0]
 # bold['run'] = bold['bids_name'].str.extract(r'run-(\d+)').fillna(1).astype(int)
 bold['run'] = bold['bids_name'].str.extract(r'run-(\d+)')[0].astype(float).fillna(1).astype(int)
 
 # Extract the session number; if none exists, default to 1.
-bold['session'] = bold['bids_name'].str.extract(r'ses-(\d+)').fillna('1').astype(int)
+bold['session'] = bold['bids_name'].str.extract(r'ses-([A-Za-z0-9]+)')[0].fillna('1')
 bold['modality'] = bold['bids_name'].str.extract(r'task-([a-zA-Z0-9]+)')
 
 # Filter for specified task and exclude problematic IDs
@@ -66,7 +66,7 @@ print(f"Found {len(csv_files)} subject CSV files")
 
 dfs = []
 for csv_file in csv_files:
-    df = pd.read_csv(csv_file)
+    df = pd.read_csv(csv_file, dtype={'ID': str})
     filename = Path(csv_file).stem  # e.g., sub-267_ses-01_rest
     session_match = re.search(r'_ses-(\d+)', filename)
     if session_match:
@@ -129,7 +129,9 @@ checkbox_groups = ["Align","BOLD","CompCor","Corr","Norm","SDC","SurfRecon","T1m
 vars = ["fd_perc","fd_mean", "gcor", "gsr_x", "gsr_y","aor","aqi","dvars_nstd","tsnr"]
 
 # Sort by ID
-fmriprep_rating = fmriprep_rating.sort_values("ID")
+fmriprep_rating = (fmriprep_rating.assign(ID_int=pd.to_numeric(fmriprep_rating["ID"], errors="coerce"))
+                   .sort_values(["ID_int", "ID"], na_position="last")
+                   .drop(columns="ID_int"))
 
 # Get round number
 exclude_cols = ['modality']
@@ -157,7 +159,7 @@ lollipop_chart_data["subject_variable"] = lollipop_chart_data["ID"].astype(str) 
 
 lollipop_chart_data["Value"] = lollipop_chart_data["Value"].round(3)
 lollipop_chart_data["mean_value"] = lollipop_chart_data["mean_value"].round(3)
-lollipop_chart_data["ID_int"] = lollipop_chart_data["ID"].astype(int)
+lollipop_chart_data["ID_int"] = pd.to_numeric(lollipop_chart_data["ID"], errors="coerce")
 lollipop_chart_data = lollipop_chart_data.sort_values(by=["Variable", "ID_int"])
 
 lollipop_chart_data["row_number"] = range(1, len(lollipop_chart_data) + 1)

@@ -20,15 +20,6 @@ class BaseDataProcessor(ABC):
         self.vars = []
         self.checkbox_groups = []
     
-    @classmethod
-    def from_files(cls, data_file, lollipop_file):
-        """Create processor from pre-processed files."""
-        processor = cls()
-        processor.df_final = pd.read_csv(data_file, dtype={'ID': str})
-        processor.lollipop_chart_data = pd.read_csv(lollipop_file, dtype={'ID': str})
-        processor._set_variables()
-        return processor
-    
     @abstractmethod
     def _set_variables(self):
         """Set pipeline-specific variables and checkbox groups."""
@@ -101,9 +92,13 @@ class BaseDataProcessor(ABC):
                     self.df_final[col] = self.df_final[col].round(3)
 
     def _sort_by_id(self):
-        """Sort dataframe by ID."""
+        """Sort by ID numerically where possible, so sub-9 precedes sub-10."""
         if 'ID' in self.df_final.columns:
-            self.df_final = self.df_final.sort_values("ID")
+            order = pd.to_numeric(self.df_final["ID"], errors="coerce")
+            self.df_final = (self.df_final
+                             .assign(_id_num=order)
+                             .sort_values(["_id_num", "ID"], na_position="last")
+                             .drop(columns="_id_num"))
     
     def save_data(self):
         """Save processed data to CSV files."""

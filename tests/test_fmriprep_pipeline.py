@@ -334,6 +334,14 @@ class TestSubjectIdIsABIDSLabel:
 
         assert pipeline.bold_data['ID'].dtype == pipeline.rating_data['ID'].dtype
 
+    def test_ids_sort_numerically_not_lexicographically(self):
+        pipeline = FMRIPrepPipeline.__new__(FMRIPrepPipeline)
+        pipeline.df_final = pd.DataFrame({'ID': ['9', '10', '0030', 'A01', '2']})
+
+        pipeline._sort_by_id()
+
+        assert list(pipeline.df_final['ID']) == ['2', '9', '10', '0030', 'A01']
+
     def test_padding_survives_the_round_trip_through_saved_csv(self, temp_dir,
                                                                sample_fmriprep_data):
         """qc dash re-reads df_final.csv, so the zeros have to survive that read too."""
@@ -355,3 +363,62 @@ class TestSubjectIdIsABIDSLabel:
 
         assert list(pipeline.df_final['ID']) == ['0030', '090']
         assert list(pipeline.lollipop_chart_data['ID']) == ['0030', '090']
+
+
+class TestMergeMismatchIsReported:
+    """A key mismatch leaves every row half-empty; the row count alone never shows it."""
+
+    def _env(self, temp_dir, bold_bids_name, rating_filename, rating_row):
+        bold_data = pd.DataFrame([{
+            'bids_name': bold_bids_name, 'fd_perc': 10.0, 'gcor': 0.2, 'dummy_trs': 4,
+            'gsr_x': 0.02, 'gsr_y': 0.02, 'aor': 0.2, 'aqi': 0.5, 'dvars_nstd': 1.0,
+            'tsnr': 150.0, 'fd_mean': 0.2, 'spacing_tr': 2.0,
+        }])
+        bold_file = temp_dir / "group_bold.tsv"
+        rating_dir = temp_dir / "ratings"
+        rating_dir.mkdir(exist_ok=True)
+        bold_data.to_csv(bold_file, sep='\t', index=False)
+        (rating_dir / rating_filename).write_text(pd.DataFrame([rating_row]).to_csv(index=False))
+        return bold_file, rating_dir
+
+    def test_session_label_mismatch_is_reported(self, temp_dir, capsys):
+        """ses-1 in MRIQC vs ses-01 in the ratings: 2 rows out, 0 of them joined."""
+        bold_file, rating_dir = self._env(
+            temp_dir, 'sub-101_ses-1_task-rest_run-1_bold',
+            'sub-101_ses-01_rest.csv', {'ID': '101', 'Final_1_r': 'good'},
+        )
+
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_raw_data()
+        pipeline._clean_data()
+
+        out = capsys.readouterr().out
+        assert "0 matched" in out
+        assert "no record matched" in out
+        assert "session: rating=['01'] vs BOLD=['1']" in out
+
+    def test_matching_labels_stay_quiet(self, temp_dir, capsys):
+        bold_file, rating_dir = self._env(
+            temp_dir, 'sub-101_ses-01_task-rest_run-1_bold',
+            'sub-101_ses-01_rest.csv', {'ID': '101', 'Final_1_r': 'good'},
+        )
+
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_raw_data()
+        pipeline._clean_data()
+
+        out = capsys.readouterr().out
+        assert "1 matched" in out
+        assert "no record matched" not in out
+
+    def test_merge_indicator_is_not_left_in_the_output(self, temp_dir):
+        bold_file, rating_dir = self._env(
+            temp_dir, 'sub-101_ses-01_task-rest_run-1_bold',
+            'sub-101_ses-01_rest.csv', {'ID': '101', 'Final_1_r': 'good'},
+        )
+
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_raw_data()
+        pipeline._clean_data()
+
+        assert '_merge' not in pipeline.df_final.columns

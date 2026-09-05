@@ -104,7 +104,9 @@ df = df[core_cols + frac_cols + checkbox_groups]
 df["ID"] = df["ID"].str.replace(f"^{prefix}", "", regex=True)
 
 # Sort by ID
-df_final = df.sort_values("ID")
+df_final = (df.assign(ID_int=pd.to_numeric(df["ID"], errors="coerce"))
+            .sort_values(["ID_int", "ID"], na_position="last")
+            .drop(columns="ID_int"))
 
 # Get round number
 for col in df_final.columns:
@@ -130,7 +132,7 @@ lollipop_chart_data["subject_variable"] = lollipop_chart_data["ID"].astype(str) 
 
 lollipop_chart_data["Value"] = lollipop_chart_data["Value"].round(3)
 lollipop_chart_data["mean_value"] = lollipop_chart_data["mean_value"].round(3)
-lollipop_chart_data["ID_int"] = lollipop_chart_data["ID"].astype(int)
+lollipop_chart_data["ID_int"] = pd.to_numeric(lollipop_chart_data["ID"], errors="coerce")
 lollipop_chart_data = lollipop_chart_data.sort_values(by=["Variable", "ID_int"])
 
 lollipop_chart_data["row_number"] = range(1, len(lollipop_chart_data) + 1)

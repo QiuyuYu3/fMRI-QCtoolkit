@@ -52,11 +52,11 @@ for tsv_path in tsv_files:
 df = pd.DataFrame(results)
 # print(df)
 
-df["ID"] = df["ID"].astype(int)
+# ID stays a string so zero-padded labels survive and match the QC summary
 df.rename(columns={"num_retained_volumes": "retained_TRs"}, inplace=True)
 
 # Read QC summary
-qc_df = pd.read_csv(qc_csv_path)
+qc_df = pd.read_csv(qc_csv_path, dtype={'ID': str})
 # print(qc_df)
 
 # Merge two dataframes based on ID and run number

@@ -19,7 +19,8 @@ task = "rest"
 based_dir = "/work/cglab/projects/BRANCH/all_data/for_AFNI/BIDS"
 output_dir = "/scratch/qy49547/qc" # change here
 
-df = pd.read_csv('/work/cglab/projects/DORRY/reanalysis_QY/quality_control/w1_fmriprep_rating.csv') # load data
+df = pd.read_csv('/work/cglab/projects/DORRY/reanalysis_QY/quality_control/w1_fmriprep_rating.csv',
+                 dtype={'ID': str}) # load data; ID is a BIDS label, keep leading zeros
 
 # Define variable lists --------------------------------------------------------------
 checkbox_groups = ["Align","BOLD","CompCor","Corr","Norm","SDC","SurfRecon","T1mask","Variance","Final"]
@@ -30,7 +31,9 @@ vars = ["fd_perc","fd_mean", "gcor", "gsr_x","gsr_y", "aor","aqi","dvars_nstd","
 # print(df_final['fd_mean'].max())
 
 # Sort by ID
-df_final = df.sort_values("ID")
+df_final = (df.assign(ID_int=pd.to_numeric(df["ID"], errors="coerce"))
+            .sort_values(["ID_int", "ID"], na_position="last")
+            .drop(columns="ID_int"))
 
 # Save merged final dataframe
 # df_final.to_csv(os.path.join(output_dir, "df_final.csv"), index=False)
@@ -61,7 +64,7 @@ lollipop_chart_data["subject_variable"] = lollipop_chart_data["ID"].astype(str) 
 
 lollipop_chart_data["Value"] = lollipop_chart_data["Value"].round(3)
 lollipop_chart_data["mean_value"] = lollipop_chart_data["mean_value"].round(3)
-lollipop_chart_data["ID_int"] = lollipop_chart_data["ID"].astype(int)
+lollipop_chart_data["ID_int"] = pd.to_numeric(lollipop_chart_data["ID"], errors="coerce")
 lollipop_chart_data = lollipop_chart_data.sort_values(by=["Variable", "ID_int"])
 
 lollipop_chart_data["row_number"] = range(1, len(lollipop_chart_data) + 1)

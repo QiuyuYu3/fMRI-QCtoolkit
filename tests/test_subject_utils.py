@@ -92,7 +92,7 @@ def test_validate_afni_subjects(tmp_path: Path):
     (root / "QC_sub-3001" / "index.html").write_text("<html></html>")
 
     found, missing = validate_afni_subjects(tmp_path, ["3001", "3002"], prefix=prefix, task=task)
-    assert any(str(p).endswith("QC_sub-3001/index.html") for p in found)
+    assert any(Path(p).parts[-2:] == ("QC_sub-3001", "index.html") for p in found)
     assert "3002" in missing
 
 

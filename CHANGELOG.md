@@ -1,17 +1,28 @@
 # Change Log
 
 ## [Unreleased]
+
+
+## [1.0.0] - 2026-09-05
 ### Fixed
 - Ratings are no longer lost when one session contains more than one task.
 - Ratings are no longer lost when a task has several acquisitions, directions, or echoes.
 - Run numbers in the exported CSV now match the run labels shown in the fMRIPrep report.
 - Fieldmap panels are no longer counted as tasks.
+- Subject IDs keep their leading zeros; `sub-0030` and `sub-30` are no longer the same subject.
+- Subject IDs are no longer truncated when they start with a letter from `sub-` (`s001` became `001`).
+- Non-numeric subject labels such as `sub-A01` no longer crash `qc prep`.
+- `qc prep` now warns when the ratings and MRIQC have no records in common.
 
 ### Changed
 - Session labels are kept as written (`ses-pre`, `ses-V1`) instead of being forced to numbers.
+- Subject IDs are kept as labels rather than numbers throughout.
 
 ### Added
 - Unit tests for the dashboard's heatmap data.
+
+### Removed
+- `BaseDataProcessor.from_files`, unused and broken since it was added.
 
 ### Notes
 - Anatomical items (T1mask / Norm / SurfRecon) can show more than one image if the subject was

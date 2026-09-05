@@ -209,22 +209,27 @@ class FMRIPrepPipeline(BaseDataProcessor):
         
         # Merge BOLD data with rating data
         merged_data = pd.merge(
-            self.rating_data, 
-            self.bold_data, 
-            on=merge_keys, 
-            how='outer' # 'inner' join to keep only matching records. 'outer' to keep all.
+            self.rating_data,
+            self.bold_data,
+            on=merge_keys,
+            how='outer', # 'inner' join to keep only matching records. 'outer' to keep all.
+            indicator=True
         )
-        
-        print(f"After merge: {merged_data.shape}")
-        
-        # Check for merge issues
-        if len(merged_data) == 0:
-            print("WARNING: No records after merge!")
-            print("\nRating data sample:")
-            print(self.rating_data[merge_keys].head())
-            print("\nBOLD data sample:")
-            print(self.bold_data[merge_keys].head())
-        
+
+        matched = int((merged_data['_merge'] == 'both').sum())
+        merged_data = merged_data.drop(columns='_merge')
+
+        print(f"After merge: {merged_data.shape} ({matched} matched on {merge_keys})")
+
+        # An outer join lays both sides side by side when nothing matches, so the row
+        # count can never reveal a key mismatch -- only the matched count can.
+        if matched == 0:
+            print(f"WARNING: no record matched on {merge_keys}! "
+                  "Ratings and MRIQC are probably labelled differently.")
+            for key in merge_keys:
+                print(f"  {key}: rating={sorted(self.rating_data[key].unique())[:8]} "
+                      f"vs BOLD={sorted(self.bold_data[key].unique())[:8]}")
+
         self.df_final = merged_data
         print(f"Final merged dataset: {len(merged_data)} records")
 
