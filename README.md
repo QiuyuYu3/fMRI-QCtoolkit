@@ -60,7 +60,7 @@ qc rating afni --input-dir /PATH/AFNI_derivatives --subjects "003,009" --task se
 > [!IMPORTANT]  
 > The rating program relies on the `open_apqc.py` tool developed by AFNI.  
 > You can either:
-> - Change the default AFNI binary path in `fMRI_QCtoolkit/cli.py`, or  
+> - Make sure `open_apqc.py` is on your `$PATH` (e.g., load the AFNI module first), or  
 > - Provide a custom path using the `--afni-path` option when running the command.
 > `qc rating afni --input-dir /PATH/AFNI_derivatives --subjects "003,009" --task ses-01/cards --prefix sub- --afni-path /PATH`
 

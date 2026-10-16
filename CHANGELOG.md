@@ -15,6 +15,7 @@
 - `qc prep` now warns when the ratings and MRIQC have no records in common.
 
 ### Changed
+- `qc rating afni --afni-path` no longer defaults to a cluster-specific path; `open_apqc.py` is taken from `$PATH` unless the option is given.
 - Session labels are kept as written (`ses-pre`, `ses-V1`) instead of being forced to numbers.
 - Subject IDs are kept as labels rather than numbers throughout.
 

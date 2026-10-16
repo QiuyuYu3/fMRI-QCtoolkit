@@ -184,7 +184,7 @@ def rating_fmriprep(
     
     typer.echo("Starting fMRIPrep rating interface...")
     typer.echo("Rate each subject's quality control report")
-    typer.echo("Ratings will be saved automatically as CSV files")
+    typer.echo("Ratings will be saved automatically as JSON and CSV files")
     typer.echo("If the program cannot detect the session and run number, both will default to 1.")
     typer.echo("Browser tabs will open for each subject")
     
@@ -209,7 +209,7 @@ def rating_afni(
     subjects: str = typer.Option(..., help="Subjects to rate (comma/space separated or path to text file)"),
     task: str = typer.Option(..., help="Task name. The program will automatically detect paths containing this field within the input directory."),
     prefix: str = typer.Option(..., help="Prefix for AFNI subjects, e.g., 'sub-'"),
-    afni_path: str = typer.Option("/apps/eb/AFNI/24.3.06-foss-2023a/bin", help="Path to AFNI binaries (will be added to $PATH)"),
+    afni_path: str = typer.Option("", help="Path to AFNI binaries (added to $PATH if given; otherwise open_apqc.py must already be on $PATH)"),
 ):
     validate_dir_exists(input_dir, "Input directory")
 
@@ -228,8 +228,9 @@ def rating_afni(
 
     typer.echo(f"Found {len(html_files)} AFNI QC files")
 
+    path_export = f'export PATH="{afni_path}:$PATH"' if afni_path else ""
     cmd = f"""
-    export PATH="{afni_path}:$PATH"
+    {path_export}
     open_apqc.py -infiles {' '.join(html_files)}
     """
     subprocess.run(cmd, shell=True, check=False)
