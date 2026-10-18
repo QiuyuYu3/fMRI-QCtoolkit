@@ -1,6 +1,9 @@
 # Change Log
 
 ## [Unreleased]
+
+
+## [1.0.0] - 2026-09-05
 ### Security
 - The rating interface and dashboards now require a per-session token. The terminal prints a link containing it; requests without it get "Access denied". This keeps other users on a shared machine (such as an HPC login node) out of the pages and the ratings.
 - Requests whose Host header is not a loopback name are refused while the server is bound to localhost, which blocks DNS rebinding from web pages.
@@ -8,14 +11,6 @@
 - `qc rating afni` no longer runs `open_apqc.py` through a shell, so paths with spaces or shell characters are passed as-is.
 - `qc dashboard --debug` is refused on a non-loopback `--host`, and a non-loopback host prints a warning.
 
-### Added
-- `qc rating fmriprep --no-browser` prints the links without opening browser tabs. Tabs are also not opened on Linux when no display is available.
-
-### Removed
-- The unused `flask-cors` dependency.
-
-
-## [1.0.0] - 2026-09-05
 ### Fixed
 - Ratings are no longer lost when one session contains more than one task.
 - Ratings are no longer lost when a task has several acquisitions, directions, or echoes.
@@ -32,10 +27,12 @@
 - Subject IDs are kept as labels rather than numbers throughout.
 
 ### Added
+- `qc rating fmriprep --no-browser` prints the links without opening browser tabs. Tabs are also not opened on Linux when no display is available.
 - Unit tests for the dashboard's heatmap data.
 
 ### Removed
 - `BaseDataProcessor.from_files`, unused and broken since it was added.
+- The unused `flask-cors` dependency.
 
 ### Notes
 - Anatomical items (T1mask / Norm / SurfRecon) can show more than one image if the subject was
