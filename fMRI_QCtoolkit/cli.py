@@ -1,3 +1,4 @@
+import os
 import typer
 from pathlib import Path
 import subprocess
@@ -7,6 +8,7 @@ from .data.afni_pipeline import AFNIPipeline
 from .dashboard.fmriprep_app import FMRIPrepDashboard
 from .dashboard.afni_app import AFNIDashboard
 from .dashboard.fmriprep_rating_app import FMRIPrepRatingApp
+from .utils.access import is_loopback
 from .utils.port_utils import find_free_port
 from .utils.subject_utils import parse_subjects_input,validate_fmriprep_subjects,validate_afni_subjects
 
@@ -32,6 +34,14 @@ def validate_file_exists(path: Path, name: str):
     if not path.exists():
         typer.echo(f"{name} not found: {path}", err=True)
         raise typer.Exit(code=1)
+
+def check_bind_host(host: str, debug: bool):
+    if is_loopback(host):
+        return
+    if debug:
+        typer.echo(f"Refusing --debug on non-loopback host {host}: debug mode must not be reachable from the network.", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"Warning: host {host} is reachable from other machines; only the session token protects it.", err=True)
 
 def ensure_output_dir(path: Path):
     try:
@@ -104,6 +114,7 @@ def dashboard_afni(
 ):
     validate_file_exists(data_file, "Data file")
     validate_file_exists(lollipop_file, "Lollipop file")
+    check_bind_host(host, debug)
 
     # Auto-detect available port
     try:
@@ -113,7 +124,6 @@ def dashboard_afni(
         typer.echo(f"Port allocation failed: {e}", err=True)
         raise typer.Exit(code=1)
 
-    typer.echo(f"Starting AFNI dashboard at http://{host}:{port}")
     
     pipeline = AFNIPipeline.from_saved_data(
         data_file=data_file,
@@ -135,6 +145,7 @@ def dashboard_fmriprep(
 ):
     validate_file_exists(data_file, "Data file")
     validate_file_exists(lollipop_file, "Lollipop file")
+    check_bind_host(host, debug)
 
     # Auto-detect available port
     try:
@@ -143,7 +154,6 @@ def dashboard_fmriprep(
     except RuntimeError as e:
         typer.echo(f"Port allocation failed: {e}", err=True)
         raise typer.Exit(code=1)
-    typer.echo(f"Starting fMRIPrep dashboard at http://{host}:{port}")
     
     pipeline = FMRIPrepPipeline.from_saved_data(
         data_file=data_file,
@@ -162,6 +172,7 @@ def rating_fmriprep(
     input_dir: Path = typer.Option(..., help="Directory containing fMRIPrep HTML reports"),
     output_dir: Path = typer.Option(..., help="Directory to save rating CSV files"),
     subjects: str = typer.Option(..., help="Subjects to rate (comma/space separated or path to text file)"),
+    no_browser: bool = typer.Option(False, help="Only print the links; do not open browser tabs"),
 ):
     validate_dir_exists(input_dir, "Input directory")
     ensure_output_dir(output_dir)
@@ -186,7 +197,7 @@ def rating_fmriprep(
     typer.echo("Rate each subject's quality control report")
     typer.echo("Ratings will be saved automatically as JSON and CSV files")
     typer.echo("If the program cannot detect the session and run number, both will default to 1.")
-    typer.echo("Browser tabs will open for each subject")
+    typer.echo("A link is printed for each subject" if no_browser else "Browser tabs will open for each subject")
     
     rating_app_instance = FMRIPrepRatingApp(
         data_dir=input_dir,
@@ -195,7 +206,7 @@ def rating_fmriprep(
     )
     
     try:
-        rating_app_instance.run_app_and_open_browsers()
+        rating_app_instance.run_app_and_open_browsers(open_browser=not no_browser)
     except KeyboardInterrupt:
         typer.echo("\n Rating session ended")
     except Exception as e:
@@ -228,12 +239,14 @@ def rating_afni(
 
     typer.echo(f"Found {len(html_files)} AFNI QC files")
 
-    path_export = f'export PATH="{afni_path}:$PATH"' if afni_path else ""
-    cmd = f"""
-    {path_export}
-    open_apqc.py -infiles {' '.join(html_files)}
-    """
-    subprocess.run(cmd, shell=True, check=False)
+    env = os.environ.copy()
+    if afni_path:
+        env["PATH"] = afni_path + os.pathsep + env.get("PATH", "")
+    try:
+        subprocess.run(["open_apqc.py", "-infiles", *map(str, html_files)], env=env, check=False)
+    except FileNotFoundError:
+        typer.echo("open_apqc.py not found; add AFNI to $PATH or pass --afni-path", err=True)
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

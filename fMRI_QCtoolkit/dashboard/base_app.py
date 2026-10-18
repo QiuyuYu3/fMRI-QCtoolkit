@@ -6,8 +6,10 @@ import dash
 from dash import dcc, html, Input, Output, State, dash_table
 import pandas as pd
 import json
+import logging
 import os
 from abc import ABC, abstractmethod
+from ..utils.access import AccessGate
 from ..utils.plots import create_lollipop_plot, create_heatmap
 
 class BaseDashboard(ABC):
@@ -15,11 +17,12 @@ class BaseDashboard(ABC):
 
     STATUS_TO_NUM = {'NA': 0, 'bad': 1, 'other': 2, 'good': 3}
 
-    def __init__(self, data_processor, task=None):
+    def __init__(self, data_processor, task=None, token=None):
         self.processor = data_processor
         self.task = task or "unknown"
         self.config = self._load_config()
         self.app = dash.Dash(__name__)
+        self.gate = AccessGate(self.app.server, token)
         self.setup_layout()
         self.setup_callbacks()
 
@@ -513,5 +516,12 @@ class BaseDashboard(ABC):
     
     def run(self, host='127.0.0.1', port=8050, debug=False):
         """Run the dashboard."""
-        print(f"Starting dashboard at http://{host}:{port}")
-        self.app.run(host=host, port=port, debug=debug)
+        self.gate.bind_host = host
+        print("Open the dashboard (the token is valid for this session only):")
+        print(f"  {self.gate.link(f'http://{host}:{port}')}")
+        # Dash and werkzeug would print their own links without the token
+        self.app.logger.setLevel(logging.WARNING)
+        if not debug:
+            logging.getLogger('werkzeug').setLevel(logging.WARNING)
+        # The reloader re-runs the CLI in a child process, which would mint a second token
+        self.app.run(host=host, port=port, debug=debug, use_reloader=False)

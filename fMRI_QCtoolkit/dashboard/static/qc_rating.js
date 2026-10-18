@@ -82,7 +82,13 @@ modulesByRun.forEach(runModules => {
       modEl.classList.add("final-module");
     }
     
-    modEl.innerHTML = `<span class="qc-icon">◻</span><span class="label">${mod.name}</span>`;
+    const icon = document.createElement("span");
+    icon.className = "qc-icon";
+    icon.textContent = "◻";
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = mod.name;
+    modEl.append(icon, label);
 
     // On click: Ctrl+Click = Add/Edit note; Click = cycle rating
     modEl.addEventListener("click", (e) => {

@@ -30,7 +30,7 @@
     window.modulesByRunJson = {{ modules_by_run | tojson }};
     window.initialRatingsJson = {{ ratings_json | tojson }};
     window.initialNotesJson = {{ notes_json | tojson }};
-    window.participantId = "{{ participant_id }}";
+    window.participantId = {{ participant_id | tojson }};
     
     console.log("Loaded ratings:", window.initialRatingsJson);
     console.log("Loaded notes:", window.initialNotesJson);

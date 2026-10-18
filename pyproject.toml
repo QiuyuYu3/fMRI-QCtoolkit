@@ -16,8 +16,7 @@ dependencies = [
   "plotly",
   "pandas",
   "numpy",
-  "flask",
-  "flask-cors"
+  "flask"
 ]
 
 [project.optional-dependencies]

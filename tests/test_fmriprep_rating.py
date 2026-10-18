@@ -842,7 +842,7 @@ class TestParticipantIdIsPreserved:
         (temp_app.data_dir / "sub-0030.html").write_text(HTML_WITH_SESSION, encoding="utf-8")
         client = temp_app.app.test_client()
 
-        page = client.get("/sub-0030").get_data(as_text=True)
+        page = client.get(f"/sub-0030?token={temp_app.gate.token}", follow_redirects=True).get_data(as_text=True)
         assert 'window.participantId = "0030"' in page
 
         _, modules = temp_app.process_html_modules(HTML_WITH_SESSION)
@@ -857,6 +857,6 @@ class TestParticipantIdIsPreserved:
         (temp_app.data_dir / "sub-s001.html").write_text(HTML_WITH_SESSION, encoding="utf-8")
         client = temp_app.app.test_client()
 
-        page = client.get("/sub-s001").get_data(as_text=True)
+        page = client.get(f"/sub-s001?token={temp_app.gate.token}", follow_redirects=True).get_data(as_text=True)
 
         assert 'window.participantId = "s001"' in page

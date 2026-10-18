@@ -21,6 +21,7 @@ import os
 import csv
 import json
 import re
+import sys
 import time
 import webbrowser
 import threading
@@ -29,6 +30,7 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from markupsafe import Markup
 from pathlib import Path
 from typing import Dict, List, Tuple
+from ..utils.access import AccessGate
 from ..utils.port_utils import find_free_port
 
 
@@ -67,8 +69,11 @@ class FMRIPrepRatingApp:
         'reconstruction': 'rec',
         'direction': 'dir',
     }
-    
-    def __init__(self, data_dir, output_dir, subjects=None, debug=False):
+
+    # BIDS labels are alphanumeric; anything else could walk out of data_dir/output_dir
+    PARTICIPANT_LABEL = re.compile(r'[A-Za-z0-9]+')
+
+    def __init__(self, data_dir, output_dir, subjects=None, debug=False, token=None):
         self.data_dir = Path(data_dir)
         self.output_dir = Path(output_dir)
         self.subjects = subjects or []
@@ -87,6 +92,7 @@ class FMRIPrepRatingApp:
         self.app = Flask(__name__)
         self.app.config["DATA_DIR"] = str(self.data_dir)
         self.app.config["OUTPUT_DIR"] = str(self.output_dir)
+        self.gate = AccessGate(self.app, token)
         self.setup_routes()
     
     def setup_routes(self):
@@ -103,6 +109,13 @@ class FMRIPrepRatingApp:
         @self.app.route("/save_ratings", methods=["POST"])
         def save_ratings():
             return self.save_ratings()
+
+    def _participant_label(self, pid):
+        """The bare BIDS label, or None when it is not one."""
+        if not isinstance(pid, str):
+            return None
+        label = pid.strip().removeprefix("sub-")
+        return label if self.PARTICIPANT_LABEL.fullmatch(label) else None
     
     def _group_entities(self, segment: str) -> Dict[str, str]:
         """BIDS entities of one "Reports for:" heading, keyed by entity name."""
@@ -357,7 +370,9 @@ class FMRIPrepRatingApp:
 
     def handle_participant(self, pid: str):
         """Handle participant route."""
-        pid_clean = pid.strip().removeprefix("sub-")
+        pid_clean = self._participant_label(pid)
+        if pid_clean is None:
+            return "<h2>Invalid participant label</h2>", 404
         html_file = self.data_dir / f"sub-{pid_clean}.html"
         
         if not html_file.exists():
@@ -394,7 +409,9 @@ class FMRIPrepRatingApp:
     
     def serve_figures(self, pid: str, filename: str):
         """Serve figure files for a participant."""
-        pid_clean = pid.strip().removeprefix("sub-")
+        pid_clean = self._participant_label(pid)
+        if pid_clean is None:
+            return "Invalid participant label", 404
         base_path = self.data_dir / f"sub-{pid_clean}" / "figures"
         
         if not base_path.exists():
@@ -405,14 +422,18 @@ class FMRIPrepRatingApp:
     
     def save_ratings(self):
         """Save user-submitted ratings and comments."""
-        data = request.json
-        
-        if not data or "ratings" not in data or "id" not in data:
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict) or "ratings" not in data or "id" not in data:
             return jsonify({"status": "fail", "message": "Missing ratings or ID"}), 400
-        
-        participant_id = data["id"].strip().removeprefix("sub-")
+
+        participant_id = self._participant_label(data["id"])
+        if participant_id is None:
+            return jsonify({"status": "fail", "message": "Invalid participant label"}), 400
         ratings = data.get("ratings", {})
         notes = data.get("notes", {})
+        if not isinstance(ratings, dict) or not isinstance(notes, dict):
+            return jsonify({"status": "fail", "message": "Ratings and notes must be objects"}), 400
         
         try:
             html_file = self.data_dir / f"sub-{participant_id}.html"
@@ -485,7 +506,7 @@ class FMRIPrepRatingApp:
             self.logger.error(f"Error saving ratings: {e}", exc_info=True)
             return jsonify({"status": "fail", "message": str(e)}), 500
     
-    def run_app_and_open_browsers(self, port: int = None):
+    def run_app_and_open_browsers(self, port: int = None, open_browser: bool = True):
         """Run the Flask app and open browser tabs for subjects."""
         if port is None:
             port = find_free_port()
@@ -505,13 +526,18 @@ class FMRIPrepRatingApp:
         # Wait for server to start
         time.sleep(2)
         
-        # Open browser tabs
-        if self.subjects:
-            base_url = f"http://localhost:{port}"
-            for subject_id in self.subjects:
-                url = f"{base_url}/{subject_id}"
-                self.logger.info(f"Opening {url}")
-                webbrowser.open(url)
+        base_url = f"http://localhost:{port}"
+        links = [self.gate.link(base_url, f"/{subject_id}") for subject_id in self.subjects]
+        self.logger.info("Open these links to rate (the token is valid for this session only):")
+        for link in links:
+            self.logger.info(f"  {link}")
+
+        # Without a display, webbrowser may fall back to a console browser that takes over the terminal
+        headless = sys.platform.startswith("linux") and not (
+            os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+        if open_browser and not headless:
+            for link in links:
+                webbrowser.open(link)
         
         self.logger.info("Server is running. Press Ctrl+C to stop.")
         

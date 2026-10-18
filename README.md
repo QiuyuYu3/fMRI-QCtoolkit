@@ -114,6 +114,7 @@ The directory structure of fMRIPrep derivatives is as follows:
 - `--input-dir`: Root directory, containing results that preprocessed from different participants.
 - `--subjects`: Support input multiple participants IDs.
 - `--output-dir`: Path for exporting the scoring CSV file.
+- `--no-browser`: Only print the links, without opening browser tabs (useful on HPC; see [Access Links](#access-links)).
 
 **Example Synatx:**
 ```bash
@@ -196,6 +197,28 @@ qc dashboard afni --data-file examples/example_data/afni/df_final.csv --lollipop
 ```bash
 qc dashboard fmriprep --data-file examples/example_data/fmriprep/df_final.csv --lollipop-file examples/example_data/fmriprep/lollipop_chart_data.csv --task rest
 ```
+
+# Access Links
+`qc rating fmriprep` and `qc dashboard` start a local web server that only answers requests carrying a session token. The terminal prints one link per subject (or one for the dashboard), for example:
+
+```
+INFO -   http://localhost:5003/0030?token=Xk3v9QpL2mR7tYwZ8aBcD1eF4gH6jK0n
+```
+
+On your own computer, the rating tabs open automatically. Otherwise, click or paste the printed link. After the first visit, the token is kept in a browser cookie and dropped from the address bar. A new token is created every time the server starts, so after a restart (or after closing the browser) use the newly printed link. An "Access denied" page means the link is missing or out of date.
+
+**Running on HPC.** Start the server on the cluster with `--no-browser`, then forward its port from your own computer and open the printed link there:
+
+```bash
+# Server on the login node
+ssh -N -L 5003:127.0.0.1:5003 user@hpc.example.edu
+# Server on a compute node (e.g. node123 inside an srun/salloc session)
+ssh -N -L 5003:127.0.0.1:5003 -J user@hpc.example.edu user@node123
+```
+
+The local port may differ from the remote one (`-L 8888:127.0.0.1:5003`); change the port in the link accordingly and keep the token. Other users on the same node cannot open the pages without the token.
+
+`qc dashboard --host` can bind to a non-loopback address, in which case the token is the only protection. `--debug` is refused on such a host.
 
 # [Training Materials](./training_materials)
 We have summarized the AFNI QC training documentation based on existing literature and included several case studies (still under revision).

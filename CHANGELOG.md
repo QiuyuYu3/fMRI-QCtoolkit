@@ -1,6 +1,18 @@
 # Change Log
 
 ## [Unreleased]
+### Security
+- The rating interface and dashboards now require a per-session token. The terminal prints a link containing it; requests without it get "Access denied". This keeps other users on a shared machine (such as an HPC login node) out of the pages and the ratings.
+- Requests whose Host header is not a loopback name are refused while the server is bound to localhost, which blocks DNS rebinding from web pages.
+- Subject labels in rating URLs and saves must be alphanumeric BIDS labels. Before, a crafted label could read `.html` files and write ratings outside the input and output directories on Windows.
+- `qc rating afni` no longer runs `open_apqc.py` through a shell, so paths with spaces or shell characters are passed as-is.
+- `qc dashboard --debug` is refused on a non-loopback `--host`, and a non-loopback host prints a warning.
+
+### Added
+- `qc rating fmriprep --no-browser` prints the links without opening browser tabs. Tabs are also not opened on Linux when no display is available.
+
+### Removed
+- The unused `flask-cors` dependency.
 
 
 ## [1.0.0] - 2026-09-05
