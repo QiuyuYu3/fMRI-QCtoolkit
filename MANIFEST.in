@@ -1,2 +1,5 @@
 recursive-include fMRI_QCtoolkit *
+include CHANGELOG.md CITATION.cff
+graft tests
+graft examples/example_data
 global-exclude __pycache__ *.py[cod] .DS_Store
