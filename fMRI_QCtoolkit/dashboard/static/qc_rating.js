@@ -56,14 +56,25 @@ function saveRatingsToServer() {
     // Important: Must include "id" or backend will fail
     body: JSON.stringify({ ratings, notes, id: participantId }),
   })
-  .then(res => res.json())
+  .then(res => {
+    // The access gate answers 403 with an HTML page once the server restarts with a new token
+    if (res.status === 403) {
+      throw new Error("access-denied");
+    }
+    return res.json();
+  })
   .then(data => {
     if (data.status !== "success") {
       alert("Failed to save rating: " + (data.message || ""));
     }
   })
   .catch(err => {
-    alert("Network error while saving rating");
+    if (err.message === "access-denied") {
+      alert("Rating not saved: this page's link is no longer valid, usually because the server was restarted. " +
+            "Open the new link printed in the terminal and rate again.");
+    } else {
+      alert("Network error while saving rating");
+    }
     console.error(err);
   });
 }

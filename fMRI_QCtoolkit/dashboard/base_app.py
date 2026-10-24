@@ -9,7 +9,7 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from ..utils.access import AccessGate
+from ..utils.access import AccessGate, url_host
 from ..utils.plots import create_lollipop_plot, create_heatmap
 
 class BaseDashboard(ABC):
@@ -526,7 +526,7 @@ class BaseDashboard(ABC):
         """Run the dashboard."""
         self.gate.bind_host = host
         print("Open the dashboard (the token is valid for this session only):")
-        print(f"  {self.gate.link(f'http://{host}:{port}')}")
+        print(f"  {self.gate.link(f'http://{url_host(host)}:{port}')}")
         # Dash and werkzeug would print their own links without the token
         self.app.logger.setLevel(logging.WARNING)
         if not debug:

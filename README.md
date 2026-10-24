@@ -218,7 +218,7 @@ ssh -N -L 5003:127.0.0.1:5003 -J user@hpc.example.edu user@node123
 
 The local port may differ from the remote one (`-L 8888:127.0.0.1:5003`); change the port in the link accordingly and keep the token. Other users on the same node cannot open the pages without the token.
 
-`qc dashboard --host` can bind to a non-loopback address, in which case the token is the only protection. `--debug` is refused on such a host.
+`qc dashboard --host` can bind to a non-loopback address, in which case the token is the only protection. With `--host 0.0.0.0` the printed link uses this machine's hostname. `--debug` is refused on such a host.
 
 # [Training Materials](https://github.com/QiuyuYu3/fMRI-QCtoolkit/tree/main/training_materials)
 We have summarized the AFNI QC training documentation based on existing literature and included several case studies (still under revision).

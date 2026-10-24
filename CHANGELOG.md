@@ -25,6 +25,9 @@
 - fMRIPrep ratings are no longer lost when a rating CSV cannot be written (for example while it is open in Excel); the save reports the locked file.
 - Ratings for an fMRIPrep report with only anatomical items can now be saved.
 - Two fMRIPrep report groups no longer share one rating when an acquisition, direction, or run label appears on only some of a task's groups.
+- On Windows, a second `qc dashboard` or `qc rating fmriprep` no longer picks a port that another one is already serving, which showed up as "Access denied".
+- `qc dashboard --host 0.0.0.0` and IPv6 hosts now print a link that opens.
+- A rating that cannot be saved because the server restarted now says to open the new link, instead of reporting a network error.
 
 ### Changed
 - `qc rating afni --afni-path` no longer defaults to a cluster-specific path; `open_apqc.py` is taken from `$PATH` unless the option is given.

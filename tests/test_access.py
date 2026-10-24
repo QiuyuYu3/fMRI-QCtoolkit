@@ -9,7 +9,7 @@ from flask import Flask
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
 from fMRI_QCtoolkit.dashboard.fmriprep_rating_app import FMRIPrepRatingApp
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
-from fMRI_QCtoolkit.utils.access import AccessGate, is_loopback
+from fMRI_QCtoolkit.utils.access import AccessGate, is_loopback, url_host
 
 from .test_fmriprep_rating import HTML_WITH_SESSION
 
@@ -193,3 +193,19 @@ class TestDashboardIsGated:
 
         assert client.get(f"/?token={TOKEN}").status_code == 302
         assert client.get("/_dash-layout").status_code == 200
+
+
+class TestPrintedLinkHost:
+
+    @pytest.mark.parametrize("bind", ["127.0.0.1", "localhost", "node123.hpc.edu"])
+    def test_named_hosts_pass_through(self, bind):
+        assert url_host(bind) == bind
+
+    @pytest.mark.parametrize("bind", ["::1", "[::1]"])
+    def test_ipv6_gets_brackets(self, bind):
+        assert url_host(bind) == "[::1]"
+
+    @pytest.mark.parametrize("bind", ["0.0.0.0", "::"])
+    def test_wildcard_uses_the_machine_name(self, bind):
+        import socket
+        assert url_host(bind) == socket.gethostname()

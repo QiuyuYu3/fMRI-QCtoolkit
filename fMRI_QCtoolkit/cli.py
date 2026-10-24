@@ -118,7 +118,7 @@ def dashboard_afni(
 
     # Auto-detect available port
     try:
-        port = find_free_port(start=5000, end=5500, delay=0.2)
+        port = find_free_port(start=5000, end=5500, delay=0.2, host=host)
         typer.echo(f"Found available port: {port}")
     except RuntimeError as e:
         typer.echo(f"Port allocation failed: {e}", err=True)
@@ -149,7 +149,7 @@ def dashboard_fmriprep(
 
     # Auto-detect available port
     try:
-        port = find_free_port(start=5000, end=5500, delay=0.2)
+        port = find_free_port(start=5000, end=5500, delay=0.2, host=host)
         typer.echo(f"Found available port: {port}")
     except RuntimeError as e:
         typer.echo(f"Port allocation failed: {e}", err=True)

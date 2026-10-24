@@ -1,6 +1,7 @@
 import hmac
 import ipaddress
 import secrets
+import socket
 from urllib.parse import urlencode
 
 from flask import Flask, redirect, request
@@ -19,6 +20,14 @@ def is_loopback(host: str) -> bool:
         return ipaddress.ip_address(host.strip("[]")).is_loopback
     except ValueError:
         return False
+
+
+def url_host(bind_host: str) -> str:
+    """The host to put in a printed link: a wildcard bind gets this machine's name, IPv6 gets brackets."""
+    bare = bind_host.strip("[]")
+    if bare in ("", "0.0.0.0", "::"):
+        return socket.gethostname()
+    return f"[{bare}]" if ":" in bare else bare
 
 
 def _split_host_header(value: str):
