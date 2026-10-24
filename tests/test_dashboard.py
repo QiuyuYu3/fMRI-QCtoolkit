@@ -1,5 +1,5 @@
 """
-Unit tests for BaseDashboard's heatmap row building.
+Unit tests for BaseDashboard's heatmap row building and table selection.
 These run without constructing a Dash app; the callbacks themselves are not covered.
 """
 
@@ -143,3 +143,39 @@ class TestQualitativeHeatmapRows:
         df = pd.DataFrame({"ID": ["001"], "session": [1], "run": [1], "SDC": ["good"]})
 
         assert StubDashboard().qualitative_heatmap_rows(df) == []
+
+
+class TestCarrySelection:
+
+    @staticmethod
+    def _runs():
+        return pd.DataFrame({
+            'ID': ['001', '001', '001', '002'],
+            'session': ['01', '01', '02', '01'],
+            'run': [1, 2, 1, 1],
+            'fd': [0.1, 0.2, 0.3, 0.4],
+        })
+
+    def test_keeps_the_selected_run_not_the_subjects_last_row(self):
+        prev = self._runs()
+        rows = BaseDashboard._carry_selection(prev.to_dict('records'), [0], prev)
+        assert rows == [0]
+
+    def test_follows_rows_when_the_filter_removes_others(self):
+        prev = self._runs()
+        filtered = prev[prev['fd'] > 0.15].reset_index(drop=True)
+        rows = BaseDashboard._carry_selection(prev.to_dict('records'), [1, 2], filtered)
+        assert filtered.iloc[rows][['session', 'run']].values.tolist() == [['01', 2], ['02', 1]]
+
+    def test_rows_filtered_out_are_dropped(self):
+        prev = self._runs()
+        filtered = prev[prev['ID'] == '002'].reset_index(drop=True)
+        assert BaseDashboard._carry_selection(prev.to_dict('records'), [0], filtered) == []
+
+    def test_frames_without_session_or_run_match_on_id(self):
+        prev = pd.DataFrame({'ID': ['001', '002', '003']})
+        filtered = prev.iloc[1:].reset_index(drop=True)
+        assert BaseDashboard._carry_selection(prev.to_dict('records'), [2], filtered) == [1]
+
+    def test_nothing_selected(self):
+        assert BaseDashboard._carry_selection(None, [], self._runs()) == []

@@ -380,18 +380,7 @@ class BaseDashboard(ABC):
             elif trigger_id == 'clear-selection-button':
                 new_selected_rows = []
             else:
-                selected_ids = []
-                if prev_selected_rows and prev_filtered_data:
-                    try:
-                        prev_df = pd.DataFrame(prev_filtered_data)
-                        selected_ids = prev_df.iloc[prev_selected_rows]['ID'].tolist()
-                    except Exception as e:
-                        print("Failed to extract previous selected IDs:", e)
-
-                new_selected_rows = []
-                if selected_ids:
-                    id_to_index = {row['ID']: i for i, row in df.reset_index().iterrows()}
-                    new_selected_rows = [id_to_index[id_] for id_ in selected_ids if id_ in id_to_index]
+                new_selected_rows = self._carry_selection(prev_filtered_data, prev_selected_rows, df)
 
             return (
                 df.to_dict('records'),
@@ -401,6 +390,25 @@ class BaseDashboard(ABC):
                 new_selected_rows 
             )
     
+    @staticmethod
+    def _row_keys(frame):
+        """One key per row; a subject can have several sessions and runs."""
+        cols = [c for c in ('ID', 'session', 'run') if c in frame.columns]
+        return frame[cols].fillna('').astype(str).agg('|'.join, axis=1).tolist()
+
+    @classmethod
+    def _carry_selection(cls, prev_records, prev_selected_rows, df):
+        """Indices in `df` of the rows that were selected in the previous table."""
+        if not prev_selected_rows or not prev_records or df.empty:
+            return []
+        try:
+            prev_df = pd.DataFrame(prev_records)
+            selected = set(cls._row_keys(prev_df.iloc[prev_selected_rows]))
+        except Exception as e:
+            print("Failed to extract previous selected rows:", e)
+            return []
+        return [i for i, key in enumerate(cls._row_keys(df)) if key in selected]
+
     def _get_heatmap_quantitative_vars(self):
         """Get quantitative variables for heatmap from config."""
         return self.config.get("heatmap_quantitative_vars", [])
