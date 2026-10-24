@@ -16,6 +16,12 @@ def format_session(value):
     label = str(value)
     return label.zfill(2) if label.isdigit() else label
 
+
+def _id_sort_key(value):
+    """Numeric IDs first in numeric order, then alphanumeric ones; matches the prep output order."""
+    label = str(value)
+    return (0, int(label), label) if label.isdigit() else (1, 0, label)
+
 def create_heatmap(data, variable_labels, title="", 
                    group_by=None, target_width=1200, cell_size=16):
     """
@@ -89,7 +95,7 @@ def create_heatmap(data, variable_labels, title="",
                 
                 if not subset.empty:
                     group_data.append(subset)
-                    group_labels.append(f"Session {int(primary_val):02d} - Run {int(secondary_val)}")
+                    group_labels.append(f"Session {format_session(primary_val)} - Run {int(secondary_val)}")
         else:
             print(f"Warning: Columns {primary} or {secondary} not found, using default grouping")
             group_by = None
@@ -103,7 +109,7 @@ def create_heatmap(data, variable_labels, title="",
             group_data.append(subset)
             
             if group_by == 'session':
-                group_labels.append(f"Session {int(group_val):02d}")
+                group_labels.append(f"Session {format_session(group_val)}")
             elif group_by == 'run':
                 group_labels.append(f"Run {int(group_val)}")
             else:
@@ -155,14 +161,14 @@ def create_heatmap(data, variable_labels, title="",
         pivot_data_num = group_subset.pivot(index='Variables', columns='ID', values='Status').fillna(0)
         
         # Sort by ID
-        sorted_ids = sorted(pivot_data_num.columns, key=lambda x: int(x))
+        sorted_ids = sorted(pivot_data_num.columns, key=_id_sort_key)
         pivot_data_num = pivot_data_num[sorted_ids]
 
         if 'StatusStr' in group_subset.columns:
             pivot_data_str = group_subset.pivot(index='Variables', columns='ID', values='StatusStr').fillna('NA')
             pivot_data_str = pivot_data_str[sorted_ids]
         else:
-            pivot_data_str = pivot_data_num.applymap(lambda x: num_to_status[x])
+            pivot_data_str = pivot_data_num.map(lambda x: num_to_status[x])
 
         n_subjects = len(pivot_data_num.columns)
         n_variables = len(pivot_data_num.index)

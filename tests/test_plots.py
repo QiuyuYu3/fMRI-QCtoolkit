@@ -33,6 +33,33 @@ class TestCreateHeatmap:
         # Should create subplots for each run
         assert len(fig.data) > 0
 
+    @staticmethod
+    def _grid(ids, sessions, with_status_str=True):
+        rows = []
+        for session in sessions:
+            for subject in ids:
+                row = {'ID': subject, 'Variables': 'var1', 'Status': 3, 'session': session, 'run': 1}
+                if with_status_str:
+                    row['StatusStr'] = 'good'
+                rows.append(row)
+        return pd.DataFrame(rows)
+
+    def test_alphanumeric_ids_sort_after_numeric(self):
+        data = self._grid(['A01', '010', '9', 'pilot1'], ['01'])
+        fig = create_heatmap(data, {}, group_by='session')
+        assert list(fig.layout.xaxis.ticktext) == ['9', '010', 'A01', 'pilot1']
+
+    def test_non_numeric_session_labels(self):
+        data = self._grid(['001', '002'], ['pre', 'post'])
+        fig = create_heatmap(data, {}, group_by=['session', 'run'])
+        titles = [a.text for a in fig.layout.annotations]
+        assert titles == ['Session post - Run 1', 'Session pre - Run 1']
+
+    def test_without_status_strings(self):
+        data = self._grid(['001', '002'], ['01'], with_status_str=False)
+        fig = create_heatmap(data, {}, group_by='session')
+        assert 'Status: good' in fig.data[0].text[0]
+
 
 class TestCreateLollipopPlot:
     

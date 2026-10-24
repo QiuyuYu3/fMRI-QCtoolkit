@@ -182,6 +182,17 @@ class TestFromSavedData:
         assert len(pipeline.df_final) > 0
         assert pipeline.task == "rest"
 
+    def test_session_labels_stay_strings(self, temp_dir):
+        data_file = temp_dir / "df_final.csv"
+        lollipop_file = temp_dir / "lollipop_chart_data.csv"
+        data_file.write_text("ID,session,run\n001,01,1\n002,pre,1\n003,,1\n")
+        lollipop_file.write_text("ID,session,run,Variable,Value\n001,01,1,fd_mean,0.1\n")
+
+        pipeline = FMRIPrepPipeline.from_saved_data(data_file=data_file, lollipop_file=lollipop_file)
+
+        assert pipeline.df_final['session'].tolist()[:2] == ['01', 'pre']
+        assert pipeline.lollipop_chart_data['session'].tolist() == ['01']
+
 
 class TestIntegrationWithExampleData:
     """Integration tests using example data"""

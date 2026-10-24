@@ -20,6 +20,7 @@
 - Subject IDs are no longer truncated when they start with a letter from `sub-` (`s001` became `001`).
 - Non-numeric subject labels such as `sub-A01` no longer crash `qc prep`.
 - `qc prep` now warns when the ratings and MRIQC have no records in common.
+- The dashboard heatmaps no longer crash on non-numeric subject labels (`sub-A01`) or session labels (`ses-pre`), or with pandas 3.
 
 ### Changed
 - `qc rating afni --afni-path` no longer defaults to a cluster-specific path; `open_apqc.py` is taken from `$PATH` unless the option is given.
