@@ -16,11 +16,11 @@ app = dash.Dash(__name__)
 
 session = "01"
 prefix = "sub-"
-project = "branch"
+project = "myproject"
 task = "kidvid_output"
 
 # Set paths
-based_dir = "/work/cglab/projects/BRANCH/all_data/for_AFNI/BIDS"
+based_dir = "/PATH/to/BIDS"
 
 work_dir = os.path.join(based_dir, project, "AFNI_derivatives")
 

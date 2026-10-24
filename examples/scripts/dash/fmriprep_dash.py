@@ -11,14 +11,14 @@ app = dash.Dash(__name__)
 
 session = "01"
 prefix = "sub-"
-project = "branch"
+project = "myproject"
 task = "rest"
 
 # Set paths
-output_dir = "/home/qy49547/Desktop/test" # change here
+output_dir = "/PATH/to/output" # change here
 
-df_final = pd.read_csv('/home/qy49547/Desktop/test/fmriprep_rating_rest.csv') # load data
-lollipop_chart_data = pd.read_csv('/home/qy49547/Desktop/test/lollipop_chart_data.csv') # load data
+df_final = pd.read_csv('/PATH/to/output/fmriprep_rating_rest.csv') # load data
+lollipop_chart_data = pd.read_csv('/PATH/to/output/lollipop_chart_data.csv') # load data
 
 # Define variable lists --------------------------------------------------------------
 checkbox_groups = ["Align","BOLD","CompCor","Corr","Norm","SDC","SurfRecon","T1mask","Variance","Final"]

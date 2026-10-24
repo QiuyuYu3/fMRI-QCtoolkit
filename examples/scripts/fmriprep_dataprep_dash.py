@@ -12,14 +12,14 @@ app = dash.Dash(__name__)
 
 session = "01"
 prefix = "sub-"
-project = "branch"
+project = "myproject"
 task = "rest"
 
 # Set paths
-based_dir = "/work/cglab/projects/BRANCH/all_data/for_AFNI/BIDS"
-output_dir = "/scratch/qy49547/qc" # change here
+based_dir = "/PATH/to/BIDS"
+output_dir = "/PATH/to/output" # change here
 
-df = pd.read_csv('/work/cglab/projects/DORRY/reanalysis_QY/quality_control/w1_fmriprep_rating.csv',
+df = pd.read_csv('/PATH/to/fmriprep_rating.csv',
                  dtype={'ID': str}) # load data; ID is a BIDS label, keep leading zeros
 
 # Define variable lists --------------------------------------------------------------

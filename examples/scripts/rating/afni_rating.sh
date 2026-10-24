@@ -13,7 +13,7 @@ ml Firefox/141.0
 
 # set up input_dir and input IDs
 
-input_dir="/work/cglab/projects/BRANCH/all_data/for_AFNI/BIDS/branch"
+input_dir="/PATH/to/AFNI_derivatives"
 
 ID=(004 005)
 

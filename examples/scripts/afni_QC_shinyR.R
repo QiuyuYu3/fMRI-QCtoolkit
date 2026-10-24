@@ -13,11 +13,11 @@ library(purrr)
 
 session <- "01"
 prefix <- "sub-"
-project <- "branch"
+project <- "myproject"
 task <- "kidvid_output"
 
-based_dir <- "/work/cglab/projects/BRANCH/all_data/for_AFNI/BIDS"
-output_dir <- "/scratch/qy49547/qc"
+based_dir <- "/PATH/to/BIDS"
+output_dir <- "/PATH/to/output"
 
 work_dir <- file.path(based_dir, project, "AFNI_derivatives")
 

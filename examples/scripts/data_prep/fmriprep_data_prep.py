@@ -18,9 +18,9 @@ from collections import defaultdict
 from pathlib import Path
 
 # Set parameters
-bold_file = '/work/cglab/projects/BRANCH/all_data/for_AFNI/BIDS/branch/quality_control/mriqc/group_bold.tsv' # MRIQC output
-folder = "/scratch/qy49547/test/branch/rating" # Rating directory
-output_dir = "/home/qy49547/Desktop/test"
+bold_file = '/PATH/to/mriqc/group_bold.tsv' # MRIQC output
+folder = "/PATH/to/rating" # Rating directory
+output_dir = "/PATH/to/output"
 task = 'rest'  # Specify the task to process
 exclude_ids = [ ]  # IDs to exclude
 

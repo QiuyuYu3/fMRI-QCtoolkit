@@ -15,13 +15,9 @@ import os
 import pandas as pd
 import glob
 
-# base_path = "/work/cglab/projects/DORRY/reanalysis_QY/wave1/derivatives_xcpd"
-# qc_csv_path = "/work/cglab/projects/DORRY/reanalysis_QY/quality_control/w1_fmriprep_rating.csv"
-# output_dir = "/work/cglab/projects/DORRY/reanalysis_QY/quality_control"
-
-base_path = "/work/cglab/projects/DORRY/reanalysis_QY/wave2/derivatives_xcpd"
-qc_csv_path = "/scratch/qy49547/test/df_final.csv"
-output_dir = "/scratch/qy49547/test"
+base_path = "/PATH/to/derivatives_xcpd"
+qc_csv_path = "/PATH/to/output/df_final.csv"
+output_dir = "/PATH/to/output"
 
 
 results = []

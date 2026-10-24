@@ -13,12 +13,12 @@ app = dash.Dash(__name__)
 
 session = "01"
 prefix = "sub-"
-project = "branch"
+project = "myproject"
 task = "kidvid_output"
 
 # Set paths
-df_final = pd.read_csv('/home/qy49547/Desktop/test/df_final.csv') # load data
-lollipop_chart_data = pd.read_csv('/home/qy49547/Desktop/test/lollipop_chart_data.csv') # load data
+df_final = pd.read_csv('/PATH/to/output/df_final.csv') # load data
+lollipop_chart_data = pd.read_csv('/PATH/to/output/lollipop_chart_data.csv') # load data
 
 # Define variable lists --------------------------------------------------------------
 rating_bases = ["vorig", "ve2a", "va2t", "vstat", "mot", "regr", "radcor", "warns", "qsumm", "FINAL"]

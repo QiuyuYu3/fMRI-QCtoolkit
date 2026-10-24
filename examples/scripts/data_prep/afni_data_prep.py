@@ -6,12 +6,12 @@ import numpy as np
 
 session = "01"
 prefix = "sub-"
-project = "branch"
+project = "myproject"
 task = "kidvid_output"
 
 # Set paths
-based_dir = "/work/cglab/projects/BRANCH/all_data/for_AFNI/BIDS"
-output_dir = "/home/qy49547/Desktop/test"
+based_dir = "/PATH/to/BIDS"
+output_dir = "/PATH/to/output"
 work_dir = os.path.join(based_dir, project, "AFNI_derivatives")
 
 # Define variable lists --------------------------------------------------------------
