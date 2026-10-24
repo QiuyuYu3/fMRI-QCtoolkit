@@ -14,7 +14,7 @@ Module ids:
   holds more than one; the others when they vary inside a single (session, task). A
   single-task dataset therefore keeps the short `SDC_ses-01_run-1` form.
 - `_run-` carries the BIDS run label, not a position, so the CSV column index matches
-  the run numbers in MRIQC's group_bold.tsv. Groups with no run entity count 1..N.
+  the run numbers in MRIQC's group_bold.tsv. Groups with no run entity count 1..N, skipping labels in use.
 """
 
 import os
@@ -141,31 +141,42 @@ class FMRIPrepRatingApp:
     def _label_groups(self, groups: List[Dict[str, str]]) -> List[Dict]:
         """Give every group an id suffix, naming only the entities needed to keep it unique."""
         tasks_per_session = {}
-        extra_values = {}
+        unit_groups = {}
         for entities in groups:
             unit = (entities.get('session'), entities['task'])
             tasks_per_session.setdefault(unit[0], set()).add(unit[1])
-            for key, value in entities.items():
-                if key not in self.GROUP_FIXED_ENTITIES:
-                    extra_values.setdefault((unit, key), set()).add(value)
+            unit_groups.setdefault(unit, []).append(entities)
 
-        labelled = []
-        sequence = {}
+        # Absence counts as a value, so a group with acq-mb stays apart from one without acq
+        def varies(unit, key):
+            return len({e.get(key) for e in unit_groups[unit]}) > 1
+
+        staged = []
+        explicit_runs = {}
         for entities in groups:
-            session = entities.get('session')
-            task = entities['task']
-            unit = (session, task)
+            unit = (entities.get('session'), entities['task'])
             extras = {
                 self.ENTITY_ABBREV.get(key, key): value
                 for key, value in sorted(entities.items())
-                if key not in self.GROUP_FIXED_ENTITIES and len(extra_values[(unit, key)]) > 1
+                if key not in self.GROUP_FIXED_ENTITIES and varies(unit, key)
             }
+            unit_key = unit + (tuple(extras.items()),)
+            if 'run' in entities:
+                explicit_runs.setdefault(unit_key, set()).add(entities['run'].lstrip('0') or '0')
+            staged.append((entities, extras, unit_key))
 
-            unit_key = (session, task, tuple(extras.items()))
+        labelled = []
+        sequence = {}
+        for entities, extras, unit_key in staged:
+            session, task = unit_key[0], unit_key[1]
             run = entities.get('run')
             if run is None:
-                sequence[unit_key] = sequence.get(unit_key, 0) + 1
-                run = str(sequence[unit_key])
+                # Skip numbers that another group in the unit carries as its BIDS run label
+                n = sequence.get(unit_key, 0) + 1
+                while str(n) in explicit_runs.get(unit_key, ()):
+                    n += 1
+                sequence[unit_key] = n
+                run = str(n)
 
             suffix = f'_ses-{session}' if session is not None else ''
             display = f's{session} ' if session is not None else ''

@@ -24,6 +24,7 @@
 - Changing a dashboard filter no longer moves the table selection to another run or session of the same subject, so "Download Selected Data" exports the runs that were selected.
 - fMRIPrep ratings are no longer lost when a rating CSV cannot be written (for example while it is open in Excel); the save reports the locked file.
 - Ratings for an fMRIPrep report with only anatomical items can now be saved.
+- Two fMRIPrep report groups no longer share one rating when an acquisition, direction, or run label appears on only some of a task's groups.
 
 ### Changed
 - `qc rating afni --afni-path` no longer defaults to a cluster-specific path; `open_apqc.py` is taken from `$PATH` unless the option is given.

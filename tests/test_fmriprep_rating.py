@@ -905,3 +905,26 @@ class TestSaveRoute:
 
         assert resp.status_code == 500
         assert json.loads((app.output_dir / "sub-0030.json").read_text())["ratings"] == ratings
+
+
+class TestGroupIdsStayUnique:
+    """Groups that differ only by an entity some of them lack."""
+
+    @staticmethod
+    def suffixes(app, groups):
+        return [g['suffix'] for g in app._label_groups(groups)]
+
+    def test_entity_present_on_some_groups_only(self, temp_app):
+        groups = [{'session': '01', 'task': 'rest', 'run': '1'},
+                  {'session': '01', 'task': 'rest', 'acquisition': 'mb', 'run': '1'}]
+        assert self.suffixes(temp_app, groups) == ['_ses-01_run-1', '_ses-01_acq-mb_run-1']
+
+    def test_run_less_group_skips_a_used_run_label(self, temp_app):
+        groups = [{'session': '01', 'task': 'rest', 'run': '1'},
+                  {'session': '01', 'task': 'rest'}]
+        assert self.suffixes(temp_app, groups) == ['_ses-01_run-1', '_ses-01_run-2']
+
+    def test_shared_entity_is_still_left_out(self, temp_app):
+        groups = [{'session': '01', 'task': 'rest', 'echo': '1', 'run': '1'},
+                  {'session': '01', 'task': 'rest', 'echo': '1', 'run': '2'}]
+        assert self.suffixes(temp_app, groups) == ['_ses-01_run-1', '_ses-01_run-2']
