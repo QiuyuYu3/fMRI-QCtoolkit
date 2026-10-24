@@ -9,15 +9,37 @@ maintainers = [
   { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" }
 ]
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["fMRI", "quality control", "MRIQC", "fMRIPrep", "AFNI", "dashboard"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Framework :: Dash",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Medical Science Apps.",
+  "Topic :: Scientific/Engineering :: Visualization",
+]
 requires-python = ">=3.11"
 dependencies = [
-  "typer[all]",
-  "dash",
-  "plotly",
-  "pandas",
-  "numpy",
-  "flask"
+  "typer>=0.12",
+  "dash>=2.17,<5",
+  "plotly>=5.20",
+  "pandas>=2.1",
+  "numpy>=1.26",
+  "flask>=3.0"
 ]
+
+[project.urls]
+Homepage = "https://github.com/QiuyuYu3/fMRI-QCtoolkit"
+Repository = "https://github.com/QiuyuYu3/fMRI-QCtoolkit"
+Issues = "https://github.com/QiuyuYu3/fMRI-QCtoolkit/issues"
+Changelog = "https://github.com/QiuyuYu3/fMRI-QCtoolkit/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
@@ -33,7 +55,7 @@ dev = [
 qc = "fMRI_QCtoolkit.cli:app"
 
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]

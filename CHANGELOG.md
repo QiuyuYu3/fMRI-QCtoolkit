@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 
-## [1.0.0] - 2026-09-05
+## [1.0.0] - 2026-10-24
 ### Security
 - The rating interface and dashboards now require a per-session token. The terminal prints a link containing it; requests without it get "Access denied". This keeps other users on a shared machine (such as an HPC login node) out of the pages and the ratings.
 - Requests whose Host header is not a loopback name are refused while the server is bound to localhost, which blocks DNS rebinding from web pages.
@@ -25,8 +25,10 @@
 - `qc rating afni --afni-path` no longer defaults to a cluster-specific path; `open_apqc.py` is taken from `$PATH` unless the option is given.
 - Session labels are kept as written (`ses-pre`, `ses-V1`) instead of being forced to numbers.
 - Subject IDs are kept as labels rather than numbers throughout.
+- Dependencies now have minimum versions (Dash 2.17 to 4.x, pandas 2.1, NumPy 1.26, Plotly 5.20, Flask 3.0, Typer 0.12).
 
 ### Added
+- First release on PyPI: `pip install fmri-qctoolkit`.
 - `qc rating fmriprep --no-browser` prints the links without opening browser tabs. Tabs are also not opened on Linux when no display is available.
 - Unit tests for the dashboard's heatmap data.
 
@@ -35,11 +37,8 @@
 - The unused `flask-cors` dependency.
 
 ### Notes
-- Anatomical items (T1mask / Norm / SurfRecon) can show more than one image if the subject was
-  processed by fMRIPrep more than once. See the README.
-- Ratings for a task split by acquisition or direction are saved but not yet shown in the
-  dashboard. The rating app says so when the subject is opened, and `qc prep` lists the files
-  it skips.
+- Anatomical items (T1mask / Norm / SurfRecon) can show more than one image if the subject was processed by fMRIPrep more than once. See the README.
+- Ratings for a task split by acquisition or direction are saved but not yet shown in the dashboard. The rating app says so when the subject is opened, and `qc prep` lists the files it skips.
 
 
 ## [0.11.0] - 2026-06-12
