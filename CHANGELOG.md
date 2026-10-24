@@ -22,6 +22,8 @@
 - `qc prep` now warns when the ratings and MRIQC have no records in common.
 - The dashboard heatmaps no longer crash on non-numeric subject labels (`sub-A01`) or session labels (`ses-pre`), or with pandas 3.
 - Changing a dashboard filter no longer moves the table selection to another run or session of the same subject, so "Download Selected Data" exports the runs that were selected.
+- fMRIPrep ratings are no longer lost when a rating CSV cannot be written (for example while it is open in Excel); the save reports the locked file.
+- Ratings for an fMRIPrep report with only anatomical items can now be saved.
 
 ### Changed
 - `qc rating afni --afni-path` no longer defaults to a cluster-specific path; `open_apqc.py` is taken from `$PATH` unless the option is given.

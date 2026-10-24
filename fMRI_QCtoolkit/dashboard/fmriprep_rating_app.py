@@ -439,24 +439,27 @@ class FMRIPrepRatingApp:
             html_file = self.data_dir / f"sub-{participant_id}.html"
             html_content = html_file.read_text(encoding="utf-8")
             
+            # The sidecar is what a reopened page reads, so it must not depend on the CSV export succeeding
+            json_file = self.output_dir / f"sub-{participant_id}.json"
+            with json_file.open("w", encoding="utf-8") as f:
+                json.dump({"ratings": ratings, "notes": notes}, f, ensure_ascii=False, indent=2)
+
             tasks = self.parse_tasks_from_html(html_content)
-            
-            if not tasks:
-                return jsonify({"status": "fail", "message": "No tasks found in HTML"}), 400
-            
-            all_combined_data = {}
+
+            common_data = {}
+            for mod in self.COMMON_MODULES:
+                frontend_key = f"{mod}_run-1"
+                common_data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
+                common_data[f"{mod}_1_c"] = notes.get(frontend_key, "")
+
+            # An anatomical-only report still gets a subject-level export
+            all_combined_data = {} if tasks else dict(common_data)
 
             for task_info in tasks:
                 session = task_info['session']
                 task_name = task_info['name']
 
-                row_data = {"ID": participant_id}
-
-                # Common modules
-                for mod in self.COMMON_MODULES:
-                    frontend_key = f"{mod}_run-1"
-                    row_data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
-                    row_data[f"{mod}_1_c"] = notes.get(frontend_key, "")
+                row_data = {"ID": participant_id, **common_data}
 
                 # Functional modules + Final, one column set per report group.
                 # The column index is the BIDS run label, so it lines up with group_bold.tsv.
@@ -493,11 +496,6 @@ class FMRIPrepRatingApp:
                 writer = csv.DictWriter(f, fieldnames=list(combined_row.keys()))
                 writer.writeheader()
                 writer.writerow(combined_row)
-
-            # Save JSON sidecar as the authoritative reload source
-            json_file = self.output_dir / f"sub-{participant_id}.json"
-            with json_file.open("w", encoding="utf-8") as f:
-                json.dump({"ratings": ratings, "notes": notes}, f, ensure_ascii=False, indent=2)
 
             # self.logger.info(f"Saved ratings for sub-{participant_id}")
             return jsonify({"status": "success"})

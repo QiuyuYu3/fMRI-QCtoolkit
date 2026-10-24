@@ -860,3 +860,48 @@ class TestParticipantIdIsPreserved:
         page = client.get(f"/sub-s001?token={temp_app.gate.token}", follow_redirects=True).get_data(as_text=True)
 
         assert 'window.participantId = "s001"' in page
+
+
+HTML_ANAT_ONLY = """
+<nav class="navbar">Summary</nav>
+<h2>Anatomical</h2>
+<h3 class="run-title">Brain mask and brain tissue segmentation of the T1w</h3>
+<h3 class="run-title">Spatial normalization of the anatomical T1w reference</h3>
+"""
+
+
+class TestSaveRoute:
+    """The real /save_ratings endpoint, not the save_ratings_direct mirror."""
+
+    TOKEN = "t"
+
+    @pytest.fixture
+    def client_for(self, tmp_path):
+        def make(html, pid="0030"):
+            data_dir = tmp_path / "data"
+            data_dir.mkdir(exist_ok=True)
+            (data_dir / f"sub-{pid}.html").write_text(html, encoding="utf-8")
+            app = FMRIPrepRatingApp(data_dir, tmp_path / "output", token=self.TOKEN)
+            client = app.app.test_client()
+            client.get(f"/sub-{pid}?token={self.TOKEN}")
+            return app, client
+        return make
+
+    def test_anatomical_only_report_saves(self, client_for):
+        app, client = client_for(HTML_ANAT_ONLY)
+        resp = client.post("/save_ratings", json={"id": "0030", "ratings": {"T1mask_run-1": "1"}, "notes": {}})
+
+        assert resp.status_code == 200
+        assert json.loads((app.output_dir / "sub-0030.json").read_text())["ratings"] == {"T1mask_run-1": "1"}
+        with (app.output_dir / "sub-0030.csv").open(newline="", encoding="utf-8") as f:
+            assert next(csv.DictReader(f))["T1mask_1_r"] == "1"
+
+    def test_sidecar_survives_a_failed_csv_export(self, client_for):
+        app, client = client_for(HTML_WITH_SESSION)
+        # A directory where the CSV should go makes the export fail, as a file locked by Excel would
+        (app.output_dir / "sub-0030_ses-01_rest.csv").mkdir()
+        ratings = {"SDC_ses-01_run-1": "1"}
+        resp = client.post("/save_ratings", json={"id": "0030", "ratings": ratings, "notes": {}})
+
+        assert resp.status_code == 500
+        assert json.loads((app.output_dir / "sub-0030.json").read_text())["ratings"] == ratings
