@@ -52,7 +52,7 @@ dev = [
 ]
 
 [project.scripts]
-qc = "fMRI_QCtoolkit.cli:app"
+fmriqc = "fMRI_QCtoolkit.cli:app"
 
 [build-system]
 requires = ["setuptools>=77"]

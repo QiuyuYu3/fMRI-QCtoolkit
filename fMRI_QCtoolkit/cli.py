@@ -78,7 +78,7 @@ def prep_afni(
 
     typer.echo("Data preparation complete!")
     typer.echo(f"Output files saved to: {output_dir}")
-    typer.echo(f"To launch dashboard:\n qc dashboard afni --data-file {output_dir}/df_final.csv --lollipop-file {output_dir}/lollipop_chart_data.csv --task {task}")
+    typer.echo(f"To launch dashboard:\n fmriqc dashboard afni --data-file {output_dir}/df_final.csv --lollipop-file {output_dir}/lollipop_chart_data.csv --task {task}")
 
 
 @prep_app.command("fmriprep")
@@ -103,7 +103,7 @@ def prep_fmriprep(
 
     typer.echo("Data preparation complete!")
     typer.echo(f"Output files saved to: {output_dir}")
-    typer.echo(f"To launch dashboard:\n qc dashboard fmriprep --data-file {output_dir}/df_final.csv --lollipop-file {output_dir}/lollipop_chart_data.csv --task {task}")
+    typer.echo(f"To launch dashboard:\n fmriqc dashboard fmriprep --data-file {output_dir}/df_final.csv --lollipop-file {output_dir}/lollipop_chart_data.csv --task {task}")
 
 # ----------------------------
 # Dashboard Commands

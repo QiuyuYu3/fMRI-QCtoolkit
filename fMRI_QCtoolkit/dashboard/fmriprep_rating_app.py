@@ -5,7 +5,7 @@ Combines data processing and web interface for rating fMRIPrep quality control r
 Reload source vs. export format:
 - A JSON sidecar (sub-{ID}.json) stores ratings/notes keyed by frontend module id and
   is the single source of truth when reopening a subject.
-- CSV files are still written as an export consumed by the downstream `qc prep` step.
+- CSV files are still written as an export consumed by the downstream `fmriqc prep` step.
 
 Module ids:
 - An id is the short module name plus the entities identifying its report group:
@@ -376,7 +376,7 @@ class FMRIPrepRatingApp:
         entities = sorted({f"{k}-{v}" for unit in split_units for k, v in unit['extras'].items()})
         self.logger.warning(
             f"sub-{participant_id}: task(s) split by {', '.join(entities)}. "
-            "Ratings are saved, but `qc prep` cannot feed them to the dashboard yet."
+            "Ratings are saved, but `fmriqc prep` cannot feed them to the dashboard yet."
         )
 
     def handle_participant(self, pid: str):

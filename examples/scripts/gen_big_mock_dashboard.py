@@ -77,7 +77,7 @@ def main():
     print(f"Wrote {len(df)} rows ({args.n_subjects} subjects x {args.runs_per_subject} runs) to:")
     print(f"  {df_posix}")
     print(f"  {lollipop_posix}")
-    print(f"\nLaunch with:\n  qc dashboard fmriprep --data-file {df_posix} --lollipop-file {lollipop_posix} --task rest")
+    print(f"\nLaunch with:\n  fmriqc dashboard fmriprep --data-file {df_posix} --lollipop-file {lollipop_posix} --task rest")
 
 
 if __name__ == "__main__":

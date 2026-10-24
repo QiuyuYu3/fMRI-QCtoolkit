@@ -269,7 +269,7 @@ HTML_FIELDMAP_GROUPS = """
 """
 
 # One task whose BIDS run labels are not contiguous (run-1 and run-3). The labels
-# must survive into the module ids and CSV columns so `qc prep` can join them
+# must survive into the module ids and CSV columns so `fmriqc prep` can join them
 # against the run numbers in MRIQC's group_bold.tsv.
 HTML_GAPPED_RUNS = """
 <!DOCTYPE html>
@@ -805,14 +805,14 @@ class TestRunNumbersFollowBIDS:
 
 
 class TestUnsupportedEntityWarning:
-    """Raters are told up front when a task is split by an entity qc prep cannot use."""
+    """Raters are told up front when a task is split by an entity fmriqc prep cannot use."""
 
     def test_split_task_is_reported(self, temp_app, caplog):
         with caplog.at_level("WARNING"):
             temp_app._warn_unsupported_entities("001", HTML_ACQ_BETWEEN_TASK_AND_RUN)
 
         assert "acq-seq" in caplog.text and "acq-mb" in caplog.text
-        assert "qc prep" in caplog.text
+        assert "fmriqc prep" in caplog.text
 
     def test_plain_task_is_silent(self, temp_app, caplog):
         with caplog.at_level("WARNING"):
