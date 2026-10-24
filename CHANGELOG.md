@@ -35,7 +35,7 @@
 - `qc rating afni --afni-path` no longer defaults to a cluster-specific path; `open_apqc.py` is taken from `$PATH` unless the option is given.
 - Session labels are kept as written (`ses-pre`, `ses-V1`) instead of being forced to numbers.
 - Subject IDs are kept as labels rather than numbers throughout.
-- Dependencies now have minimum versions (Dash 2.17 to 4.x, pandas 2.1, NumPy 1.26, Plotly 5.20, Flask 3.0, Typer 0.12).
+- Dependencies now have minimum versions (Dash 2.17 to 4.x, pandas 2.1, NumPy 1.26, Plotly 5.20, Flask 3.0, Typer 0.16).
 
 ### Added
 - First release on PyPI: `pip install fmri-qctoolkit`.
