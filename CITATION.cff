@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "fMRI-QCtoolkit"
+abstract: "Quality control dashboard and manual rating tools for AFNI and fMRIPrep outputs, combined with MRIQC metrics."
+authors:
+  - given-names: Qiuyu
+    family-names: Yu
+    email: qiuyuyu.psych@gmail.com
+    orcid: "https://orcid.org/0009-0003-5242-6302"
+version: 1.0.0
+date-released: "2026-10-24"
+license: Apache-2.0
+repository-code: "https://github.com/QiuyuYu3/fMRI-QCtoolkit"
+keywords:
+  - fMRI
+  - quality control
+  - MRIQC
+  - fMRIPrep
+  - AFNI
