@@ -181,6 +181,7 @@ def create_heatmap(data, variable_labels, title="",
         y_coords = list(range(n_variables))
 
         # Prepare hover text
+        first_rows = group_subset.drop_duplicates('ID').set_index('ID')
         hovertext = []
         for var_idx, var in enumerate(pivot_data_str.index):
             row = []
@@ -192,13 +193,12 @@ def create_heatmap(data, variable_labels, title="",
                 hover_parts = [f"Subject: {id_val}", f"Variable: {var_label}", f"Status: {status}"]
                 
                 # Get session/run from the subset data
-                subj_data = group_subset[group_subset['ID'] == id_val]
-                if not subj_data.empty:
-                    if 'session' in subj_data.columns:
-                        session_val = subj_data['session'].iloc[0]
+                if id_val in first_rows.index:
+                    if 'session' in first_rows.columns:
+                        session_val = first_rows.at[id_val, 'session']
                         hover_parts.insert(1, f"Session: {format_session(session_val)}")
-                    if 'run' in subj_data.columns:
-                        run_val = subj_data['run'].iloc[0]
+                    if 'run' in first_rows.columns:
+                        run_val = first_rows.at[id_val, 'run']
                         hover_parts.insert(2, f"Run: {int(run_val)}")
                 
                 row.append("<br>".join(hover_parts))
