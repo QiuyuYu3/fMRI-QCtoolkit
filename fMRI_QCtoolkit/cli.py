@@ -70,7 +70,11 @@ def prep_afni(
         prefix=prefix,
         output_dir=output_dir
     )
-    pipeline.process()
+    try:
+        pipeline.process()
+    except (FileNotFoundError, ValueError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
 
     typer.echo("Data preparation complete!")
     typer.echo(f"Output files saved to: {output_dir}")

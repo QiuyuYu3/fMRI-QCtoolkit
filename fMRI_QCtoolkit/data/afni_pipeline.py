@@ -57,6 +57,7 @@ class AFNIPipeline(BaseDataProcessor):
         print(f"Searching for JSON files in {self.work_dir}/**/QC_*/extra_info/, with 'task' in path")
 
         json_files = {}
+        duplicates = {}
         qc_dirs_found = 0
 
         for qc_dir in self.work_dir.rglob("QC_*"):
@@ -76,18 +77,30 @@ class AFNIPipeline(BaseDataProcessor):
                 continue
             subject_id = qc_match.group(1)
 
-            # Check if subject_id matches prefix + digits (e.g. prefix001)
-            if self.prefix and not re.match(fr"^{self.prefix}\d+$", subject_id):
+            # Check if subject_id is prefix + a BIDS label (e.g. prefix001, prefixA01)
+            if self.prefix and not re.fullmatch(fr"{re.escape(self.prefix)}[A-Za-z0-9]+", subject_id):
                 print(f"Subject ID {subject_id} does not match prefix {self.prefix}, skipping")
                 continue
 
             json_file = qc_dir / "extra_info" / f"out.ss_review.{subject_id}.json"
             if json_file.exists():
-                json_files[subject_id] = json_file
+                if subject_id in json_files:
+                    duplicates.setdefault(subject_id, [json_files[subject_id]]).append(json_file)
+                else:
+                    json_files[subject_id] = json_file
             else:
                 print(f"Warning: Expected JSON file not found: {json_file}")
 
         print(f"Searched {qc_dirs_found} QC_* directories (with 'task'), found {len(json_files)} valid JSON files")
+
+        # One row per subject: several matches (usually one per session) would overwrite each other
+        if duplicates:
+            listing = "\n".join(f"  {sid}: " + ", ".join(str(path) for path in paths)
+                                for sid, paths in sorted(duplicates.items()))
+            raise ValueError(
+                f"Some subjects have more than one QC directory matching task '{self.task}':\n{listing}\n"
+                f"Narrow --task to one session, for example --task ses-01/{self.task}."
+            )
         
         return json_files
 
@@ -205,7 +218,7 @@ class AFNIPipeline(BaseDataProcessor):
         df = df[available_cols]
         
         # Clean ID column - remove prefix if it exists
-        df["ID"] = df["ID"].str.replace(f"^{self.prefix}", "", regex=True)
+        df["ID"] = df["ID"].str.removeprefix(self.prefix or "")
         
         self.df_final = df
         

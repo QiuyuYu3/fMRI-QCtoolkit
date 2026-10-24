@@ -185,3 +185,50 @@ class TestSubjectIdIsABIDSLabel:
 
         assert list(pipeline.df_final['ID']) == ['0030', '090']
         assert list(pipeline.lollipop_chart_data['ID']) == ['0030', '090']
+
+
+def _qc_dir(root, rel, subject_id, data):
+    info = root / rel / f"QC_{subject_id}" / "extra_info"
+    info.mkdir(parents=True)
+    (info / f"out.ss_review.{subject_id}.json").write_text(json.dumps(data))
+
+
+class TestSubjectMatching:
+
+    def test_same_subject_in_two_sessions_is_refused(self, temp_dir, sample_json_data):
+        _qc_dir(temp_dir, "ses-01/rest_output", "sub-001", sample_json_data)
+        _qc_dir(temp_dir, "ses-02/rest_output", "sub-001", sample_json_data)
+        _qc_dir(temp_dir, "ses-01/rest_output", "sub-002", sample_json_data)
+
+        with pytest.raises(ValueError, match=r"sub-001.*\n.*ses-01/rest"):
+            AFNIPipeline(temp_dir, "rest", "sub-", temp_dir)._find_json_files()
+
+    def test_narrowing_task_to_a_session_resolves_it(self, temp_dir, sample_json_data):
+        _qc_dir(temp_dir, "ses-01/rest_output", "sub-001", sample_json_data)
+        _qc_dir(temp_dir, "ses-02/rest_output", "sub-001", sample_json_data)
+
+        json_files = AFNIPipeline(temp_dir, "ses-02/rest", "sub-", temp_dir)._find_json_files()
+        assert list(json_files) == ["sub-001"]
+        assert "ses-02" in json_files["sub-001"].as_posix()
+
+    def test_alphanumeric_labels_match_the_prefix(self, temp_dir, sample_json_data):
+        _qc_dir(temp_dir, "rest_output", "sub-A01", sample_json_data)
+        assert list(AFNIPipeline(temp_dir, "rest", "sub-", temp_dir)._find_json_files()) == ["sub-A01"]
+
+    def test_prefix_is_matched_literally(self, temp_dir, sample_json_data):
+        _qc_dir(temp_dir, "rest_output", "s.001", sample_json_data)
+        _qc_dir(temp_dir, "rest_output", "sX001", sample_json_data)
+        assert list(AFNIPipeline(temp_dir, "rest", "s.", temp_dir)._find_json_files()) == ["s.001"]
+
+    def test_prep_reports_duplicates_without_a_traceback(self, temp_dir, sample_json_data):
+        from typer.testing import CliRunner
+        from fMRI_QCtoolkit.cli import app
+
+        _qc_dir(temp_dir, "ses-01/rest_output", "sub-001", sample_json_data)
+        _qc_dir(temp_dir, "ses-02/rest_output", "sub-001", sample_json_data)
+        result = CliRunner().invoke(app, ["prep", "afni", "--input-dir", str(temp_dir), "--output-dir",
+                                          str(temp_dir / "out"), "--task", "rest", "--prefix", "sub-"])
+
+        assert result.exit_code == 1
+        assert "Narrow --task" in result.output
+        assert result.exception is None or isinstance(result.exception, SystemExit)

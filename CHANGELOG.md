@@ -28,6 +28,8 @@
 - On Windows, a second `qc dashboard` or `qc rating fmriprep` no longer picks a port that another one is already serving, which showed up as "Access denied".
 - `qc dashboard --host 0.0.0.0` and IPv6 hosts now print a link that opens.
 - A rating that cannot be saved because the server restarted now says to open the new link, instead of reporting a network error.
+- `qc prep afni` no longer keeps only one session when `--task` matches a subject in several sessions; it stops and lists the matches so `--task` can be narrowed to one session.
+- `qc prep afni` now accepts alphanumeric subject labels (`sub-A01`) and treats `--prefix` literally.
 
 ### Changed
 - `qc rating afni --afni-path` no longer defaults to a cluster-specific path; `open_apqc.py` is taken from `$PATH` unless the option is given.

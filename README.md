@@ -133,7 +133,7 @@ After finishing preprocessing and rating, both quantitative and qualitative rati
 - `qc prep afni`: Indicate which rating program.
 - `--input-dir`: Root directory, containing results that preprocessed from different participants.
 - `--output-dir`: Path for exporting `df_final.csv` and `lollipop_chart_data.csv` files.
-- `--task`: Prep program will search `task` in `input-dir` to find the `QC_{subj}/extra_info/out.ss_review.{subj}.json` across all participants.
+- `--task`: Prep program will search `task` in `input-dir` to find the `QC_{subj}/extra_info/out.ss_review.{subj}.json` across all participants. Each run covers one session: if a subject matches in more than one place (for example `ses-01/rest_output` and `ses-02/rest_output`), narrow `--task` to `ses-01/rest`.
 - `--prefix`: The prefix of participants IDs.
 
 **Example Synatx:**
