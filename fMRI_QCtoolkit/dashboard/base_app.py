@@ -11,11 +11,12 @@ import os
 from abc import ABC, abstractmethod
 from ..utils.access import AccessGate, url_host
 from ..utils.plots import create_lollipop_plot, create_heatmap
+from ..utils.status import get_status_mapping
 
 class BaseDashboard(ABC):
     """Base class for QC dashboards."""
 
-    STATUS_TO_NUM = {'NA': 0, 'bad': 1, 'other': 2, 'good': 3}
+    STATUS_TO_NUM = get_status_mapping()
 
     def __init__(self, data_processor, task=None, token=None):
         self.processor = data_processor

@@ -26,13 +26,13 @@ app.add_typer(rating_app, name="rating")
 # Helper functions
 # -------------------
 def validate_dir_exists(path: Path, name: str):
-    if not path.exists():
-        typer.echo(f"{name} not found: {path}", err=True)
+    if not path.is_dir():
+        typer.echo(f"{name} not found or not a directory: {path}", err=True)
         raise typer.Exit(code=1)
 
 def validate_file_exists(path: Path, name: str):
-    if not path.exists():
-        typer.echo(f"{name} not found: {path}", err=True)
+    if not path.is_file():
+        typer.echo(f"{name} not found or not a file: {path}", err=True)
         raise typer.Exit(code=1)
 
 def check_bind_host(host: str, debug: bool):
@@ -49,6 +49,28 @@ def ensure_output_dir(path: Path):
     except Exception as e:
         typer.echo(f"Cannot create output directory {path}: {e}", err=True)
         raise typer.Exit(code=1)
+
+def launch_dashboard(pipeline_cls, dashboard_cls, data_file: Path, lollipop_file: Path,
+                     task: str, host: str, debug: bool):
+    validate_file_exists(data_file, "Data file")
+    validate_file_exists(lollipop_file, "Lollipop file")
+    check_bind_host(host, debug)
+
+    # Auto-detect available port
+    try:
+        port = find_free_port(start=5000, end=5500, delay=0.2, host=host)
+        typer.echo(f"Found available port: {port}")
+    except RuntimeError as e:
+        typer.echo(f"Port allocation failed: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    pipeline = pipeline_cls.from_saved_data(
+        data_file=data_file,
+        lollipop_file=lollipop_file,
+        task=task,
+    )
+    dashboard = dashboard_cls(pipeline, task=task)
+    dashboard.run(host=host, port=port, debug=debug)
 
 # ----------------------------
 # Preparation Commands
@@ -116,27 +138,7 @@ def dashboard_afni(
     host: str = typer.Option("127.0.0.1", help="Host address"),
     debug: bool = typer.Option(False, help="Run in debug mode")
 ):
-    validate_file_exists(data_file, "Data file")
-    validate_file_exists(lollipop_file, "Lollipop file")
-    check_bind_host(host, debug)
-
-    # Auto-detect available port
-    try:
-        port = find_free_port(start=5000, end=5500, delay=0.2, host=host)
-        typer.echo(f"Found available port: {port}")
-    except RuntimeError as e:
-        typer.echo(f"Port allocation failed: {e}", err=True)
-        raise typer.Exit(code=1)
-
-    
-    pipeline = AFNIPipeline.from_saved_data(
-        data_file=data_file,
-        lollipop_file=lollipop_file,
-        task=task,
-    )
-    dashboard = AFNIDashboard(pipeline, task=task)
-    # webbrowser.open(f"http://{host}:{port}")
-    dashboard.run(host=host, port=port, debug=debug)
+    launch_dashboard(AFNIPipeline, AFNIDashboard, data_file, lollipop_file, task, host, debug)
 
 
 @dashboard_app.command("fmriprep")
@@ -147,26 +149,7 @@ def dashboard_fmriprep(
     host: str = typer.Option("127.0.0.1", help="Host address"),
     debug: bool = typer.Option(False, help="Run in debug mode")
 ):
-    validate_file_exists(data_file, "Data file")
-    validate_file_exists(lollipop_file, "Lollipop file")
-    check_bind_host(host, debug)
-
-    # Auto-detect available port
-    try:
-        port = find_free_port(start=5000, end=5500, delay=0.2, host=host)
-        typer.echo(f"Found available port: {port}")
-    except RuntimeError as e:
-        typer.echo(f"Port allocation failed: {e}", err=True)
-        raise typer.Exit(code=1)
-    
-    pipeline = FMRIPrepPipeline.from_saved_data(
-        data_file=data_file,
-        lollipop_file=lollipop_file,
-        task=task,
-    )
-    dashboard = FMRIPrepDashboard(pipeline, task=task)
-    # webbrowser.open(f"http://{host}:{port}")
-    dashboard.run(host=host, port=port, debug=debug)
+    launch_dashboard(FMRIPrepPipeline, FMRIPrepDashboard, data_file, lollipop_file, task, host, debug)
 
 # ----------------------------
 # Rating Commands

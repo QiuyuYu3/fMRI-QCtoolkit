@@ -7,6 +7,8 @@ from plotly.subplots import make_subplots
 import numpy as np
 import pandas as pd
 
+from .status import get_status_colors, get_status_mapping
+
 _LOLLIPOP_COLORS = ['#A6CEE3', '#1F78B4', '#B2DF8A', '#33A02C', '#FB9A99',
                     '#E31A1C', '#FDBF6F', '#FF7F00', '#CAB2D6', '#6A3D9A']
 
@@ -46,14 +48,8 @@ def create_heatmap(data, variable_labels, title="",
                           x=0.5, y=0.5, showarrow=False)
         return fig
 
-    status_colors = {
-        0: '#D3D3D3',  # NA - light gray
-        1: '#F8786E',  # bad - red
-        2: '#FFD966',  # other - yellow
-        3: '#C5E0B3'   # good - green
-    }
-    
-    num_to_status = {0: 'NA', 1: 'bad', 2: 'other', 3: 'good'}
+    status_colors = get_status_colors()
+    num_to_status = {num: status for status, num in get_status_mapping().items()}
 
     # Add default session if not present
     if 'session' not in data.columns:
