@@ -25,8 +25,10 @@ from ..utils.status import assign_status, get_status_mapping
 HEATMAP_COLUMNS = ['ID', 'Variables', 'Value', 'Status', 'StatusStr', 'session', 'run']
 PLOTS_TAB = 'plots-tab'
 # Dash 4 draws its controls in purple; html:root outranks the :root rule it adds, older Dash ignores it
+# Dash 4's tab box clips what is wider than it; older Dash lets a narrow window scroll sideways to it instead
+TAB_OVERFLOW_CSS = ".tab-parent { overflow: visible; }"
 ACCENT_STYLE = (f"<style>html:root {{ --Dash-Fill-Interactive-Strong: {ACCENT}; }} "
-                f"{SIDEBAR_CSS}</style>")
+                f"{SIDEBAR_CSS} {TAB_OVERFLOW_CSS}</style>")
 SPINNER_DELAY_MS = 300
 
 

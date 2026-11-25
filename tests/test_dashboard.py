@@ -119,6 +119,12 @@ class TestPageStyle:
         page = client.get(f"/?token={dashboard.gate.token}", follow_redirects=True).get_data(as_text=True)
         assert "html:root { --Dash-Fill-Interactive-Strong: #5289bd; }" in page
 
+    def test_a_narrow_window_can_scroll_to_what_dash_4_tabs_would_clip(self, tmp_path):
+        dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
+        client = dashboard.app.server.test_client()
+        page = client.get(f"/?token={dashboard.gate.token}", follow_redirects=True).get_data(as_text=True)
+        assert ".tab-parent { overflow: visible; }" in page
+
 
 class TestTableDisplay:
 
