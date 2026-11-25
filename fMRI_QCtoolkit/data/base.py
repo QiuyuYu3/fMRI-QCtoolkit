@@ -35,6 +35,9 @@ class BaseDataProcessor(ABC):
         """Clean and process raw data."""
         pass
     
+    def _lollipop_vars(self):
+        return [str(var) for var in self.vars if var in self.df_final.columns]
+
     def _prepare_lollipop_data(self, vars_of_interest):
         """Prepare standardized data for lollipop chart."""
         # Create a copy of df_final excluding checkbox groups for quantitative analysis
@@ -84,13 +87,6 @@ class BaseDataProcessor(ABC):
         
         self.lollipop_chart_data = lollipop_data
 
-    def _round_numeric_columns(self):
-        """Round numeric columns to 3 decimal places."""
-        for col in self.df_final.columns:
-            if col not in self.checkbox_groups:
-                if pd.api.types.is_numeric_dtype(self.df_final[col]):
-                    self.df_final[col] = self.df_final[col].round(3)
-
     def _sort_by_id(self):
         """Sort by ID numerically where possible, so sub-9 precedes sub-10."""
         if 'ID' in self.df_final.columns:
@@ -101,36 +97,52 @@ class BaseDataProcessor(ABC):
                              .drop(columns="_id_num"))
     
     def save_data(self):
-        """Save processed data to CSV files."""
+        """Save the processed table to df_final.csv."""
         if self.df_final is not None:
             df_path = self.output_dir / "df_final.csv"
             self.df_final.to_csv(df_path, index=False)
             print(f"Saved final dataframe to: {df_path}")
-        
-        if self.lollipop_chart_data is not None:
-            lollipop_path = self.output_dir / "lollipop_chart_data.csv"
-            self.lollipop_chart_data.to_csv(lollipop_path, index=False)
-            print(f"Saved lollipop data to: {lollipop_path}")
-    
+
     def process(self):
         """Main processing pipeline."""
         print("Loading raw data...")
         self._load_raw_data()
-        
+
         print("Cleaning data...")
         self._clean_data()
-        
+
         print("Processing final dataframe...")
-        self._round_numeric_columns()
         self._sort_by_id()
-        
+
         # Save processed data
         self.save_data()
-        
+
         print("Data processing complete!")
-        
+
         return self
-    
+
+    @classmethod
+    def from_saved_data(cls, data_file, task=None, output_dir=None):
+        """Load a df_final.csv written by prep (for the dashboard)."""
+        instance = cls.__new__(cls)
+        instance.task = task or ""
+        instance.output_dir = Path(output_dir) if output_dir else Path(".")
+        # round_trip reads back exactly the floats prep wrote
+        instance.df_final = pd.read_csv(data_file, dtype={'ID': str, 'session': str},
+                                        float_precision="round_trip")
+        instance.lollipop_chart_data = None
+        instance._set_variables()
+        instance.get_lollipop_data()
+        return instance
+
+    def get_data(self):
+        return self.df_final
+
+    def get_lollipop_data(self):
+        if self.lollipop_chart_data is None:
+            self._prepare_lollipop_data(self._lollipop_vars())
+        return self.lollipop_chart_data
+
     def get_summary(self):
         """Get summary statistics of processed data."""
         if self.df_final is None:

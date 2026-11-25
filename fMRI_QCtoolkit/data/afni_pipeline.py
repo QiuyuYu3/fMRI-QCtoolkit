@@ -12,7 +12,9 @@ from .base import BaseDataProcessor
 
 class AFNIPipeline(BaseDataProcessor):
     """Data processor for AFNI pipeline with flexible file discovery."""
-    
+
+    LOLLIPOP_VARS = ["cens_frac", "cens_mot", "cens_displace", "TSNR", "DF_frac", "GCOR", "TRs_total_raw"]
+
     def __init__(self, input_dir, task, prefix, output_dir):
         super().__init__(task, output_dir)
         self.input_dir = Path(input_dir)
@@ -221,17 +223,10 @@ class AFNIPipeline(BaseDataProcessor):
         df["ID"] = df["ID"].str.removeprefix(self.prefix or "")
         
         self.df_final = df
-        
-        # Prepare lollipop data
-        vars_of_interest = [
-            "cens_frac", "cens_mot", "cens_displace", "TSNR", 
-            "DF_frac", "GCOR", "TRs_total_raw"
-        ]
-        # Filter to only available variables
-        vars_of_interest = [var for var in vars_of_interest if var in self.df_final.columns]
-        
-        self._prepare_lollipop_data(vars_of_interest)
-    
+
+    def _lollipop_vars(self):
+        return [var for var in self.LOLLIPOP_VARS if var in self.df_final.columns]
+
     def get_search_summary(self):
         """Get summary of file search results for debugging."""
         if not hasattr(self, 'df_final') or self.df_final is None:
@@ -248,25 +243,3 @@ class AFNIPipeline(BaseDataProcessor):
         }
         
         return summary
-    
-    @classmethod
-    def from_saved_data(cls, data_file, lollipop_file, task=None, output_dir=None):
-        """Create instances from saved CSV files (for dashboard)"""
-        instance = cls.__new__(cls)
-        
-        instance.task = task or ""
-        instance.output_dir = Path(output_dir) if output_dir else Path(".")
-        
-        # load csv files
-        instance.df_final = pd.read_csv(data_file, dtype={'ID': str, 'session': str})
-        instance.lollipop_chart_data = pd.read_csv(lollipop_file, dtype={'ID': str, 'session': str})
-        
-        instance._set_variables()
-        
-        return instance
-    
-    def get_data(self):
-        return self.df_final
-    
-    def get_lollipop_data(self):
-        return self.lollipop_chart_data

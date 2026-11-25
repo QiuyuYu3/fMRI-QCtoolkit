@@ -1,6 +1,5 @@
 """
-Generate a large mock dashboard dataset (df_final.csv + lollipop_chart_data.csv)
-to stress-test the heatmap with many subjects.
+Generate a large mock df_final.csv to stress-test the dashboard with many subjects.
 
 Usage:
     python gen_big_mock_dashboard.py --n-subjects 150 --output-dir examples/example_data/fmriprep_big
@@ -10,7 +9,6 @@ import argparse
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
 
 QUAL_COLS = ["Align", "BOLD", "CompCor", "Corr", "Final", "Norm", "SDC", "SurfRecon", "T1mask", "Variance"]
 
@@ -60,24 +58,13 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     df = build_df_final(args.n_subjects, args.runs_per_subject, args.seed)
-
-    # Reuse the real lollipop logic from the pipeline
-    p = FMRIPrepPipeline.__new__(FMRIPrepPipeline)
-    p.df_final = df
-    p._set_variables()
-    p._prepare_lollipop_data([v for v in p.vars if v in df.columns])
-
     df_path = args.output_dir / "df_final.csv"
-    lollipop_path = args.output_dir / "lollipop_chart_data.csv"
     df.to_csv(df_path, index=False)
-    p.lollipop_chart_data.to_csv(lollipop_path, index=False)
 
     df_posix = df_path.as_posix()
-    lollipop_posix = lollipop_path.as_posix()
     print(f"Wrote {len(df)} rows ({args.n_subjects} subjects x {args.runs_per_subject} runs) to:")
     print(f"  {df_posix}")
-    print(f"  {lollipop_posix}")
-    print(f"\nLaunch with:\n  fmriqc dashboard fmriprep --data-file {df_posix} --lollipop-file {lollipop_posix} --task rest")
+    print(f"\nLaunch with:\n  fmriqc dashboard fmriprep --data-file {df_posix} --task rest")
 
 
 if __name__ == "__main__":

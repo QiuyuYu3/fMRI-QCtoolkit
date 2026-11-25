@@ -141,50 +141,39 @@ class TestFromSavedData:
     def test_loads_from_csv(self, temp_dir, sample_afni_data):
 
         data_file = temp_dir / "df_final.csv"
-        lollipop_file = temp_dir / "lollipop_chart_data.csv"
-        
         sample_afni_data.to_csv(data_file, index=False)
-        
-        # create lollipop data
-        lollipop_data = pd.DataFrame({
-            'ID': ['001', '002'],
-            'Variable': ['cens_frac', 'cens_frac'],
-            'Value': [0.1, 0.2]
-        })
-        lollipop_data.to_csv(lollipop_file, index=False)
-        
-        # Load from saved data
-        pipeline = AFNIPipeline.from_saved_data(
-            data_file=data_file,
-            lollipop_file=lollipop_file,
-            task="rest"
-        )
-        
+
+        pipeline = AFNIPipeline.from_saved_data(data_file=data_file, task="rest")
+
         assert pipeline.df_final is not None
         assert len(pipeline.df_final) > 0  # Use flexible assertion for random data
+
+    def test_lollipop_keeps_the_afni_variable_list(self, temp_dir, sample_afni_data):
+        data_file = temp_dir / "df_final.csv"
+        df = sample_afni_data.copy()
+        df["flip_guess"] = 0
+        df["frac_TRs_cens_1"] = 0.1
+        df.to_csv(data_file, index=False)
+
+        lollipop = AFNIPipeline.from_saved_data(data_file=data_file, task="rest").get_lollipop_data()
+
+        assert set(lollipop["Variable"]) == {"cens_frac", "cens_mot", "cens_displace", "TSNR",
+                                             "DF_frac", "GCOR", "TRs_total_raw"}
 
 class TestSubjectIdIsABIDSLabel:
     """AFNI keeps IDs as strings through prep; the dashboard's re-read must not undo that."""
 
     def test_padding_survives_the_round_trip_through_saved_csv(self, temp_dir, sample_afni_data):
         data_file = temp_dir / "df_final.csv"
-        lollipop_file = temp_dir / "lollipop_chart_data.csv"
 
         df = sample_afni_data.head(2).copy()
         df['ID'] = ['0030', '090']
         df.to_csv(data_file, index=False)
-        pd.DataFrame({
-            'ID': ['0030', '090'],
-            'Variable': ['cens_frac', 'cens_frac'],
-            'Value': [0.1, 0.2],
-        }).to_csv(lollipop_file, index=False)
 
-        pipeline = AFNIPipeline.from_saved_data(
-            data_file=data_file, lollipop_file=lollipop_file, task="rest"
-        )
+        pipeline = AFNIPipeline.from_saved_data(data_file=data_file, task="rest")
 
         assert list(pipeline.df_final['ID']) == ['0030', '090']
-        assert list(pipeline.lollipop_chart_data['ID']) == ['0030', '090']
+        assert pipeline.get_lollipop_data()['ID'].unique().tolist() == ['0030', '090']
 
 
 def _qc_dir(root, rel, subject_id, data):

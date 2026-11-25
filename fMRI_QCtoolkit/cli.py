@@ -50,10 +50,8 @@ def ensure_output_dir(path: Path):
         typer.echo(f"Cannot create output directory {path}: {e}", err=True)
         raise typer.Exit(code=1)
 
-def launch_dashboard(pipeline_cls, dashboard_cls, data_file: Path, lollipop_file: Path,
-                     task: str, host: str, debug: bool):
+def launch_dashboard(pipeline_cls, dashboard_cls, data_file: Path, task: str, host: str, debug: bool):
     validate_file_exists(data_file, "Data file")
-    validate_file_exists(lollipop_file, "Lollipop file")
     check_bind_host(host, debug)
 
     # Auto-detect available port
@@ -64,11 +62,7 @@ def launch_dashboard(pipeline_cls, dashboard_cls, data_file: Path, lollipop_file
         typer.echo(f"Port allocation failed: {e}", err=True)
         raise typer.Exit(code=1)
 
-    pipeline = pipeline_cls.from_saved_data(
-        data_file=data_file,
-        lollipop_file=lollipop_file,
-        task=task,
-    )
+    pipeline = pipeline_cls.from_saved_data(data_file=data_file, task=task)
     dashboard = dashboard_cls(pipeline, task=task)
     dashboard.run(host=host, port=port, debug=debug)
 
@@ -100,7 +94,7 @@ def prep_afni(
 
     typer.echo("Data preparation complete!")
     typer.echo(f"Output files saved to: {output_dir}")
-    typer.echo(f"To launch dashboard:\n fmriqc dashboard afni --data-file {output_dir}/df_final.csv --lollipop-file {output_dir}/lollipop_chart_data.csv --task {task}")
+    typer.echo(f"To launch dashboard:\n fmriqc dashboard afni --data-file {output_dir}/df_final.csv --task {task}")
 
 
 @prep_app.command("fmriprep")
@@ -125,31 +119,29 @@ def prep_fmriprep(
 
     typer.echo("Data preparation complete!")
     typer.echo(f"Output files saved to: {output_dir}")
-    typer.echo(f"To launch dashboard:\n fmriqc dashboard fmriprep --data-file {output_dir}/df_final.csv --lollipop-file {output_dir}/lollipop_chart_data.csv --task {task}")
+    typer.echo(f"To launch dashboard:\n fmriqc dashboard fmriprep --data-file {output_dir}/df_final.csv --task {task}")
 
 # ----------------------------
 # Dashboard Commands
 # ----------------------------
 @dashboard_app.command("afni")
 def dashboard_afni(
-    data_file: Path = typer.Option(..., help="Pre-processed data file"),
-    lollipop_file: Path = typer.Option(..., help="Lollipop chart file"),
+    data_file: Path = typer.Option(..., help="df_final.csv written by 'fmriqc prep afni'"),
     task: str = typer.Option(..., help="Task name"),
     host: str = typer.Option("127.0.0.1", help="Host address"),
     debug: bool = typer.Option(False, help="Run in debug mode")
 ):
-    launch_dashboard(AFNIPipeline, AFNIDashboard, data_file, lollipop_file, task, host, debug)
+    launch_dashboard(AFNIPipeline, AFNIDashboard, data_file, task, host, debug)
 
 
 @dashboard_app.command("fmriprep")
 def dashboard_fmriprep(
-    data_file: Path = typer.Option(..., help="Pre-processed data file"),
-    lollipop_file: Path = typer.Option(..., help="Lollipop chart file"),
+    data_file: Path = typer.Option(..., help="df_final.csv written by 'fmriqc prep fmriprep'"),
     task: str = typer.Option(..., help="Task name"),
     host: str = typer.Option("127.0.0.1", help="Host address"),
     debug: bool = typer.Option(False, help="Run in debug mode")
 ):
-    launch_dashboard(FMRIPrepPipeline, FMRIPrepDashboard, data_file, lollipop_file, task, host, debug)
+    launch_dashboard(FMRIPrepPipeline, FMRIPrepDashboard, data_file, task, host, debug)
 
 # ----------------------------
 # Rating Commands

@@ -3,9 +3,26 @@ Unit tests for BaseDashboard's heatmap row building and table selection.
 These run without constructing a Dash app; the callbacks themselves are not covered.
 """
 
+from pathlib import Path
+
 import pytest
 import pandas as pd
 from fMRI_QCtoolkit.dashboard.base_app import BaseDashboard
+from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
+from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
+
+EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "example_data" / "fmriprep"
+
+
+class TestTableDisplay:
+
+    def test_numbers_are_shown_with_three_decimals_but_ids_are_not(self):
+        pipeline = FMRIPrepPipeline.from_saved_data(EXAMPLES / "df_final.csv", task="rest")
+        columns = {c["id"]: c for c in FMRIPrepDashboard(pipeline, task="rest")._table_columns()}
+
+        assert columns["fd_mean"]["format"].to_plotly_json()["specifier"] == ".3~f"
+        assert columns["run"]["type"] == "numeric"
+        assert "format" not in columns["ID"]
 
 
 class StubProcessor:

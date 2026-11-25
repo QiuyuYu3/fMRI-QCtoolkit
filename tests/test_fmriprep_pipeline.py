@@ -160,38 +160,30 @@ class TestFromSavedData:
     def test_loads_from_csv(self, temp_dir, sample_fmriprep_data):
         """Test loading from saved CSV"""
         data_file = temp_dir / "df_final.csv"
-        lollipop_file = temp_dir / "lollipop_chart_data.csv"
-        
         sample_fmriprep_data.to_csv(data_file, index=False)
-        
-        # Create matching lollipop data
-        lollipop_data = pd.DataFrame({
-            'ID': sample_fmriprep_data['ID'].head(2).values,
-            'Variable': ['fd_perc', 'fd_perc'],
-            'Value': sample_fmriprep_data['fd_perc'].head(2).values
-        })
-        lollipop_data.to_csv(lollipop_file, index=False)
-        
-        pipeline = FMRIPrepPipeline.from_saved_data(
-            data_file=data_file,
-            lollipop_file=lollipop_file,
-            task="rest"
-        )
-        
+
+        pipeline = FMRIPrepPipeline.from_saved_data(data_file=data_file, task="rest")
+
         assert pipeline.df_final is not None
         assert len(pipeline.df_final) > 0
         assert pipeline.task == "rest"
+        assert set(pipeline.get_lollipop_data()["Variable"]) == {
+            "fd_perc", "fd_mean", "gcor", "gsr_x", "gsr_y", "aor", "aqi", "dvars_nstd", "tsnr"}
 
     def test_session_labels_stay_strings(self, temp_dir):
         data_file = temp_dir / "df_final.csv"
-        lollipop_file = temp_dir / "lollipop_chart_data.csv"
-        data_file.write_text("ID,session,run\n001,01,1\n002,pre,1\n003,,1\n")
-        lollipop_file.write_text("ID,session,run,Variable,Value\n001,01,1,fd_mean,0.1\n")
+        data_file.write_text("ID,session,run,fd_mean\n001,01,1,0.1\n002,pre,1,0.2\n003,,1,0.3\n")
 
-        pipeline = FMRIPrepPipeline.from_saved_data(data_file=data_file, lollipop_file=lollipop_file)
+        pipeline = FMRIPrepPipeline.from_saved_data(data_file=data_file)
 
         assert pipeline.df_final['session'].tolist()[:2] == ['01', 'pre']
-        assert pipeline.lollipop_chart_data['session'].tolist() == ['01']
+        assert pipeline.get_lollipop_data()['session'].tolist()[:2] == ['01', 'pre']
+
+    def test_table_without_metrics_gives_an_empty_lollipop(self, temp_dir):
+        data_file = temp_dir / "df_final.csv"
+        data_file.write_text("ID,session,run\n001,01,1\n")
+
+        assert FMRIPrepPipeline.from_saved_data(data_file=data_file).get_lollipop_data().empty
 
 
 class TestIntegrationWithExampleData:
@@ -200,16 +192,9 @@ class TestIntegrationWithExampleData:
     def test_from_saved_data(self, fmriprep_examples: Path):
         """Test loading from example data files"""
         data_file = fmriprep_examples / "df_final.csv"
-        lollipop_file = fmriprep_examples / "lollipop_chart_data.csv"
-
         assert data_file.exists(), "Missing df_final.csv"
-        assert lollipop_file.exists(), "Missing lollipop_chart_data.csv"
 
-        pipeline = FMRIPrepPipeline.from_saved_data(
-            data_file=data_file,
-            lollipop_file=lollipop_file,
-            task="rest",
-        )
+        pipeline = FMRIPrepPipeline.from_saved_data(data_file=data_file, task="rest")
 
         df = pipeline.get_data()
         lol = pipeline.get_lollipop_data()
@@ -238,13 +223,11 @@ class TestIntegrationWithExampleData:
         pipeline.process()
 
         # Verify output files
-        df_path = out_dir / "df_final.csv"
-        lol_path = out_dir / "lollipop_chart_data.csv"
-        assert df_path.exists() and lol_path.exists()
+        assert sorted(p.name for p in out_dir.iterdir()) == ["df_final.csv"]
 
         # Verify data quality
-        df = pd.read_csv(df_path)
-        lol = pd.read_csv(lol_path)
+        df = pd.read_csv(out_dir / "df_final.csv")
+        lol = pipeline.get_lollipop_data()
         assert not df.empty and not lol.empty
         assert {"ID", "run"}.issubset(df.columns)
         assert {"ID", "Variable", "Value"}.issubset(lol.columns)
@@ -357,23 +340,15 @@ class TestSubjectIdIsABIDSLabel:
                                                                sample_fmriprep_data):
         """qc dash re-reads df_final.csv, so the zeros have to survive that read too."""
         data_file = temp_dir / "df_final.csv"
-        lollipop_file = temp_dir / "lollipop_chart_data.csv"
 
         df = sample_fmriprep_data.head(2).copy()
         df['ID'] = ['0030', '090']
         df.to_csv(data_file, index=False)
-        pd.DataFrame({
-            'ID': ['0030', '090'],
-            'Variable': ['fd_perc', 'fd_perc'],
-            'Value': df['fd_perc'].values,
-        }).to_csv(lollipop_file, index=False)
 
-        pipeline = FMRIPrepPipeline.from_saved_data(
-            data_file=data_file, lollipop_file=lollipop_file, task="rest"
-        )
+        pipeline = FMRIPrepPipeline.from_saved_data(data_file=data_file, task="rest")
 
         assert list(pipeline.df_final['ID']) == ['0030', '090']
-        assert list(pipeline.lollipop_chart_data['ID']) == ['0030', '090']
+        assert pipeline.get_lollipop_data()['ID'].unique().tolist() == ['0030', '090']
 
 
 class TestMergeMismatchIsReported:

@@ -4,6 +4,7 @@ Base dashboard class for MRI QC applications
 
 import dash
 from dash import dcc, html, Input, Output, State, dash_table
+from dash.dash_table.Format import Format, Scheme, Trim
 import pandas as pd
 import json
 import logging
@@ -17,6 +18,8 @@ class BaseDashboard(ABC):
     """Base class for QC dashboards."""
 
     STATUS_TO_NUM = get_status_mapping()
+    # Display only: the table data and downloads keep full precision
+    TABLE_NUMBER_FORMAT = Format(precision=3, scheme=Scheme.fixed, trim=Trim.yes)
 
     def __init__(self, data_processor, task=None, token=None):
         self.processor = data_processor
@@ -139,7 +142,7 @@ class BaseDashboard(ABC):
                                 # Data table
                                 dash_table.DataTable(
                                     id='datatable',
-                                    columns=[{"name": i, "id": i} for i in self.processor.get_data().columns],
+                                    columns=self._table_columns(),
                                     page_size=10,
                                     sort_action='native',
                                     style_table={'height': 'auto', 'overflowY': 'auto', 'overflowX': 'auto'},
@@ -227,12 +230,20 @@ class BaseDashboard(ABC):
             ])
         ])
     
+    def _table_columns(self):
+        df = self.processor.get_data()
+        return [
+            {"name": c, "id": c, "type": "numeric", "format": self.TABLE_NUMBER_FORMAT}
+            if pd.api.types.is_numeric_dtype(df[c]) else {"name": c, "id": c}
+            for c in df.columns
+        ]
+
     def setup_callbacks(self):
         """Setup dashboard callbacks."""
         self._setup_lollipop_callback()
         self._setup_main_data_callback()
         self._setup_common_callbacks()
-    
+
     def _setup_lollipop_callback(self):
         """Setup lollipop chart initialization callback."""
         @self.app.callback(
@@ -241,7 +252,7 @@ class BaseDashboard(ABC):
         )
         def initialize_lollipop_chart(chart_id):
             group_by = self.config.get("heatmap_settings", {}).get("group_by")
-            return create_lollipop_plot(self.processor.lollipop_chart_data, group_by=group_by)
+            return create_lollipop_plot(self.processor.get_lollipop_data(), group_by=group_by)
     
     def _get_extended_vars(self):
         """Safely extend the variable list to include new variables from the configuration file."""
@@ -484,7 +495,7 @@ class BaseDashboard(ABC):
 
             return dash_table.DataTable(
                 data=selected_data,
-                columns=[{"name": i, "id": i} for i in self.processor.get_data().columns],
+                columns=self._table_columns(),
                 style_table={'height': '300px', 'overflowY': 'auto', 'overflowX': 'auto'},
                 style_cell={'textAlign': 'left', 'fontSize': '11px', 'padding': '6px'},
                 style_header={'backgroundColor': '#e9ecef', 'fontWeight': 'bold'},

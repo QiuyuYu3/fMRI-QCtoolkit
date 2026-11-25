@@ -22,26 +22,31 @@ def launched(monkeypatch):
 
 def test_dashboard_fmriprep_launches(launched):
     result = runner.invoke(cli.app, ["dashboard", "fmriprep", "--data-file", str(EXAMPLES / "df_final.csv"),
-                                     "--lollipop-file", str(EXAMPLES / "lollipop_chart_data.csv"), "--task", "rest"])
+                                     "--task", "rest"])
     assert result.exit_code == 0, result.output
     assert launched == [(FMRIPrepDashboard, {"host": "127.0.0.1", "port": 5123, "debug": False})]
 
 
 def test_dashboard_afni_launches(launched, tmp_path, sample_afni_data):
     data_file = tmp_path / "df_final.csv"
-    lollipop_file = tmp_path / "lollipop_chart_data.csv"
     sample_afni_data.to_csv(data_file, index=False)
-    lollipop_file.write_text("ID,Variable,Value,mean_value\n001,TSNR,0.5,0.1\n")
 
-    result = runner.invoke(cli.app, ["dashboard", "afni", "--data-file", str(data_file),
-                                     "--lollipop-file", str(lollipop_file), "--task", "rest"])
+    result = runner.invoke(cli.app, ["dashboard", "afni", "--data-file", str(data_file), "--task", "rest"])
     assert result.exit_code == 0, result.output
     assert [cls for cls, _ in launched] == [AFNIDashboard]
 
 
+@pytest.mark.parametrize("pipeline", ["afni", "fmriprep"])
+def test_lollipop_file_option_is_gone(launched, pipeline):
+    result = runner.invoke(cli.app, ["dashboard", pipeline, "--data-file", str(EXAMPLES / "df_final.csv"),
+                                     "--lollipop-file", "lollipop_chart_data.csv", "--task", "rest"])
+    assert result.exit_code == 2
+    assert "No such option" in result.output
+    assert launched == []
+
+
 def test_directory_given_as_data_file_is_refused(launched, tmp_path):
-    result = runner.invoke(cli.app, ["dashboard", "fmriprep", "--data-file", str(tmp_path),
-                                     "--lollipop-file", str(EXAMPLES / "lollipop_chart_data.csv"), "--task", "rest"])
+    result = runner.invoke(cli.app, ["dashboard", "fmriprep", "--data-file", str(tmp_path), "--task", "rest"])
     assert result.exit_code == 1
     assert "not a file" in result.output
     assert launched == []

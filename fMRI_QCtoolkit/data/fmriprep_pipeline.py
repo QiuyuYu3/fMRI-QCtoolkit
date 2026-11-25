@@ -233,15 +233,9 @@ class FMRIPrepPipeline(BaseDataProcessor):
         self.df_final = merged_data
         print(f"Final merged dataset: {len(merged_data)} records")
 
-        # Prepare lollipop data
-        vars_of_interest = [str(var) for var in self.vars if var in self.df_final.columns]
-
-        self._prepare_lollipop_data(vars_of_interest)
-
         print("\nFinal data summary:")
         print(self.df_final.head())
         print(f"\nColumns: {self.df_final.columns.tolist()}")
-        print(f"Vars for lollipop: {vars_of_interest}")
 
     def get_data_summary(self):
         """Get summary of loaded data."""
@@ -254,23 +248,3 @@ class FMRIPrepPipeline(BaseDataProcessor):
             "final_records": len(self.df_final) if self.df_final is not None else 0
         }
         return summary
-    
-    @classmethod
-    def from_saved_data(cls, data_file, lollipop_file, task=None, output_dir=None):
-        instance = cls.__new__(cls)
-        
-        instance.task = task or ""
-        instance.output_dir = Path(output_dir) if output_dir else Path(".")
-        
-        instance.df_final = pd.read_csv(data_file, dtype={'ID': str, 'session': str})
-        instance.lollipop_chart_data = pd.read_csv(lollipop_file, dtype={'ID': str, 'session': str})
-        
-        instance._set_variables()
-        
-        return instance
-    
-    def get_data(self):
-        return self.df_final
-    
-    def get_lollipop_data(self):
-        return self.lollipop_chart_data

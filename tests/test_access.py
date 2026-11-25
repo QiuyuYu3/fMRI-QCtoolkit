@@ -179,11 +179,7 @@ class TestDashboardIsGated:
 
     @pytest.fixture
     def dashboard(self):
-        pipeline = FMRIPrepPipeline.from_saved_data(
-            data_file=EXAMPLES / "df_final.csv",
-            lollipop_file=EXAMPLES / "lollipop_chart_data.csv",
-            task="rest",
-        )
+        pipeline = FMRIPrepPipeline.from_saved_data(data_file=EXAMPLES / "df_final.csv", task="rest")
         return FMRIPrepDashboard(pipeline, task="rest", token=TOKEN)
 
     def test_layout_needs_the_token(self, dashboard):
