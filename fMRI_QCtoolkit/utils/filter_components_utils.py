@@ -79,7 +79,8 @@ def create_metric_filter(metric, bounds):
             inline=True,
             inputStyle={'margin-right': '3px'},
             labelStyle={'margin-right': '10px'},
-            style={'margin-top': '5px', 'font-size': '12px'}
+            # Clears the slider's value boxes, which hang below the track (taller from Dash 4 on)
+            style={'margin-top': '25px', 'font-size': '12px'}
         )
     ], style={'margin-bottom': '15px'})
 
