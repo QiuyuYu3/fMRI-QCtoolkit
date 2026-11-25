@@ -397,6 +397,20 @@ class TestMergeMismatchIsReported:
         assert "1 matched" in out
         assert "no record matched" not in out
 
+    def test_every_numeric_iqm_is_kept(self, temp_dir):
+        bold_file, rating_dir = self._env(
+            temp_dir, 'sub-101_ses-01_task-rest_run-1_bold',
+            'sub-101_ses-01_rest.csv', {'ID': '101', 'Final_1_r': 'good'},
+        )
+        bold = pd.read_csv(bold_file, sep='	').assign(efc=0.5, snr=3.2, provenance="mriqc 24")
+        bold.to_csv(bold_file, sep='	', index=False)
+
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        pipeline._load_bold_data()
+
+        assert {'efc', 'snr', 'fd_perc', 'spacing_tr'} <= set(pipeline.bold_data.columns)
+        assert not {'provenance', 'bids_name'} & set(pipeline.bold_data.columns)
+
     def test_merge_indicator_is_not_left_in_the_output(self, temp_dir):
         bold_file, rating_dir = self._env(
             temp_dir, 'sub-101_ses-01_task-rest_run-1_bold',

@@ -61,10 +61,10 @@ class FMRIPrepPipeline(BaseDataProcessor):
         # Filter for specified task
         bold_filtered = bold.query(f"modality == '{self.task}'")
 
-        # Select relevant columns
-        bold_clean = bold_filtered[['ID', 'session', 'run', 'modality',
-                                   'dummy_trs', 'fd_perc', 'gcor', 'gsr_x', 'gsr_y',
-                                   'aor', 'aqi', 'dvars_nstd', 'tsnr', 'fd_mean', 'spacing_tr']]
+        # Every numeric IQM, so any of them can be added to the dashboard without preparing the data again
+        labels = ['ID', 'session', 'run', 'modality']
+        iqms = [c for c in bold.columns if c not in labels and pd.api.types.is_numeric_dtype(bold[c])]
+        bold_clean = bold_filtered[labels + iqms]
         
         self.bold_data = bold_clean
         print(f"Loaded BOLD data for {len(bold_clean)} records")
