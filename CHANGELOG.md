@@ -18,12 +18,16 @@
 - The Plots tab is drawn only while it is open, and its heatmaps are redrawn only when the filtered rows change, so a filter change on the Table tab no longer waits for the plots. The lollipop chart is drawn once, when the Plots tab first opens.
 - The heatmaps are drawn several times faster on large tables.
 - Select All and Clear only change the selection; they no longer refilter the table and redraw the plots.
+- `fmriqc prep fmriprep` keeps every numeric metric of `group_bold.tsv` in `df_final.csv` instead of a fixed eleven, so any of them can be added to the dashboard, and an MRIQC output without one of the eleven no longer stops it.
+- The table shows the ID, session and run columns, the metrics in the sidebar and the ratings; the other columns start hidden and **Toggle Columns** shows them. Downloads keep every column.
+- Reloading the dashboard keeps the tab that was open.
 
 ### Fixed
 - With Dash 4, the value boxes under each sidebar slider no longer cover the first tick box below them.
 
 ### Added
-- `--config FILE` for both dashboard commands, to use your own thresholds.
+- A **Thresholds** tab in both dashboards. It edits the labels, rules and slider steps, adds, removes and reorders metrics, and counts the runs each metric would rate good, other, bad and NA before anything is saved. Save writes the `--config` file, keeps the previous version as `<name>.bak`, and reloads the page with the new thresholds, without restarting the dashboard.
+- `--config FILE` for both dashboard commands, to use your own thresholds. The file may not exist yet: the dashboard then starts from the default and creates it on the first save.
 - `fmriqc config afni|fmriprep --output FILE` writes the default config to edit. It refuses to overwrite an existing file unless `--force` is given.
 - The dashboard prints the config it uses when it starts, and lists the config metrics missing from the data.
 

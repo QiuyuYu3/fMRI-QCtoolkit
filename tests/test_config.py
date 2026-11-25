@@ -4,10 +4,13 @@ import pytest
 
 from fMRI_QCtoolkit.dashboard.config import (
     ConfigError,
+    config_to_raw,
     default_config_path,
+    dump_config,
     load_config,
     parse_config,
     resolve_metrics,
+    save_config,
 )
 
 
@@ -91,3 +94,51 @@ class TestResolveMetrics:
         config = parse_config({"metrics": {"cens_frac": {"label": "A"}, "cens_*": {}}})
         resolved = resolve_metrics(config, ["cens_frac", "cens_mot"])
         assert [(m.column, m.label) for m in resolved] == [("cens_frac", "A"), ("cens_mot", "cens_mot")]
+
+
+class TestWritingConfigs:
+
+    @pytest.mark.parametrize("pipeline", ["afni", "fmriprep"])
+    def test_the_packaged_files_are_laid_out_as_the_writer_lays_them_out(self, pipeline):
+        text = default_config_path(pipeline).read_text(encoding="utf-8")
+        assert dump_config(json.loads(text)) == text
+        assert dump_config(config_to_raw(load_config(default_config_path(pipeline)))) == text
+
+    def test_a_written_config_reads_back_the_same(self):
+        config = parse_config({"metrics": {
+            "fd_mean": {"label": "Mean FD ≥ ok", "other": ">= 0.123456789", "bad": "> 0.5000000001"},
+            "frac_TRs_cens_*": {"bad": ">= 0.2", "step": 0.05},
+            "efc": {},
+        }})
+        assert parse_config(json.loads(dump_config(config_to_raw(config)))) == config
+
+    def test_each_field_has_its_own_column(self):
+        text = dump_config({"metrics": {"a": {"label": "A", "other": "> 1", "bad": "> 2"},
+                                        "long_name": {"label": "B", "bad": "!= 0", "step": 1}}})
+        assert text.splitlines()[2:4] == [
+            '    "a":         {"label": "A", "other": "> 1", "bad": "> 2"},',
+            '    "long_name": {"label": "B", ' + ' ' * len('"other": "> 1", ') + '"bad": "!= 0", "step": 1}',
+        ]
+
+
+class TestSavingConfigs:
+
+    def test_a_new_file_is_written_without_a_backup(self, tmp_path):
+        path = tmp_path / "mine.json"
+        raw = {"metrics": {"fd_mean": {"label": "FD", "bad": "> 0.5"}}}
+        config = save_config(path, raw)
+        assert load_config(path) == config
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["mine.json"]
+
+    def test_the_replaced_file_is_kept_as_bak(self, tmp_path):
+        path = write_config(tmp_path, '{"metrics": {"fd_mean": {}}}')
+        save_config(path, {"metrics": {"fd_mean": {"bad": "> 0.5"}}})
+        assert (tmp_path / "my_config.json.bak").read_text(encoding="utf-8") == '{"metrics": {"fd_mean": {}}}'
+        assert load_config(path)["fd_mean"].rules == {"bad": (">", 0.5)}
+
+    def test_an_invalid_config_is_not_written(self, tmp_path):
+        path = write_config(tmp_path, '{"metrics": {"fd_mean": {}}}')
+        with pytest.raises(ConfigError, match="metrics.fd_mean.bad"):
+            save_config(path, {"metrics": {"fd_mean": {"bad": "0.5"}}})
+        assert path.read_text(encoding="utf-8") == '{"metrics": {"fd_mean": {}}}'
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["my_config.json"]

@@ -3,6 +3,7 @@ Sidebar filter components for the dashboards
 """
 
 import math
+from decimal import Decimal
 
 from dash import dcc, html
 import pandas as pd
@@ -16,6 +17,9 @@ RATING_OPTIONS = [
     {'label': 'NA', 'value': 'NA'},
 ]
 _MARK_COLORS = {'other': '#9A7B00', 'bad': '#C0392B'}
+# Component types of the sidebar's per-metric filters; the column names the instance
+RANGE = 'metric-range'
+STATUS = 'metric-status'
 _NOTE_STYLE = {'font-size': '12px', 'color': '#666'}
 
 
@@ -49,6 +53,18 @@ def default_statuses(metric):
     return [o['value'] for o in status_options(metric) if o['value'] != 'bad']
 
 
+def mark_key(value):
+    """A number as JavaScript prints it (15, not 15.0); Dash 2 drops slider marks keyed any other way."""
+    value = float(value)
+    if value == 0:
+        return "0"
+    if 1e-6 <= abs(value) < 1e21:
+        text = format(Decimal(repr(value)), "f")
+        return text.rstrip("0").rstrip(".") if "." in text else text
+    mantissa, exponent = repr(value).split("e")
+    return f"{mantissa.removesuffix('.0')}e{int(exponent):+d}"
+
+
 def _mark(value, color=None):
     label = f"{value:g}"
     return {'label': label, 'style': {'color': color}} if color else label
@@ -57,14 +73,14 @@ def _mark(value, color=None):
 def create_metric_filter(metric, bounds):
     """Range slider plus a status checklist; 'bad' is unticked by default."""
     lo, hi, step = bounds
-    marks = {str(lo): _mark(lo), str(hi): _mark(hi)}
+    marks = {mark_key(lo): _mark(lo), mark_key(hi): _mark(hi)}
     for tier, (op, value) in metric.rules.items():
         if op in UPWARD | DOWNWARD and lo <= value <= hi:
-            marks[str(value)] = _mark(value, _MARK_COLORS[tier])
+            marks[mark_key(value)] = _mark(value, _MARK_COLORS[tier])
     return html.Div([
         html.Label(metric.label, style={'font-weight': 'bold'}),
         dcc.RangeSlider(
-            id=f'{metric.column}_slider',
+            id={'type': RANGE, 'column': metric.column},
             min=lo,
             max=hi,
             value=[lo, hi],
@@ -73,7 +89,7 @@ def create_metric_filter(metric, bounds):
             tooltip={'placement': 'bottom', 'always_visible': True}
         ),
         dcc.Checklist(
-            id=f'{metric.column}_status',
+            id={'type': STATUS, 'column': metric.column},
             options=status_options(metric),
             value=default_statuses(metric),
             inline=True,

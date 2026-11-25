@@ -3,6 +3,8 @@ Dashboard config: which metrics the sidebar shows and the thresholds that set th
 """
 
 import json
+import os
+import shutil
 from dataclasses import dataclass, replace
 from fnmatch import fnmatchcase
 from pathlib import Path
@@ -10,6 +12,8 @@ from pathlib import Path
 from ..utils.status import DOWNWARD, UPWARD, format_rule, parse_rule
 
 CONFIG_FILES = {"afni": "afni_config.json", "fmriprep": "fmriprep_config.json"}
+# Columns of df_final.csv that identify a run rather than measure it
+ID_COLUMNS = ("ID", "session", "run")
 _METRIC_FIELDS = ("label", "other", "bad", "step")
 
 
@@ -56,6 +60,65 @@ def parse_config(raw, source="config"):
     if not isinstance(metrics, dict) or not metrics:
         raise ConfigError(f"{source}: 'metrics' must be a non-empty object keyed by df_final.csv column")
     return {key: _parse_metric(key, entry, f"{source}: metrics.{key}") for key, entry in metrics.items()}
+
+
+def parse_entry(key, entry):
+    """One metric entry, checked as parse_config checks it."""
+    return _parse_metric(key, entry, f"metrics.{key}")
+
+
+def config_to_raw(config):
+    metrics = {}
+    for key, metric in config.items():
+        entry = {"label": metric.entry_label}
+        entry.update({tier: format_rule(metric.rules[tier]) for tier in ("other", "bad") if tier in metric.rules})
+        if metric.step is not None:
+            entry["step"] = metric.step
+        metrics[key] = entry
+    return {"metrics": metrics}
+
+
+def dump_config(raw):
+    """JSON text with one line per metric and each field in its own column, as the default files are laid out."""
+    rows = []
+    for key, entry in raw["metrics"].items():
+        fields = {f: f"{json.dumps(f)}: {json.dumps(entry[f], ensure_ascii=False)}"
+                  for f in _METRIC_FIELDS if f in entry}
+        rows.append((json.dumps(key, ensure_ascii=False) + ":", fields))
+    key_width = max((len(key) for key, _ in rows), default=0) + 1
+    widths = {f: max((len(fields[f]) + 2 for _, fields in rows if f in fields), default=0) for f in _METRIC_FIELDS}
+    lines = []
+    for key, fields in rows:
+        present = [f for f in _METRIC_FIELDS if f in fields]
+        cells = [(fields[f] + "," if f in fields else "").ljust(widths[f])
+                 for f in _METRIC_FIELDS[:_METRIC_FIELDS.index(present[-1])]] if present else []
+        cells += [fields[present[-1]]] if present else []
+        lines.append(f"    {key.ljust(key_width)}{{{''.join(cells)}}}")
+    return '{\n  "metrics": {\n' + ",\n".join(lines) + "\n  }\n}\n"
+
+
+def save_config(path, raw):
+    """Check `raw` and write it over `path` in one step; the file it replaces is kept as <name>.bak."""
+    path = Path(path)
+    config = parse_config(raw, source=str(path))
+    text = dump_config(raw)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        if path.exists():
+            shutil.copyfile(path, backup_path(path))
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+    return config
+
+
+def backup_path(path):
+    path = Path(path)
+    return path.with_name(path.name + ".bak")
 
 
 def resolve_metrics(config, columns):

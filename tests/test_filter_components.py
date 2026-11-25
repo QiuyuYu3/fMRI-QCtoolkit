@@ -3,11 +3,14 @@ import pytest
 
 from fMRI_QCtoolkit.dashboard.config import Metric
 from fMRI_QCtoolkit.utils.filter_components_utils import (
+    RANGE,
     RATING_OPTIONS,
+    STATUS,
     create_metric_filter,
     create_qualitative_dropdown,
     create_rules_summary,
     default_statuses,
+    mark_key,
     slider_bounds,
     status_options,
 )
@@ -68,11 +71,11 @@ class TestMetricFilter:
 
     def test_slider_starts_at_full_range_with_threshold_marks(self):
         component = create_metric_filter(CENS_FRAC, (0.0, 0.3, 0.01))
-        slider = by_id(component, "cens_frac_slider")
+        slider = by_id(component, {"type": RANGE, "column": "cens_frac"})
         assert (slider.min, slider.max, slider.value) == (0.0, 0.3, [0.0, 0.3])
         assert slider.marks["0.15"]["label"] == "0.15"
         assert slider.marks["0.2"]["label"] == "0.2"
-        assert by_id(component, "cens_frac_status").value == ["good", "other", "NA"]
+        assert by_id(component, {"type": STATUS, "column": "cens_frac"}).value == ["good", "other", "NA"]
 
 
 class TestRulesSummary:
@@ -105,3 +108,19 @@ class TestQualitativeDropdown:
         dropdown = by_id(create_qualitative_dropdown("FINAL_rating"), "FINAL_rating_dropdown")
         assert dropdown.options == RATING_OPTIONS
         assert dropdown.value == ["good", "other", "bad", "NA"]
+
+
+class TestMarkKeys:
+    """Dash 2 keeps a slider mark only if its key reads as JavaScript prints the number."""
+
+    @pytest.mark.parametrize("value, key", [
+        (15.0, "15"), (35.0, "35"), (0.443, "0.443"), (5.3, "5.3"), (0.0, "0"), (-0.35, "-0.35"),
+        (0.00005, "0.00005"), (1e16, "10000000000000000"), (1e-7, "1e-7"), (1.5e-7, "1.5e-7"), (1e21, "1e+21"),
+    ])
+    def test_keys_match_javascript(self, value, key):
+        assert mark_key(value) == key
+
+    def test_whole_number_thresholds_get_their_labels(self):
+        metric = Metric("fd_perc", "FD", {"other": (">", 15.0), "bad": (">", 20.0)}, entry="fd_perc", entry_label="FD")
+        slider = by_id(create_metric_filter(metric, (5.3, 35.0, 0.1)), {"type": RANGE, "column": "fd_perc"})
+        assert sorted(slider.marks) == ["15", "20", "35", "5.3"]

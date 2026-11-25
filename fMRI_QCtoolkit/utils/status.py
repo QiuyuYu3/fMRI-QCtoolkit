@@ -24,9 +24,15 @@ def parse_rule(text):
     return match.group(1), float(match.group(2))
 
 
+def format_number(value):
+    """Shortest text that reads back as the same float: 15.0 -> '15', 0.15 -> '0.15'."""
+    text = repr(float(value))
+    return text[:-2] if text.endswith(".0") else text
+
+
 def format_rule(rule, symbols=False):
     op, value = rule
-    return f"{_SYMBOLS[op] if symbols else op} {value:g}"
+    return f"{_SYMBOLS[op] if symbols else op} {format_number(value)}"
 
 
 def assign_status(values, rules):

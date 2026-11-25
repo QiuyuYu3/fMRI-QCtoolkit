@@ -14,69 +14,12 @@ import pytest
 from fMRI_QCtoolkit.dashboard.afni_app import AFNIDashboard
 from fMRI_QCtoolkit.dashboard.base_app import BaseDashboard
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
-from fMRI_QCtoolkit.data.afni_pipeline import AFNIPipeline
 from fMRI_QCtoolkit.data.base import read_csv_exact
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
+from tests.dashboard_helpers import (FD_MEAN_RANGE, afni_runs, dash_call, layout_values, make_dashboard,
+                                     shown_ids)
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "example_data" / "fmriprep"
-
-
-def make_dashboard(cls, df, tmp_path, config=None):
-    data_file = tmp_path / "df_final.csv"
-    df.to_csv(data_file, index=False)
-    pipeline_cls = AFNIPipeline if cls is AFNIDashboard else FMRIPrepPipeline
-    return cls(pipeline_cls.from_saved_data(data_file, task="test"), task="test", config_path=config)
-
-
-def layout_values(dashboard):
-    """Filter values as the page sends them when it first opens."""
-    comps = {c.id: c for c in dashboard.app.layout._traverse() if isinstance(getattr(c, "id", None), str)}
-    ranges = [comps[f"{m.column}_slider"].value for m in dashboard.metrics]
-    statuses = [comps[f"{m.column}_status"].value for m in dashboard.metrics]
-    ratings = [comps[f"{g}_dropdown"].value for g in dashboard.processor.checkbox_groups]
-    return ranges, statuses, ratings
-
-
-def shown_ids(dashboard, ranges, statuses, ratings):
-    positions = dashboard.filtered_positions(ranges, statuses, ratings)
-    return dashboard.processor.get_data().iloc[positions]["ID"].tolist()
-
-
-def dash_call(dashboard, output, values, changed):
-    """POST the callback that has `output` as the browser would; inputs not in `values` keep their layout values."""
-    key, spec = next((k, s) for k, s in dashboard.app.callback_map.items() if output in k)
-    comps = {c.id: c for c in dashboard.app.layout._traverse() if isinstance(getattr(c, "id", None), str)}
-
-    def value(item):
-        ident = (item["id"], item["property"])
-        return values[ident] if ident in values else getattr(comps.get(item["id"]), item["property"], None)
-
-    outputs = [dict(zip(("id", "property"), o.rsplit(".", 1))) for o in key.strip(".").split("...")]
-    client = dashboard.app.server.test_client()
-    client.get(f"/?token={dashboard.gate.token}")
-    return client.post("/_dash-update-component", json={
-        "output": key,
-        "outputs": outputs if len(outputs) > 1 else outputs[0],
-        "inputs": [dict(item, value=value(item)) for item in spec["inputs"]],
-        "state": [dict(item, value=value(item)) for item in spec.get("state", [])],
-        "changedPropIds": [changed],
-    })
-
-
-def afni_runs():
-    good = {"cens_frac": 0.1, "cens_mot": 0.05, "cens_displace": 3.0, "TSNR": 200.0,
-            "DF_frac": 0.9, "flip_guess": 0, "GCOR": 0.1, "frac_TRs_cens_1": 0.0}
-    changes = {
-        "001": {},
-        "002": {"cens_frac": 0.2},
-        "003": {"cens_frac": 0.1999},
-        "004": {"flip_guess": 1},
-        "005": {"TSNR": 100.0},
-        "006": {"frac_TRs_cens_1": 0.2},
-        "007": {"DF_frac": 0.6},
-        "008": {"GCOR": np.nan},
-    }
-    return pd.DataFrame([{"ID": run_id, **good, **change} for run_id, change in changes.items()])
 
 
 class TestDefaultView:
@@ -88,26 +31,25 @@ class TestDefaultView:
     def test_ticking_bad_shows_every_run(self, tmp_path):
         dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
         ranges, statuses, ratings = layout_values(dashboard)
-        statuses = [s + ["bad"] for s in statuses]
+        statuses = {column: s + ["bad"] for column, s in statuses.items()}
         assert len(shown_ids(dashboard, ranges, statuses, ratings)) == 8
 
     def test_unticking_other_hides_flagged_runs(self, tmp_path):
         dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
         ranges, statuses, ratings = layout_values(dashboard)
-        statuses = [[v for v in s if v != "other"] for s in statuses]
+        statuses = {column: [v for v in s if v != "other"] for column, s in statuses.items()}
         assert shown_ids(dashboard, ranges, statuses, ratings) == ["001", "008"]
 
     def test_unticking_na_hides_missing_values(self, tmp_path):
         dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
         ranges, statuses, ratings = layout_values(dashboard)
-        statuses = [[v for v in s if v != "NA"] for s in statuses]
+        statuses = {column: [v for v in s if v != "NA"] for column, s in statuses.items()}
         assert "008" not in shown_ids(dashboard, ranges, statuses, ratings)
 
     def test_a_moved_slider_bounds_the_values_but_keeps_missing_ones(self, tmp_path):
         dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
         ranges, statuses, ratings = layout_values(dashboard)
-        gcor = [m.column for m in dashboard.metrics].index("GCOR")
-        ranges[gcor] = [ranges[gcor][0], 0.05]
+        ranges["GCOR"] = [ranges["GCOR"][0], 0.05]
         assert shown_ids(dashboard, ranges, statuses, ratings) == ["008"]
 
     def test_fmriprep_tsnr_and_gcor_never_hide_a_run(self, tmp_path):
@@ -143,7 +85,7 @@ class TestSidebarText:
 
     @staticmethod
     def sidebar_lines(dashboard):
-        return [c.children for c in dashboard.app.layout._traverse() if type(c).__name__ == "Li"]
+        return [c.children for c in dashboard.build_layout()._traverse() if type(c).__name__ == "Li"]
 
     def test_each_pipeline_lists_its_own_thresholds(self, tmp_path):
         afni = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
@@ -353,14 +295,14 @@ class TestSelectedRows:
 
     def test_a_filter_change_sends_the_table_but_no_plots(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
-        resp = dash_call(dashboard, "datatable.data", {}, "fd_mean_slider.value")
+        resp = dash_call(dashboard, "datatable.data", {}, FD_MEAN_RANGE)
         assert set(resp.get_json()["response"]) == {"datatable", "filtered-rows"}
 
     def test_a_filter_change_stores_positions_and_keeps_the_selected_run(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
         resp = dash_call(dashboard, "datatable.data",
                          {("filtered-rows", "data"): [1, 2], ("datatable", "selected_rows"): [1]},
-                         "fd_mean_slider.value")
+                         FD_MEAN_RANGE)
         response = resp.get_json()["response"]
         assert response["filtered-rows"]["data"] == [0, 1, 2]
         assert [r["ID"] for r in response["datatable"]["data"]] == ["001", "002", "003"]

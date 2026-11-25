@@ -27,7 +27,8 @@ app.add_typer(dashboard_app, name="dashboard")
 app.add_typer(rating_app, name="rating")
 app.add_typer(config_app, name="config")
 
-CONFIG_HELP = "Dashboard config JSON with your thresholds; get the default with 'fmriqc config {}'"
+CONFIG_HELP = ("Dashboard config JSON with your thresholds; the Thresholds tab saves to it, "
+               "and creates it from the default if it does not exist")
 
 # -------------------
 # Helper functions
@@ -61,7 +62,11 @@ def launch_dashboard(pipeline_cls, dashboard_cls, data_file: Path, task: str, ho
                      config: Optional[Path] = None):
     validate_file_exists(data_file, "Data file")
     if config is not None:
-        validate_file_exists(config, "Config file")
+        # A new file is fine: the dashboard starts from the default and creates it on the first save
+        if config.is_dir():
+            typer.echo(f"Config file is a directory: {config}; give a file name such as {config / 'config.json'}", err=True)
+            raise typer.Exit(code=1)
+        validate_dir_exists(config.parent, "Config file's directory")
     check_bind_host(host, debug)
 
     pipeline = pipeline_cls.from_saved_data(data_file=data_file, task=task)
@@ -155,7 +160,7 @@ def prep_fmriprep(
 def dashboard_afni(
     data_file: Path = typer.Option(..., help="df_final.csv written by 'fmriqc prep afni'"),
     task: str = typer.Option(..., help="Task name"),
-    config: Optional[Path] = typer.Option(None, help=CONFIG_HELP.format("afni")),
+    config: Optional[Path] = typer.Option(None, help=CONFIG_HELP),
     host: str = typer.Option("127.0.0.1", help="Host address"),
     debug: bool = typer.Option(False, help="Run in debug mode")
 ):
@@ -166,7 +171,7 @@ def dashboard_afni(
 def dashboard_fmriprep(
     data_file: Path = typer.Option(..., help="df_final.csv written by 'fmriqc prep fmriprep'"),
     task: str = typer.Option(..., help="Task name"),
-    config: Optional[Path] = typer.Option(None, help=CONFIG_HELP.format("fmriprep")),
+    config: Optional[Path] = typer.Option(None, help=CONFIG_HELP),
     host: str = typer.Option("127.0.0.1", help="Host address"),
     debug: bool = typer.Option(False, help="Run in debug mode")
 ):

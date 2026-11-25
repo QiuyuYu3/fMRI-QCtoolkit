@@ -29,6 +29,7 @@ def test_dashboard_fmriprep_launches(launched):
     assert [(type(d), kwargs) for d, kwargs in launched] == [
         (FMRIPrepDashboard, {"host": "127.0.0.1", "port": 5123, "debug": False})]
     assert launched[0][0].config_path == default_config_path("fmriprep")
+    assert launched[0][0].save_path is None
 
 
 def test_dashboard_afni_launches(launched, tmp_path, sample_afni_data):
@@ -94,10 +95,28 @@ class TestDashboardConfigOption:
         assert "metrics.fd_mean.bad" in result.output
         assert launched == []
 
-    def test_a_missing_config_file_is_refused(self, launched, tmp_path):
-        result = self.run_fmriprep(tmp_path / "nope.json")
+    def test_a_config_file_that_does_not_exist_yet_starts_from_the_default(self, launched, tmp_path):
+        config = tmp_path / "new.json"
+
+        result = self.run_fmriprep(config)
+
+        assert result.exit_code == 0, result.output
+        dashboard = launched[0][0]
+        assert dashboard.save_path == config
+        assert dashboard.config_path == default_config_path("fmriprep")
+        assert "the first save creates it" in dashboard.config_source()
+        assert not config.exists()
+
+    def test_a_config_in_a_missing_directory_is_refused(self, launched, tmp_path):
+        result = self.run_fmriprep(tmp_path / "no" / "new.json")
         assert result.exit_code == 1
-        assert "Config file not found" in result.output
+        assert "directory not found" in result.output
+        assert launched == []
+
+    def test_a_directory_given_as_config_is_refused(self, launched, tmp_path):
+        result = self.run_fmriprep(tmp_path)
+        assert result.exit_code == 1
+        assert "is a directory" in result.output
         assert launched == []
 
 

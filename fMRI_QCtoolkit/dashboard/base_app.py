@@ -3,19 +3,21 @@ Base dashboard class for MRI QC applications
 """
 
 import logging
+import threading
 from pathlib import Path
 
 import dash
 import numpy as np
 import pandas as pd
-from dash import ctx, dcc, html, no_update, Input, Output, State, dash_table
+from dash import ALL, ctx, dcc, html, no_update, Input, Output, State, dash_table
 from dash.dash_table.Format import Format, Scheme, Trim
 from dash.exceptions import PreventUpdate
 
-from .config import default_config_path, load_config, resolve_metrics
+from .config import ID_COLUMNS, default_config_path, load_config, resolve_metrics
+from .thresholds import THRESHOLDS_TAB, ThresholdsTab
 from ..utils.access import AccessGate, url_host
-from ..utils.filter_components_utils import (create_metric_filter, create_qualitative_dropdown,
-                                             create_rules_summary, slider_bounds)
+from ..utils.filter_components_utils import (RANGE, STATUS, create_metric_filter, create_qualitative_dropdown,
+                                             create_rules_summary, default_statuses, slider_bounds)
 from ..utils.plots import create_lollipop_plot, create_heatmap
 from ..utils.status import assign_status, get_status_mapping
 
@@ -37,21 +39,37 @@ class BaseDashboard:
     def __init__(self, data_processor, task=None, token=None, config_path=None):
         self.processor = data_processor
         self.task = task or "unknown"
-        self.config_path = Path(config_path) if config_path else default_config_path(self.PIPELINE)
-        self._prepare_metrics(load_config(self.config_path))
+        # Saving needs --config; a --config file that does not exist yet starts from the default
+        self.save_path = Path(config_path) if config_path else None
+        self.config_path = (self.save_path if self.save_path and self.save_path.exists()
+                            else default_config_path(self.PIPELINE))
+        self.config_version = 0
+        self.last_saved = None
+        self.save_lock = threading.Lock()
+        self._numeric = {}
+        self.apply_config(load_config(self.config_path))
+        self.thresholds = ThresholdsTab(self)
         self.app = dash.Dash(__name__)
         self.gate = AccessGate(self.app.server, token)
-        self.setup_layout()
+        # A function, so every page load builds the sidebar from the thresholds in force
+        self.app.layout = self.build_layout
         self.setup_callbacks()
 
-    def _prepare_metrics(self, config):
+    def numeric(self, column):
+        if column not in self._numeric:
+            self._numeric[column] = pd.to_numeric(self.processor.get_data()[column], errors='coerce')
+        return self._numeric[column]
+
+    def apply_config(self, config):
+        """Rate every run with `config`; all of it is computed before any of it replaces the old state."""
         df = self.processor.get_data()
-        self.metrics = resolve_metrics(config, list(df.columns))
-        self.unmatched = [key for key in config if '*' not in key and key not in df.columns]
-        self.values = {m.column: pd.to_numeric(df[m.column], errors='coerce') for m in self.metrics}
-        self.status = pd.DataFrame(
-            {m.column: assign_status(self.values[m.column], m.rules) for m in self.metrics}, index=df.index)
-        self.bounds = {m.column: slider_bounds(self.values[m.column], m) for m in self.metrics}
+        metrics = resolve_metrics(config, list(df.columns))
+        values = {m.column: self.numeric(m.column) for m in metrics}
+        status = pd.DataFrame({m.column: assign_status(values[m.column], m.rules) for m in metrics}, index=df.index)
+        bounds = {m.column: slider_bounds(values[m.column], m) for m in metrics}
+        unmatched = [key for key in config if '*' not in key and key not in df.columns]
+        self.config, self.metrics, self.values, self.status, self.bounds, self.unmatched = (
+            config, metrics, values, status, bounds, unmatched)
 
     def get_filter_components(self):
         components = [create_metric_filter(m, self.bounds[m.column]) for m in self.metrics]
@@ -63,19 +81,25 @@ class BaseDashboard:
     def _table_columns(self):
         df = self.processor.get_data()
         return [
-            {"name": c, "id": c, "type": "numeric", "format": self.TABLE_NUMBER_FORMAT}
-            if pd.api.types.is_numeric_dtype(df[c]) else {"name": c, "id": c}
+            {"name": c, "id": c, "type": "numeric", "format": self.TABLE_NUMBER_FORMAT, "hideable": c != 'ID'}
+            if pd.api.types.is_numeric_dtype(df[c]) else {"name": c, "id": c, "hideable": c != 'ID'}
             for c in df.columns
         ]
 
-    def setup_layout(self):
-        """Setup the dashboard layout."""
-        self.app.layout = html.Div([
+    def hidden_columns(self):
+        """Columns the table hides at first: all but the IDs, the config's metrics and the ratings."""
+        shown = {*ID_COLUMNS, *(m.column for m in self.metrics), *self.processor.checkbox_groups}
+        return [c for c in self.processor.get_data().columns if c not in shown]
+
+    def build_layout(self):
+        return html.Div([
             # Positions in the full table of the rows that pass the filters
             dcc.Store(id='filtered-rows'),
             # What the Plots tab currently shows, so it is not redrawn for nothing
             dcc.Store(id='heatmap-rows'),
             dcc.Store(id='lollipop-drawn'),
+            # Which saved thresholds this page was built from
+            dcc.Store(id='config-version', data=self.config_version),
 
             html.Div([
                 # Sidebar
@@ -97,7 +121,10 @@ class BaseDashboard:
 
                 # Main content
                 html.Div([
-                    dcc.Tabs(id='main-tabs', value='table-tab', children=[
+                    html.Div(id='stale-banner'),
+                    # Persisted, so the page reloaded after a save stays on its tab
+                    dcc.Tabs(id='main-tabs', value='table-tab', persistence=True, persistence_type='session',
+                             children=[
 
                         # Table tab
                         dcc.Tab(label='Table', value='table-tab', children=[
@@ -156,7 +183,8 @@ class BaseDashboard:
                                     style_cell={'textAlign': 'left', 'fontSize': '12px', 'padding': '8px'},
                                     style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
                                     row_selectable='multi',
-                                    selected_rows=[]
+                                    selected_rows=[],
+                                    hidden_columns=self.hidden_columns()
                                 ),
 
                                 # Selected rows display
@@ -231,7 +259,9 @@ class BaseDashboard:
                                     'margin': '20px 0'
                                 })
                             ])
-                        ])
+                        ]),
+
+                        dcc.Tab(label='Thresholds', value=THRESHOLDS_TAB, children=[self.thresholds.layout()])
                     ])
                 ], style={'width': '80%', 'display': 'inline-block', 'vertical-align': 'top'})
             ])
@@ -248,6 +278,22 @@ class BaseDashboard:
         self._setup_table_callback()
         self._setup_plot_callbacks()
         self._setup_common_callbacks()
+        self._setup_stale_page_warning()
+        self.thresholds.register(self.app)
+
+    def _setup_stale_page_warning(self):
+        @self.app.callback(
+            Output('stale-banner', 'children'),
+            [Input('main-tabs', 'value'), Input('filtered-rows', 'data')],
+            [State('config-version', 'data')]
+        )
+        def warn_if_stale(_tab, _positions, version):
+            if version == self.config_version:
+                return None
+            return html.Div("The thresholds were saved from another tab or window after this page opened. "
+                            "Reload the page to use them.",
+                            style={'background-color': '#fff3cd', 'border': '1px solid #ffe08a',
+                                   'padding': '8px 12px', 'border-radius': '4px', 'margin-bottom': '8px'})
 
     def _setup_plot_callbacks(self):
         """Draw the plots only while the Plots tab is open; its figures persist while it is hidden."""
@@ -277,13 +323,15 @@ class BaseDashboard:
             return create_lollipop_plot(self.processor.get_lollipop_data(), group_by=self.GROUP_BY), True
 
     def filtered_positions(self, ranges, statuses, ratings):
-        """Positions in the full table of the rows that pass every filter."""
+        """Positions in the full table of the rows that pass every filter; `ranges` and `statuses` are keyed by column."""
         df = self.processor.get_data()
         keep = np.ones(len(df), dtype=bool)
-        for metric, value_range, selected in zip(self.metrics, ranges, statuses):
+        for metric in self.metrics:
+            # A page built before a save may lack a metric; it then gets the default filter
+            selected = statuses.get(metric.column, default_statuses(metric))
             allowed = set(selected or []) | (set() if metric.rules else {'good'})
             keep &= self.status[metric.column].isin(allowed).to_numpy()
-            keep &= self._in_range(metric.column, value_range)
+            keep &= self._in_range(metric.column, ranges.get(metric.column))
         for group, selected in zip(self.processor.checkbox_groups, ratings):
             if group in df.columns:
                 selected = selected or []
@@ -308,7 +356,6 @@ class BaseDashboard:
 
     def _setup_table_callback(self):
         groups = self.processor.checkbox_groups
-        n_metrics = len(self.metrics)
 
         @self.app.callback(
             [
@@ -316,8 +363,7 @@ class BaseDashboard:
                 Output('filtered-rows', 'data'),
                 Output('datatable', 'selected_rows')
             ],
-            [Input(f'{m.column}_slider', 'value') for m in self.metrics]
-            + [Input(f'{m.column}_status', 'value') for m in self.metrics]
+            [Input({'type': RANGE, 'column': ALL}, 'value'), Input({'type': STATUS, 'column': ALL}, 'value')]
             + [Input(f'{g}_dropdown', 'value') for g in groups]
             + [Input('select-all-button', 'n_clicks'), Input('clear-selection-button', 'n_clicks')],
             [
@@ -333,9 +379,9 @@ class BaseDashboard:
             if ctx.triggered_id == 'clear-selection-button':
                 return no_update, no_update, []
 
-            ranges, statuses = args[:n_metrics], args[n_metrics:2 * n_metrics]
-            ratings = args[2 * n_metrics:2 * n_metrics + len(groups)]
-            positions = self.filtered_positions(ranges, statuses, ratings)
+            ranges, statuses = ({item['id']['column']: item.get('value') for item in items}
+                                for items in ctx.inputs_list[:2])
+            positions = self.filtered_positions(ranges, statuses, args[2:2 + len(groups)])
             records = self.processor.get_data().iloc[positions].to_dict('records')
             return records, positions, self._carry_selection(prev_positions, prev_selected_rows, positions)
 
@@ -418,6 +464,7 @@ class BaseDashboard:
             return dash_table.DataTable(
                 data=selected.to_dict('records'),
                 columns=self._table_columns(),
+                hidden_columns=self.hidden_columns(),
                 style_table={'height': '300px', 'overflowY': 'auto', 'overflowX': 'auto'},
                 style_cell={'textAlign': 'left', 'fontSize': '11px', 'padding': '6px'},
                 style_header={'backgroundColor': '#e9ecef', 'fontWeight': 'bold'},
@@ -446,10 +493,18 @@ class BaseDashboard:
         def update_page_size(page_size):
             return page_size
 
+    def config_source(self):
+        if self.save_path is None:
+            return (f"{self.config_path} (the package default; to save changes made in the Thresholds tab, "
+                    f"start the dashboard with --config FILE)")
+        if self.save_path != self.config_path:
+            return f"{self.save_path} (not created yet: starting from the default; the first save creates it)"
+        return str(self.save_path)
+
     def run(self, host='127.0.0.1', port=8050, debug=False):
         """Run the dashboard."""
         self.gate.bind_host = host
-        print(f"Thresholds and filters: {self.config_path}")
+        print(f"Thresholds and filters: {self.config_source()}")
         if self.unmatched:
             print(f"In the config but not in the data, so not shown: {', '.join(self.unmatched)}")
         print("Open the dashboard (the token is valid for this session only):")

@@ -97,6 +97,10 @@ class TestParseRule:
         assert format_rule((">", 15.0)) == "> 15"
         assert format_rule(("<=", 150.0), symbols=True) == "≤ 150"
 
+    @pytest.mark.parametrize("value", [0.1 + 0.2, 1234567.891, 1e-7, 2.5e16, -0.35])
+    def test_rules_keep_every_digit(self, value):
+        assert parse_rule(format_rule((">", value))) == (">", value)
+
 
 class TestStatusHelpers:
     """Test helper functions for status mappings and colors"""
