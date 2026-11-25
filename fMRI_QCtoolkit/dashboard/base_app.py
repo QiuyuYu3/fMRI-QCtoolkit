@@ -67,11 +67,12 @@ class BaseDashboard:
     def apply_config(self, config):
         """Rate every run with `config`; all of it is computed before any of it replaces the old state."""
         df = self.processor.get_data()
-        metrics = resolve_metrics(config, list(df.columns))
+        metrics = resolve_metrics(config.metrics, list(df.columns))
         values = {m.column: self.numeric(m.column) for m in metrics}
         status = pd.DataFrame({m.column: assign_status(values[m.column], m.rules) for m in metrics}, index=df.index)
         bounds = {m.column: slider_bounds(values[m.column], m) for m in metrics}
-        unmatched = [key for key in config if '*' not in key and key not in df.columns]
+        unmatched = [key for key in [*config.metrics, *config.table_columns]
+                     if '*' not in key and key not in df.columns]
         self.config, self.metrics, self.values, self.status, self.bounds, self.unmatched = (
             config, metrics, values, status, bounds, unmatched)
 
@@ -83,9 +84,10 @@ class BaseDashboard:
         return {m.column: m.label for m in self.metrics}, self.RATING_LABELS
 
     def table_column_ids(self):
-        """The table's columns: the IDs, the config's metrics in config order, then the ratings."""
+        """The table's columns: the IDs, the config's metrics in config order, its table-only columns, the ratings."""
         df = self.processor.get_data()
         columns = ([c for c in ID_COLUMNS if c in df.columns] + [m.column for m in self.metrics]
+                   + [c for c in self.config.table_columns if c in df.columns]
                    + [g for g in self.processor.checkbox_groups if g in df.columns])
         return list(dict.fromkeys(columns))
 

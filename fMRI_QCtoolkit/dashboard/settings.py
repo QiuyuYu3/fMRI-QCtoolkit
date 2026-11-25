@@ -10,7 +10,7 @@ from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 
 from .config import (ID_COLUMNS, ConfigError, Metric, backup_path, default_config_path, dump_config, load_config,
-                     parse_config, parse_entry, resolve_metrics, save_config)
+                     parse_config, parse_entry, parse_table_columns, resolve_metrics, save_config)
 from ..utils.filter_components_utils import ACCENT, slider_bounds
 from ..utils.status import assign_status, format_number, get_status_colors, get_status_mapping
 
@@ -37,9 +37,9 @@ def new_row(column):
             'bad-op': None, 'bad-value': None, 'step': None}
 
 
-def config_rows(config):
+def config_rows(metrics):
     rows = []
-    for key, metric in config.items():
+    for key, metric in metrics.items():
         row = new_row(key)
         row.update(label=metric.entry_label, step=metric.step)
         for tier, (op, value) in metric.rules.items():
@@ -68,8 +68,11 @@ def row_entry(row):
     return entry
 
 
-def form_raw(rows):
-    return {'metrics': {row['key']: row_entry(row) for row in rows}}
+def form_raw(rows, table=()):
+    raw = {'metrics': {row['key']: row_entry(row) for row in rows}}
+    if table:
+        raw['table_columns'] = list(table)
+    return raw
 
 
 def worst_status(statuses):
@@ -120,6 +123,13 @@ class SettingsTab:
         skip = {*ID_COLUMNS, *self.dashboard.processor.checkbox_groups} | covered
         return [c for c in df.columns if c not in skip
                 and pd.api.types.is_numeric_dtype(df[c]) and not pd.api.types.is_bool_dtype(df[c])]
+
+    def table_options(self, keys):
+        """Columns of the data that the table could show besides the IDs, the ratings and the form's metrics."""
+        df = self.dashboard.processor.get_data()
+        covered = {m.column for m in resolve_metrics({k: Metric(k, k, {}) for k in keys}, list(df.columns))}
+        skip = {*ID_COLUMNS, *self.dashboard.processor.checkbox_groups} | covered
+        return [c for c in df.columns if c not in skip]
 
     def _auto_step(self, row):
         try:
@@ -179,7 +189,9 @@ class SettingsTab:
         return html.P(lines, style=_TEXT_STYLE)
 
     def layout(self):
-        rows = config_rows(self.dashboard.config)
+        config = self.dashboard.config
+        rows = config_rows(config.metrics)
+        keys = [r['key'] for r in rows]
         heading = [html.B("Metric"), html.B("Label"), html.B("Other", style={'grid-column': 'span 2'}),
                    html.B("Bad", style={'grid-column': 'span 2'}),
                    html.B("Step", title="The slider's step; left empty, the one shown in gray"),
@@ -196,8 +208,15 @@ class SettingsTab:
             html.Div(heading, style={**GRID, 'font-size': '13px', 'padding-bottom': '4px',
                                      'border-bottom': '2px solid #dee2e6'}),
             html.Div([self.render_row(row) for row in rows], id='thr-rows'),
-            dcc.Dropdown(id='thr-add', options=self.addable_columns([r['key'] for r in rows]), value=None,
+            dcc.Dropdown(id='thr-add', options=self.addable_columns(keys), value=None,
                          placeholder="Add a metric from df_final.csv", style={'width': '340px', 'margin': '10px 0'}),
+            html.Div([
+                html.P([html.B("Table only: "), "columns shown in the table after the metrics, with no slider and "
+                        "no heatmap row."], style={**_TEXT_STYLE, 'margin-bottom': '6px'}),
+                dcc.Dropdown(id='thr-table', options=self.table_options(keys), value=list(config.table_columns),
+                             multi=True, placeholder="Pick columns of df_final.csv"),
+                html.Div(id='thr-table-error', style={'color': '#C0392B', 'font-size': '12px'}),
+            ], style={'margin': '18px 0', 'max-width': '900px'}),
             html.Div([
                 html.Button("Save", id='thr-save', n_clicks=0,
                             style={**button_style, 'background-color': ACCENT, 'color': 'white'}),
@@ -218,8 +237,8 @@ class SettingsTab:
             html.Div(id='thr-reloading', style={'display': 'none'}),
         ], style={'padding': '15px'})
 
-    def preview(self, rows):
-        """What the form's settings would do: per-row counts and errors, the summary, button states, add options."""
+    def preview(self, rows, table=()):
+        """What the form's settings would do: counts and errors, the summary, button states, list options."""
         d = self.dashboard
         df = d.processor.get_data()
         parsed, errors = {}, {}
@@ -247,7 +266,15 @@ class SettingsTab:
                 hidden |= (status == 'bad').to_numpy()
                 cells.append(_count_chips(status, parsed[key].rules, len(metrics) if '*' in key else None))
 
-        changed = bool(errors) or list(parsed.items()) != list(d.config.items())
+        keys = [row['key'] for row in rows]
+        try:
+            table_error = None
+            parse_table_columns(list(table), keys)
+        except ConfigError as e:
+            table_error = str(e)
+        changed = (bool(errors) or bool(table_error) or list(parsed.items()) != list(d.config.metrics.items())
+                   or tuple(table) != d.config.table_columns)
+        invalid = bool(errors) or bool(table_error) or not rows
         if rows:
             now = len(df) - int(d.status.eq('bad').any(axis=1).sum())
             summary = (f"With these thresholds, {len(df) - int(hidden.sum())} of {len(df)} runs are shown "
@@ -260,15 +287,17 @@ class SettingsTab:
             'counts': cells,
             'errors': [errors.get(row['key']) for row in rows],
             'summary': summary,
-            'save_off': d.save_path is None or bool(errors) or not rows or not changed,
-            'download_off': bool(errors) or not rows,
+            'save_off': d.save_path is None or invalid or not changed,
+            'download_off': invalid,
             'unsaved': "Unsaved changes" if changed else "",
-            'options': self.addable_columns([row['key'] for row in rows]),
+            'options': self.addable_columns(keys),
+            'table_options': self.table_options(keys),
+            'table_error': table_error,
         }
 
-    def config_file(self, rows):
+    def config_file(self, rows, table=()):
         """(file name, text) of the form's settings as a config file; raises ConfigError if they are invalid."""
-        raw = form_raw(rows)
+        raw = form_raw(rows, table)
         parse_config(raw)
         d = self.dashboard
         name = d.save_path.name if d.save_path else f"{d.PIPELINE}_config.json"
@@ -282,9 +311,9 @@ class SettingsTab:
                 raise PreventUpdate
             return rows + [new_row(added)]
         if trigger == 'thr-discard':
-            return config_rows(self.dashboard.config)
+            return config_rows(self.dashboard.config.metrics)
         if trigger == 'thr-defaults':
-            return config_rows(load_config(default_config_path(self.dashboard.PIPELINE)))
+            return config_rows(load_config(default_config_path(self.dashboard.PIPELINE)).metrics)
         # Freshly drawn buttons report n_clicks 0, which is not a click
         if isinstance(trigger, dict) and clicked and trigger.get('key') in keys:
             i = keys.index(trigger['key'])
@@ -296,7 +325,17 @@ class SettingsTab:
                 return rows
         raise PreventUpdate
 
-    def save(self, rows, version):
+    def edit_table(self, table, trigger, added):
+        """The table-only columns after the same actions; a column added as a metric leaves them."""
+        if trigger == 'thr-add':
+            return [c for c in table if c != added]
+        if trigger == 'thr-discard':
+            return list(self.dashboard.config.table_columns)
+        if trigger == 'thr-defaults':
+            return list(load_config(default_config_path(self.dashboard.PIPELINE)).table_columns)
+        return no_update
+
+    def save(self, rows, version, table=()):
         """Write the form to the --config file and rate the runs with it; returns (message, saved)."""
         d = self.dashboard
         if d.save_path is None:
@@ -308,7 +347,7 @@ class SettingsTab:
                         "page opened. Reload the page, then make your changes again."), False
             existed = d.save_path.exists()
             try:
-                config = save_config(d.save_path, form_raw(rows))
+                config = save_config(d.save_path, form_raw(rows, table))
             except ConfigError as e:
                 return f"Nothing was saved: {e}", False
             except OSError as e:
@@ -323,22 +362,25 @@ class SettingsTab:
     def register(self, app):
         field_states = [State({'type': f'thr-{f}', 'key': ALL}, 'value') for f in FIELDS]
 
+        table_state = State('thr-table', 'value')
+
         @app.callback(
-            [Output('thr-rows', 'children'), Output('thr-add', 'value')],
+            [Output('thr-rows', 'children'), Output('thr-add', 'value'), Output('thr-table', 'value')],
             [Input('thr-add', 'value'),
              Input({'type': 'thr-up', 'key': ALL}, 'n_clicks'),
              Input({'type': 'thr-down', 'key': ALL}, 'n_clicks'),
              Input({'type': 'thr-delete', 'key': ALL}, 'n_clicks'),
              Input('thr-discard', 'n_clicks'),
              Input('thr-defaults', 'n_clicks')],
-            field_states,
+            field_states + [table_state],
             prevent_initial_call=True
         )
-        def edit_rows(added, _up, _down, _delete, _discard, _defaults, *fields):
+        def edit_rows(added, _up, _down, _delete, _discard, _defaults, *args):
+            *fields, table = args
             rows = form_rows(_keys(ctx.states_list[0]), *fields)
             clicked = ctx.triggered[0]['value'] if ctx.triggered else None
             rows = self.edit(rows, ctx.triggered_id, clicked, added)
-            return [self.render_row(row) for row in rows], None
+            return [self.render_row(row) for row in rows], None, self.edit_table(table or [], ctx.triggered_id, added)
 
         @app.callback(
             [Output({'type': 'thr-counts', 'key': ALL}, 'children'),
@@ -347,23 +389,27 @@ class SettingsTab:
              Output('thr-save', 'disabled'),
              Output('thr-download-button', 'disabled'),
              Output('thr-unsaved', 'children'),
-             Output('thr-add', 'options')],
-            [Input({'type': f'thr-{f}', 'key': ALL}, 'value') for f in FIELDS]
+             Output('thr-add', 'options'),
+             Output('thr-table', 'options'),
+             Output('thr-table-error', 'children')],
+            [Input({'type': f'thr-{f}', 'key': ALL}, 'value') for f in FIELDS] + [Input('thr-table', 'value')]
         )
-        def update_preview(*fields):
-            shown = self.preview(form_rows(_keys(ctx.inputs_list[0]), *fields))
+        def update_preview(*args):
+            *fields, table = args
+            shown = self.preview(form_rows(_keys(ctx.inputs_list[0]), *fields), table or [])
             return [shown[k] for k in ('counts', 'errors', 'summary', 'save_off', 'download_off', 'unsaved',
-                                       'options')]
+                                       'options', 'table_options', 'table_error')]
 
         @app.callback(
             Output('thr-download', 'data'),
             [Input('thr-download-button', 'n_clicks')],
-            field_states,
+            field_states + [table_state],
             prevent_initial_call=True
         )
-        def download(n_clicks, *fields):
+        def download(n_clicks, *args):
+            *fields, table = args
             try:
-                name, text = self.config_file(form_rows(_keys(ctx.states_list[0]), *fields))
+                name, text = self.config_file(form_rows(_keys(ctx.states_list[0]), *fields), table or [])
             except ConfigError:
                 raise PreventUpdate
             return dcc.send_string(text, name)
@@ -371,14 +417,14 @@ class SettingsTab:
         @app.callback(
             [Output('thr-message', 'children'), Output('thr-saved', 'data')],
             [Input('thr-save', 'n_clicks')],
-            field_states + [State('config-version', 'data')],
+            field_states + [table_state, State('config-version', 'data')],
             prevent_initial_call=True
         )
         def save(n_clicks, *args):
             if not n_clicks:
                 raise PreventUpdate
-            *fields, version = args
-            message, saved = self.save(form_rows(_keys(ctx.states_list[0]), *fields), version)
+            *fields, table, version = args
+            message, saved = self.save(form_rows(_keys(ctx.states_list[0]), *fields), version, table or [])
             return _message(message, ok=saved), (self.dashboard.config_version if saved else no_update)
 
         # The page is rebuilt from the new thresholds; the tab it was on is kept by the tabs' persistence

@@ -15,6 +15,7 @@ CONFIG_FILES = {"afni": "afni_config.json", "fmriprep": "fmriprep_config.json"}
 # Columns of df_final.csv that identify a run rather than measure it
 ID_COLUMNS = ("ID", "session", "run")
 _METRIC_FIELDS = ("label", "other", "bad", "step")
+_TOP_FIELDS = ("metrics", "table_columns")
 
 
 class ConfigError(ValueError):
@@ -31,6 +32,13 @@ class Metric:
     entry_label: str = ""
 
 
+@dataclass(frozen=True)
+class Config:
+    """{config key: Metric}, and the columns the table shows after the metrics, without a filter or rating."""
+    metrics: dict
+    table_columns: tuple = ()
+
+
 def default_config_path(pipeline):
     return Path(__file__).with_name(CONFIG_FILES[pipeline])
 
@@ -41,7 +49,7 @@ def config_beside(data_file, pipeline):
 
 
 def load_config(path):
-    """Read and check a dashboard config; returns {config key: Metric}."""
+    """Read and check a dashboard config file."""
     path = Path(path)
     try:
         with open(path, encoding="utf-8-sig") as f:
@@ -58,13 +66,14 @@ def parse_config(raw, source="config"):
         old = isinstance(raw, dict) and "quantitative_configs" in raw
         hint = " This is the 1.x format; get the current one with 'fmriqc config'." if old else ""
         raise ConfigError(f"{source}: expected an object with a 'metrics' entry.{hint}")
-    unknown = sorted(set(raw) - {"metrics"})
+    unknown = sorted(set(raw) - set(_TOP_FIELDS))
     if unknown:
-        raise ConfigError(f"{source}: unknown top-level field(s) {unknown}; only 'metrics' is allowed")
+        raise ConfigError(f"{source}: unknown top-level field(s) {unknown}; allowed: {', '.join(_TOP_FIELDS)}")
     metrics = raw["metrics"]
     if not isinstance(metrics, dict) or not metrics:
         raise ConfigError(f"{source}: 'metrics' must be a non-empty object keyed by df_final.csv column")
-    return {key: _parse_metric(key, entry, f"{source}: metrics.{key}") for key, entry in metrics.items()}
+    metrics = {key: _parse_metric(key, entry, f"{source}: metrics.{key}") for key, entry in metrics.items()}
+    return Config(metrics, parse_table_columns(raw.get("table_columns", []), metrics, f"{source}: table_columns"))
 
 
 def parse_entry(key, entry):
@@ -72,19 +81,35 @@ def parse_entry(key, entry):
     return _parse_metric(key, entry, f"metrics.{key}")
 
 
+def parse_table_columns(columns, metric_keys, where="table_columns"):
+    """The table-only columns, checked as parse_config checks them."""
+    if not isinstance(columns, list) or not all(isinstance(c, str) and c for c in columns):
+        raise ConfigError(f"{where} must be a list of df_final.csv column names")
+    repeated = sorted({c for c in columns if columns.count(c) > 1})
+    if repeated:
+        raise ConfigError(f"{where}: {repeated} listed more than once")
+    in_metrics = [c for c in columns if c in metric_keys]
+    if in_metrics:
+        raise ConfigError(f"{where}: {in_metrics} already in metrics; list each column in one place")
+    return tuple(columns)
+
+
 def config_to_raw(config):
     metrics = {}
-    for key, metric in config.items():
+    for key, metric in config.metrics.items():
         entry = {"label": metric.entry_label}
         entry.update({tier: format_rule(metric.rules[tier]) for tier in ("other", "bad") if tier in metric.rules})
         if metric.step is not None:
             entry["step"] = metric.step
         metrics[key] = entry
-    return {"metrics": metrics}
+    raw = {"metrics": metrics}
+    if config.table_columns:
+        raw["table_columns"] = list(config.table_columns)
+    return raw
 
 
 def dump_config(raw):
-    """JSON text with one line per metric and each field in its own column, as the default files are laid out."""
+    """JSON text with one line per metric, each field in its own column, as the default files are laid out."""
     rows = []
     for key, entry in raw["metrics"].items():
         fields = {f: f"{json.dumps(f)}: {json.dumps(entry[f], ensure_ascii=False)}"
@@ -99,7 +124,10 @@ def dump_config(raw):
                  for f in _METRIC_FIELDS[:_METRIC_FIELDS.index(present[-1])]] if present else []
         cells += [fields[present[-1]]] if present else []
         lines.append(f"    {key.ljust(key_width)}{{{''.join(cells)}}}")
-    return '{\n  "metrics": {\n' + ",\n".join(lines) + "\n  }\n}\n"
+    text = '{\n  "metrics": {\n' + ",\n".join(lines) + "\n  }"
+    if raw.get("table_columns"):
+        text += ',\n  "table_columns": ' + json.dumps(list(raw["table_columns"]), ensure_ascii=False)
+    return text + "\n}\n"
 
 
 def save_config(path, raw):
@@ -126,10 +154,10 @@ def backup_path(path):
     return path.with_name(path.name + ".bak")
 
 
-def resolve_metrics(config, columns):
+def resolve_metrics(metrics, columns):
     """Config entries matched to the table's columns, in config order; a '*' key expands to every matching column."""
     resolved, seen = [], set()
-    for key, metric in config.items():
+    for key, metric in metrics.items():
         pattern = "*" in key
         if pattern:
             matches = [c for c in columns if fnmatchcase(c, key)]

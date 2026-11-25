@@ -23,13 +23,13 @@ def write_config(tmp_path, content):
 class TestPackagedConfigs:
 
     def test_afni_entries_in_sidebar_order(self):
-        config = load_config(default_config_path("afni"))
+        config = load_config(default_config_path("afni")).metrics
         assert list(config) == ["cens_frac", "cens_mot", "cens_displace", "TSNR", "DF_frac",
                                 "flip_guess", "GCOR", "frac_TRs_cens_*"]
         assert config["cens_frac"].label == "Censor Fraction"
 
     def test_fmriprep_colors_only_the_motion_metrics(self):
-        config = load_config(default_config_path("fmriprep"))
+        config = load_config(default_config_path("fmriprep")).metrics
         assert [key for key, metric in config.items() if metric.rules] == ["fd_perc", "fd_mean"]
 
 
@@ -49,6 +49,10 @@ class TestConfigErrors:
         ({"metrics": {"x": {"label": 3}}}, "metrics.x.label must be text"),
         ({"metrics": {"x": "GCOR"}}, "metrics.x must be an object"),
         ('{"metrics": {"x": {}, "x": {}}}', "duplicate key(s) ['x']"),
+        ({"metrics": {"x": {}}, "table_columns": "efc"}, "table_columns must be a list of df_final.csv column names"),
+        ({"metrics": {"x": {}}, "table_columns": ["efc", 3]}, "table_columns must be a list"),
+        ({"metrics": {"x": {}}, "table_columns": ["efc", "efc"]}, "table_columns: ['efc'] listed more than once"),
+        ({"metrics": {"efc": {}}, "table_columns": ["efc"]}, "table_columns: ['efc'] already in metrics"),
     ])
     def test_message_names_the_file_and_the_problem(self, tmp_path, content, message):
         path = write_config(tmp_path, content)
@@ -58,27 +62,27 @@ class TestConfigErrors:
         assert str(path) in str(err.value)
 
     def test_equality_rules_skip_the_order_check(self):
-        config = parse_config({"metrics": {"code": {"other": "== 1", "bad": "== 2"}}})
+        config = parse_config({"metrics": {"code": {"other": "== 1", "bad": "== 2"}}}).metrics
         assert config["code"].rules == {"other": ("==", 1.0), "bad": ("==", 2.0)}
 
     def test_byte_order_mark_is_accepted(self, tmp_path):
         path = tmp_path / "bom.json"
         path.write_text('﻿{"metrics": {"aqi": {}}}', encoding="utf-8")
-        assert list(load_config(path)) == ["aqi"]
+        assert list(load_config(path).metrics) == ["aqi"]
 
 
 class TestResolveMetrics:
 
     def test_follows_config_order_and_skips_absent_columns(self):
-        config = parse_config({"metrics": {"b": {}, "a": {}, "zz": {}}})
+        config = parse_config({"metrics": {"b": {}, "a": {}, "zz": {}}}).metrics
         assert [m.column for m in resolve_metrics(config, ["a", "b", "c"])] == ["b", "a"]
 
     def test_label_defaults_to_the_column(self):
-        assert parse_config({"metrics": {"aqi": {}}})["aqi"].label == "aqi"
+        assert parse_config({"metrics": {"aqi": {}}}).metrics["aqi"].label == "aqi"
 
     def test_star_expands_in_table_order(self):
         config = parse_config({"metrics": {"frac_TRs_cens_*": {"label": "Fraction TRs Censored",
-                                                               "bad": ">= 0.2"}}})
+                                                               "bad": ">= 0.2"}}}).metrics
         metrics = resolve_metrics(config, ["ID", "frac_TRs_cens_2", "frac_TRs_cens_1"])
         assert [(m.column, m.label, m.entry_label) for m in metrics] == [
             ("frac_TRs_cens_2", "frac_TRs_cens_2", "Fraction TRs Censored"),
@@ -87,11 +91,11 @@ class TestResolveMetrics:
         assert all(m.rules == {"bad": (">=", 0.2)} for m in metrics)
 
     def test_matching_is_case_sensitive(self):
-        config = parse_config({"metrics": {"TSNR": {}, "gcor*": {}}})
+        config = parse_config({"metrics": {"TSNR": {}, "gcor*": {}}}).metrics
         assert resolve_metrics(config, ["tsnr", "GCOR"]) == []
 
     def test_a_column_is_used_once(self):
-        config = parse_config({"metrics": {"cens_frac": {"label": "A"}, "cens_*": {}}})
+        config = parse_config({"metrics": {"cens_frac": {"label": "A"}, "cens_*": {}}}).metrics
         resolved = resolve_metrics(config, ["cens_frac", "cens_mot"])
         assert [(m.column, m.label) for m in resolved] == [("cens_frac", "A"), ("cens_mot", "cens_mot")]
 
@@ -111,6 +115,16 @@ class TestWritingConfigs:
             "efc": {},
         }})
         assert parse_config(json.loads(dump_config(config_to_raw(config)))) == config
+
+    def test_table_only_columns_read_back_the_same_on_one_line_after_the_metrics(self):
+        config = parse_config({"metrics": {"fd_mean": {"bad": "> 0.5"}}, "table_columns": ["snr", "efc"]})
+        text = dump_config(config_to_raw(config))
+        assert text.endswith('  },\n  "table_columns": ["snr", "efc"]\n}\n')
+        assert parse_config(json.loads(text)) == config
+
+    def test_without_table_only_columns_the_field_is_left_out(self):
+        assert "table_columns" not in dump_config({"metrics": {"a": {}}, "table_columns": []})
+        assert parse_config({"metrics": {"a": {}}}).table_columns == ()
 
     def test_each_field_has_its_own_column(self):
         text = dump_config({"metrics": {"a": {"label": "A", "other": "> 1", "bad": "> 2"},
@@ -134,7 +148,7 @@ class TestSavingConfigs:
         path = write_config(tmp_path, '{"metrics": {"fd_mean": {}}}')
         save_config(path, {"metrics": {"fd_mean": {"bad": "> 0.5"}}})
         assert (tmp_path / "my_config.json.bak").read_text(encoding="utf-8") == '{"metrics": {"fd_mean": {}}}'
-        assert load_config(path)["fd_mean"].rules == {"bad": (">", 0.5)}
+        assert load_config(path).metrics["fd_mean"].rules == {"bad": (">", 0.5)}
 
     def test_an_invalid_config_is_not_written(self, tmp_path):
         path = write_config(tmp_path, '{"metrics": {"fd_mean": {}}}')

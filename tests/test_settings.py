@@ -26,7 +26,7 @@ def fmriprep_runs():
 
 
 def rows_of(dashboard):
-    return config_rows(dashboard.config)
+    return config_rows(dashboard.config.metrics)
 
 
 def row(rows, key):
@@ -52,7 +52,7 @@ class TestFormEntries:
 
     def test_rows_read_back_as_the_config(self):
         config = load_config(default_config_path("afni"))
-        assert form_raw(config_rows(config)) == json.loads(default_config_path("afni").read_text(encoding="utf-8"))
+        assert form_raw(config_rows(config.metrics)) == json.loads(default_config_path("afni").read_text(encoding="utf-8"))
 
     def test_an_empty_label_falls_back_to_the_column_name(self):
         assert row_entry({**new_row("efc"), "label": "  "}) == {}
@@ -159,7 +159,7 @@ class TestEditingRows:
         tab = dashboard.settings
         assert self.keys(tab.edit([new_row("efc")], "thr-discard", 1, None)) == ["fd_mean"]
         defaults = tab.edit([], "thr-defaults", 1, None)
-        assert defaults == config_rows(load_config(default_config_path("fmriprep")))
+        assert defaults == config_rows(load_config(default_config_path("fmriprep")).metrics)
 
 
 class TestSaving:
@@ -197,7 +197,7 @@ class TestSaving:
         rows[0]["bad-value"] = 2
         assert dashboard.settings.save(rows, version=0)[1]
         assert json.loads(path.with_name("thresholds.json.bak").read_text(encoding="utf-8")) == original
-        assert load_config(path)["fd_mean"].rules == {"bad": (">", 2.0)}
+        assert load_config(path).metrics["fd_mean"].rules == {"bad": (">", 2.0)}
 
     def test_the_page_built_after_a_save_shows_the_new_thresholds(self, saved_to):
         dashboard, _ = saved_to(AFNIDashboard, afni_runs())
@@ -217,7 +217,7 @@ class TestSaving:
         row(rows, "fd_mean")["label"] = "Other tab"
         message, saved = dashboard.settings.save(rows, version=0)
         assert not saved and "Reload the page" in message
-        assert load_config(path)["fd_mean"].label == "Mean FD"
+        assert load_config(path).metrics["fd_mean"].label == "Mean FD"
 
     def test_nothing_is_saved_without_a_config_file(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
@@ -234,6 +234,51 @@ class TestSaving:
         assert sorted(p.name for p in path.parent.iterdir()) == ["thresholds.json"]
 
 
+class TestTableOnlyColumns:
+
+    def test_on_offer_are_the_columns_not_ids_ratings_or_metrics(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        assert dashboard.settings.preview(rows_of(dashboard))['table_options'] == ["efc", "modality"]
+        assert dashboard.settings.preview(rows_of(dashboard) + [new_row("efc")])['table_options'] == ["modality"]
+
+    def test_picking_one_is_an_unsaved_change(self, saved_to):
+        dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())
+        shown = dashboard.settings.preview(rows_of(dashboard), ["efc"])
+        assert (shown['save_off'], shown['unsaved'], shown['table_error']) == (False, "Unsaved changes", None)
+
+    def test_one_that_is_also_a_metric_is_refused(self, saved_to):
+        dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())
+        shown = dashboard.settings.preview(rows_of(dashboard), ["fd_mean"])
+        assert "['fd_mean'] already in metrics" in shown['table_error']
+        assert shown['save_off'] and shown['download_off']
+
+    def test_adding_it_as_a_metric_takes_it_out_of_the_table_only_list(self, tmp_path):
+        tab = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path).settings
+        assert tab.edit_table(["efc", "modality"], "thr-add", "efc") == ["modality"]
+
+    def test_discard_and_defaults(self, saved_to):
+        dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs(),
+                                {"metrics": {"fd_mean": {"bad": "> 1"}}, "table_columns": ["efc"]})
+        tab = dashboard.settings
+        assert tab.edit_table([], "thr-discard", None) == ["efc"]
+        assert tab.edit_table(["efc"], "thr-defaults", None) == []
+
+    def test_saving_writes_them_and_the_table_shows_them_after_the_metrics(self, saved_to):
+        dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs(), {"metrics": {"fd_mean": {"bad": "> 1"}}})
+
+        message, saved = dashboard.settings.save(rows_of(dashboard), 0, ["modality", "efc"])
+
+        assert saved, message
+        assert json.loads(path.read_text(encoding="utf-8"))["table_columns"] == ["modality", "efc"]
+        assert dashboard.table_column_ids() == ["ID", "session", "run", "fd_mean", "modality", "efc", "Final"]
+        assert shown_ids(dashboard, *layout_values(dashboard)) == ["001", "002", "003", "004"]
+
+    def test_the_downloaded_file_has_them(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        _, text = dashboard.settings.config_file(rows_of(dashboard), ["efc"])
+        assert parse_config(json.loads(text)).table_columns == ("efc",)
+
+
 class TestDownloading:
 
     def test_the_file_is_the_form_laid_out_like_the_default(self, tmp_path):
@@ -243,7 +288,7 @@ class TestDownloading:
         name, text = dashboard.settings.config_file(rows)
         assert name == "fmriprep_config.json"
         assert text == dump_config(form_raw(rows))
-        assert parse_config(json.loads(text))["fd_perc"].rules["bad"] == (">", 30.0)
+        assert parse_config(json.loads(text)).metrics["fd_perc"].rules["bad"] == (">", 30.0)
 
     def test_the_file_takes_the_config_file_name(self, saved_to):
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
@@ -277,7 +322,7 @@ class TestThroughDash:
                          "thr-download-button.n_clicks")
         sent = resp.get_json()["response"]["thr-download"]["data"]
         assert sent["filename"] == "fmriprep_config.json"
-        assert parse_config(json.loads(sent["content"]))["fd_perc"].rules["bad"] == (">", 30.0)
+        assert parse_config(json.loads(sent["content"])).metrics["fd_perc"].rules["bad"] == (">", 30.0)
 
 
     def test_the_save_button_writes_the_form_to_the_config_path(self, saved_to):
@@ -287,7 +332,7 @@ class TestThroughDash:
                          "thr-save.n_clicks")
         assert resp.status_code == 200
         assert resp.get_json()["response"]["thr-saved"]["data"] == 1
-        assert load_config(path)["fd_perc"].rules["bad"] == (">", 30.0)
+        assert load_config(path).metrics["fd_perc"].rules["bad"] == (">", 30.0)
 
     def test_the_preview_answers_for_every_row(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
@@ -304,6 +349,27 @@ class TestThroughDash:
         response = resp.get_json()["response"]
         assert len(response["thr-rows"]["children"]) == len(rows_of(dashboard)) + 1
         assert response["thr-add"]["value"] is None
+
+    def test_adding_a_table_only_column_as_a_metric_moves_it(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        resp = dash_call(dashboard, "thr-rows.children", {("thr-add", "value"): "efc", ("thr-table", "value"): ["efc"]},
+                         "thr-add.value")
+        assert resp.get_json()["response"]["thr-table"]["value"] == []
+
+    def test_picking_a_table_only_column_updates_the_preview(self, saved_to):
+        dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())
+        resp = dash_call(dashboard, "thr-summary.children", {("thr-table", "value"): ["efc"]}, "thr-table.value")
+        response = resp.get_json()["response"]
+        assert response["thr-table"]["options"] == ["efc", "modality"]
+        assert response["thr-save"]["disabled"] is False
+        assert response["thr-unsaved"]["children"] == "Unsaved changes"
+
+    def test_the_save_button_writes_the_table_only_columns(self, saved_to):
+        dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
+        resp = dash_call(dashboard, "thr-message.children",
+                         {("thr-save", "n_clicks"): 1, ("thr-table", "value"): ["efc"]}, "thr-save.n_clicks")
+        assert resp.get_json()["response"]["thr-saved"]["data"] == 1
+        assert load_config(path).table_columns == ("efc",)
 
     def test_a_page_built_before_a_save_still_filters(self, saved_to):
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())

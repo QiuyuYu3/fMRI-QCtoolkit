@@ -28,7 +28,7 @@ LEGACY_FMRIPREP = {
 
 
 def packaged_rules(pipeline, key):
-    return load_config(default_config_path(pipeline))[key].rules
+    return load_config(default_config_path(pipeline)).metrics[key].rules
 
 
 class TestPackagedThresholdsMatchTheOldRules:
