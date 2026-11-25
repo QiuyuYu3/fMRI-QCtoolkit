@@ -215,6 +215,8 @@ fmriqc dashboard fmriprep --data-file examples/example_data/fmriprep/df_final.cs
 - **Save** checks the thresholds, writes the file, and reloads the page with them. The file it replaces is kept beside it as `<name>.bak`. **Discard changes** goes back to the saved thresholds, and **Use defaults** fills in the package's defaults without saving them.
 - Without `--config`, the tab still shows what thresholds would do but cannot save them.
 
+![dashboard_thresholds](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/dashboard_thresholds.png)
+
 The config is a JSON file that can also be edited by hand. `fmriqc config` writes a copy of the default to start from, and a file edited by hand takes effect when the dashboard is started again:
 
 ```bash

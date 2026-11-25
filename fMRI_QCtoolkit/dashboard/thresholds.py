@@ -17,14 +17,14 @@ from ..utils.status import assign_status, format_number, get_status_colors, get_
 THRESHOLDS_TAB = 'thresholds-tab'
 FIELDS = ('label', 'other-op', 'other-value', 'bad-op', 'bad-value', 'step')
 OPERATORS = ['>', '>=', '<', '<=', '==', '!=']
-# An explicit 'none' choice instead of a clear button, which leaves no room for the value in a narrow column
-OPERATOR_OPTIONS = [{'label': 'none', 'value': ''}] + [{'label': op, 'value': op} for op in OPERATORS]
+# A blank choice for "no rule" instead of a clear button, which leaves no room for the value in a narrow column
+OPERATOR_OPTIONS = [{'label': '\u00a0', 'value': ''}] + [{'label': op, 'value': op} for op in OPERATORS]
 TIERS = ('good', 'other', 'bad', 'NA')
 TIER_COLORS = {tier: get_status_colors()[number] for tier, number in get_status_mapping().items()}
 # Seconds of no typing before a box is sent, so the preview does not chase every keystroke
 TYPING_PAUSE_S = 0.5
 GRID = {'display': 'grid', 'gap': '6px', 'align-items': 'center',
-        'grid-template-columns': '150px minmax(120px, 1fr) 84px 80px 84px 80px 130px 230px 90px',
+        'grid-template-columns': '130px minmax(170px, 1fr) 80px 68px 80px 68px 130px 232px 90px',
         'font-size': '13px'}
 _BOX = {'width': '100%', 'box-sizing': 'border-box', 'font-size': '13px'}
 _NOTE_STYLE = {'font-size': '12px', 'color': '#666'}
@@ -94,7 +94,8 @@ def _count_chips(status, rules, n_columns=None):
              for tier in tiers]
     if n_columns is not None:
         chips.append(_note(f"worst of {n_columns} columns"))
-    return html.Span(chips, style={'font-size': '12px'})
+    # Wraps rather than running under the row's buttons on a narrow screen
+    return html.Span(chips, style={'font-size': '12px', 'display': 'flex', 'flex-wrap': 'wrap', 'row-gap': '2px'})
 
 
 def _message(text, ok=False):

@@ -102,7 +102,7 @@ class TestPageStyle:
         dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
         client = dashboard.app.server.test_client()
         page = client.get(f"/?token={dashboard.gate.token}", follow_redirects=True).get_data(as_text=True)
-        assert "html:root { --Dash-Fill-Interactive-Strong: #4a7fb0; }" in page
+        assert "html:root { --Dash-Fill-Interactive-Strong: #5289bd; }" in page
 
 
 class TestTableDisplay:
