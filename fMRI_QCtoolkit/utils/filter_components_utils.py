@@ -141,9 +141,9 @@ def create_rules_summary(metrics):
                 tiers.append(f"otherwise {metric.otherwise}" if tiers else f"all {metric.otherwise}")
             lines[metric.entry] = f"{metric.entry_label}: {', '.join(tiers)}"
     if not lines:
-        return html.P("No thresholds are set, so no run is hidden by default.", style=_NOTE_STYLE)
+        return html.P("No thresholds set, so no run is hidden.", style=_NOTE_STYLE)
     return html.Div([
-        html.P("Runs rated bad on any of these are hidden by default; tick 'bad' under a metric to show them.",
+        html.P("Runs rated bad are hidden at first; tick 'bad' to show them.",
                style=_NOTE_STYLE),
         html.Ul([html.Li(line) for line in lines.values()],
                 style={**_NOTE_STYLE, 'padding-left': '18px', 'margin-top': '0'})

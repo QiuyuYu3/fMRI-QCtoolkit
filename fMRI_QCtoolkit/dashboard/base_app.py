@@ -301,8 +301,7 @@ class BaseDashboard:
         def warn_if_stale(_tab, _positions, version):
             if version == self.config_version:
                 return None
-            return html.Div("The settings were saved from another tab or window after this page opened. "
-                            "Reload the page to use them.",
+            return html.Div("Settings were changed in another tab. Reload the page to use them.",
                             style={'background-color': '#fff3cd', 'border': '1px solid #ffe08a',
                                    'padding': '8px 12px', 'border-radius': '4px', 'margin-bottom': '8px'})
 

@@ -208,8 +208,7 @@ class SettingsTab:
     def _file_note(self):
         d = self.dashboard
         if d.save_path is None:
-            return html.P(["Save needs the dashboard started with ", html.Code("--config FILE"),
-                           " (the file need not exist yet); Download config works without it."],
+            return html.P(["Save needs ", html.Code("--config FILE"), "; Download config works without it."],
                           style={**_TEXT_STYLE, 'color': '#8a6d00'})
         lines = [html.Span(["Saving to ", html.Code(str(d.save_path)),
                             "." if d.save_path.exists() else " (created on the first save)."])]
@@ -234,11 +233,8 @@ class SettingsTab:
                         'margin-right': '8px'}
         return html.Div([
             html.Div([
-                html.P("The metrics listed here appear in the sidebar and the table, in this order; those with a "
-                       "rule are also rated in the heatmap.", style=_TEXT_STYLE),
-                html.P("A run is good if it meets the good rule, bad if it meets the bad rule, and gets the level "
-                       "under Otherwise if it meets neither. Leave an operator empty for no rule. The last column "
-                       "gives each level's number of runs and the values it covers.", style=_TEXT_STYLE),
+                html.P("Metrics appear in the sidebar and table in this order. A run that meets neither rule gets "
+                       "the Otherwise level; leave an operator empty for no rule.", style=_TEXT_STYLE),
                 self._file_note(),
             ], style=_PANEL),
             html.Div(id='thr-summary', style={'font-weight': 'bold', 'margin': '10px 0'}),
@@ -248,8 +244,7 @@ class SettingsTab:
             dcc.Dropdown(id='thr-add', options=self.addable_columns(keys), value=None,
                          placeholder="Add a metric from df_final.csv", style={'width': '340px', 'margin': '10px 0'}),
             html.Div([
-                html.P([html.B("Table only: "), "columns shown in the table after the metrics, with no slider or "
-                        "heatmap row."],
+                html.P([html.B("Table only: "), "extra table columns, without a slider or heatmap row."],
                        style={**_TEXT_STYLE, 'font-size': '16px', 'color': '#333', 'margin-bottom': '8px'}),
                 html.Div([html.Button("Select all", id='thr-table-all', n_clicks=0, style=_SMALL_BUTTON),
                           html.Button("Clear", id='thr-table-clear', n_clicks=0, style=_SMALL_BUTTON)],
@@ -265,10 +260,10 @@ class SettingsTab:
                 html.Button("Discard changes", id='thr-discard', n_clicks=0,
                             style={**button_style, 'background-color': '#6c757d', 'color': 'white'}),
                 html.Button("Use defaults", id='thr-defaults', n_clicks=0,
-                            title="Fill in the package's default thresholds; nothing is saved until you press Save",
+                            title="The package's defaults; saved only when you press Save",
                             style={**button_style, 'background-color': '#6c757d', 'color': 'white'}),
                 html.Button("Download config", id='thr-download-button', n_clicks=0,
-                            title="Save the settings in the form as a config file on this computer",
+                            title="Save these settings as a file on this computer",
                             style={**button_style, 'background-color': 'white', 'color': ACCENT,
                                    'border': f'1px solid {ACCENT}'}),
                 html.Span(id='thr-unsaved', style={'color': '#8a6d00'}),
@@ -319,10 +314,9 @@ class SettingsTab:
         invalid = bool(errors) or bool(table_error) or not rows
         if rows:
             now = len(df) - int(d.status.eq('bad').any(axis=1).sum())
-            summary = (f"With these thresholds, {len(df) - int(hidden.sum())} of {len(df)} runs are shown "
-                       f"when the dashboard opens (now {now}).")
+            summary = f"Runs shown when the dashboard opens: {len(df) - int(hidden.sum())} of {len(df)} (now {now})."
             if errors:
-                summary += " Rows with an error are left out until they are fixed."
+                summary += " Rows with errors are left out."
         else:
             summary = "Add at least one metric."
         return {
@@ -386,20 +380,18 @@ class SettingsTab:
         """Write the form to the --config file and rate the runs with it; returns (message, saved)."""
         d = self.dashboard
         if d.save_path is None:
-            return ("Nothing was saved: start the dashboard with --config FILE to save here, "
-                    "or use Download config."), False
+            return "Not saved: start the dashboard with --config FILE, or use Download config.", False
         with d.save_lock:
             if version != d.config_version:
-                return ("Nothing was saved: the settings were saved from another tab or window after this "
-                        "page opened. Reload the page, then make your changes again."), False
+                return "Not saved: settings were changed in another tab. Reload the page and try again.", False
             existed = d.save_path.exists()
             try:
                 config = save_config(d.save_path, form_raw(rows, self.in_data_order(table)))
             except ConfigError as e:
-                return f"Nothing was saved: {e}", False
+                return f"Not saved: {e}", False
             except OSError as e:
-                return (f"Could not write {d.save_path}: {e}. Start the dashboard with --config FILE in a "
-                        f"folder you can write to, or use Download config."), False
+                return (f"Could not write {d.save_path}: {e}. Use --config FILE in a folder you can write to, "
+                        f"or Download config."), False
             d.apply_config(config)
             d.config_path = d.save_path
             d.config_version += 1

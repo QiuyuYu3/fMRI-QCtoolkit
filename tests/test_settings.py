@@ -127,7 +127,7 @@ class TestPreview:
         rows = rows_of(dashboard)
         row(rows, "fd_perc").update({"good-value": 8, "bad-value": 10})
         summary = dashboard.settings.preview(rows)['summary']
-        assert summary == "With these thresholds, 2 of 4 runs are shown when the dashboard opens (now 3)."
+        assert summary == "Runs shown when the dashboard opens: 2 of 4 (now 3)."
 
     def test_a_bad_row_shows_the_config_check_message(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
@@ -139,7 +139,7 @@ class TestPreview:
         keys = [r["key"] for r in rows]
         assert "overlap" in errors[keys.index("fd_mean")]
         assert errors[keys.index("fd_perc")].startswith("metrics.fd_perc.bad: '20' is not a rule")
-        assert summary.endswith("Rows with an error are left out until they are fixed.")
+        assert summary.endswith("Rows with errors are left out.")
         assert shown['save_off'] and shown['download_off'] and shown['unsaved'] == "Unsaved changes"
 
     def test_save_is_off_without_a_config_file(self, tmp_path):
@@ -394,7 +394,7 @@ class TestThroughDash:
         response = resp.get_json()["response"]
         counts = {json.loads(k)["key"]: v["children"] for k, v in response.items() if k.startswith("{") and "counts" in k}
         assert set(counts) == {r["key"] for r in rows_of(dashboard)}
-        assert response["thr-summary"]["children"].startswith("With these thresholds, 4 of 4 runs")
+        assert response["thr-summary"]["children"].startswith("Runs shown when the dashboard opens: 4 of 4")
 
     def test_adding_a_row_redraws_the_rows(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
