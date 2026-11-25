@@ -27,7 +27,7 @@ app.add_typer(dashboard_app, name="dashboard")
 app.add_typer(rating_app, name="rating")
 app.add_typer(config_app, name="config")
 
-CONFIG_HELP = ("Dashboard config JSON with your thresholds; the Thresholds tab saves to it, "
+CONFIG_HELP = ("Dashboard config JSON with your thresholds; the Settings tab saves to it, "
                "and creates it from the default if it does not exist")
 
 # -------------------

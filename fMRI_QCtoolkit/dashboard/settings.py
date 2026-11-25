@@ -1,5 +1,5 @@
 """
-Thresholds tab: edit the dashboard config, preview what it would hide, and save it to the --config file
+Settings tab: the dashboard's metrics and their thresholds; preview what they would hide, save or download them
 """
 
 import time
@@ -9,12 +9,12 @@ import pandas as pd
 from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 
-from .config import (ID_COLUMNS, ConfigError, Metric, backup_path, default_config_path, load_config,
-                     parse_entry, resolve_metrics, save_config)
+from .config import (ID_COLUMNS, ConfigError, Metric, backup_path, default_config_path, dump_config, load_config,
+                     parse_config, parse_entry, resolve_metrics, save_config)
 from ..utils.filter_components_utils import ACCENT, slider_bounds
 from ..utils.status import assign_status, format_number, get_status_colors, get_status_mapping
 
-THRESHOLDS_TAB = 'thresholds-tab'
+SETTINGS_TAB = 'settings-tab'
 FIELDS = ('label', 'other-op', 'other-value', 'bad-op', 'bad-value', 'step')
 OPERATORS = ['>', '>=', '<', '<=', '==', '!=']
 # A blank choice for "no rule" instead of a clear button, which leaves no room for the value in a narrow column
@@ -103,8 +103,8 @@ def _message(text, ok=False):
                                  'white-space': 'pre-wrap'})
 
 
-class ThresholdsTab:
-    """The Thresholds tab of a dashboard; it reads and replaces the dashboard's config."""
+class SettingsTab:
+    """The Settings tab of a dashboard; it reads and replaces the dashboard's config."""
 
     def __init__(self, dashboard):
         self.dashboard = dashboard
@@ -165,10 +165,11 @@ class ThresholdsTab:
     def _file_note(self):
         d = self.dashboard
         if d.save_path is None:
-            return html.P(["These are the package's default thresholds and cannot be saved from here. "
-                           "To save changes, start the dashboard again with ", html.Code("--config FILE"),
-                           " added to the command; the file need not exist yet. Until then you can still "
-                           "try thresholds here and see what they would hide."],
+            return html.P(["These are the package's default settings and cannot be saved from here. To keep "
+                           "changes, press Download config and start the dashboard again with ",
+                           html.Code("--config"), " pointing to the file; or start it with ",
+                           html.Code("--config FILE"), " so that Save can write there (the file need not exist "
+                           "yet)."],
                           style={**_NOTE_STYLE, 'color': '#8a6d00'})
         lines = [html.Span(["Saving to ", html.Code(str(d.save_path)),
                             "" if d.save_path.exists() else " (not created yet; Save creates it)."])]
@@ -187,11 +188,14 @@ class ThresholdsTab:
         button_style = {'border': 'none', 'padding': '8px 16px', 'border-radius': '4px', 'cursor': 'pointer',
                         'margin-right': '8px'}
         return html.Div([
+            html.P("The metrics listed here appear in the sidebar and the table, in this order; those with a "
+                   "rule are also rated in the heatmap. Add or remove them below; Toggle Columns above the table "
+                   "shows other columns for the moment only.", style=_NOTE_STYLE),
             html.P("A run is bad if it meets the bad rule, otherwise other if it meets the other rule, "
                    "otherwise good; a missing value is NA. Leave an operator empty for no rule, and both "
                    "empty for a metric that is filtered but not rated. Runs rated bad on any metric are "
                    "hidden when the dashboard opens. Step is the slider's step; left empty, it is the one "
-                   "shown in gray. The rows are listed in the order of the sidebar.",
+                   "shown in gray.",
                    style=_NOTE_STYLE),
             self._file_note(),
             html.Div(id='thr-summary', style={'font-weight': 'bold', 'margin': '10px 0'}),
@@ -208,15 +212,20 @@ class ThresholdsTab:
                 html.Button("Use defaults", id='thr-defaults', n_clicks=0,
                             title="Fill in the package's default thresholds; nothing is saved until you press Save",
                             style={**button_style, 'background-color': '#6c757d', 'color': 'white'}),
+                html.Button("Download config", id='thr-download-button', n_clicks=0,
+                            title="Save the settings in the form as a config file on this computer",
+                            style={**button_style, 'background-color': 'white', 'color': ACCENT,
+                                   'border': f'1px solid {ACCENT}'}),
                 html.Span(id='thr-unsaved', style={'color': '#8a6d00'}),
             ], style={'margin-top': '10px'}),
             html.Div(id='thr-message'),
             dcc.Store(id='thr-saved'),
+            dcc.Download(id='thr-download'),
             html.Div(id='thr-reloading', style={'display': 'none'}),
         ], style={'padding': '15px'})
 
     def preview(self, rows):
-        """Per-row counts and errors, the summary line, whether Save is off, the unsaved note, and the add options."""
+        """What the form's settings would do: per-row counts and errors, the summary, button states, add options."""
         d = self.dashboard
         df = d.processor.get_data()
         parsed, errors = {}, {}
@@ -253,10 +262,23 @@ class ThresholdsTab:
                 summary += " Rows with an error are left out until they are fixed."
         else:
             summary = "Add at least one metric."
-        save_off = d.save_path is None or bool(errors) or not rows or not changed
-        options = self.addable_columns([row['key'] for row in rows])
-        return (cells, [errors.get(row['key']) for row in rows], summary, save_off,
-                "Unsaved changes" if changed else "", options)
+        return {
+            'counts': cells,
+            'errors': [errors.get(row['key']) for row in rows],
+            'summary': summary,
+            'save_off': d.save_path is None or bool(errors) or not rows or not changed,
+            'download_off': bool(errors) or not rows,
+            'unsaved': "Unsaved changes" if changed else "",
+            'options': self.addable_columns([row['key'] for row in rows]),
+        }
+
+    def config_file(self, rows):
+        """(file name, text) of the form's settings as a config file; raises ConfigError if they are invalid."""
+        raw = form_raw(rows)
+        parse_config(raw)
+        d = self.dashboard
+        name = d.save_path.name if d.save_path else f"{d.PIPELINE}_config.json"
+        return name, dump_config(raw)
 
     def edit(self, rows, trigger, clicked, added):
         """The rows after an add, move, remove, discard or defaults action."""
@@ -284,10 +306,11 @@ class ThresholdsTab:
         """Write the form to the --config file and rate the runs with it; returns (message, saved)."""
         d = self.dashboard
         if d.save_path is None:
-            return "Nothing was saved: start the dashboard with --config FILE to save thresholds.", False
+            return ("Nothing was saved: start the dashboard with --config FILE to save here, "
+                    "or use Download config."), False
         with d.save_lock:
             if version != d.config_version:
-                return ("Nothing was saved: the thresholds were saved from another tab or window after this "
+                return ("Nothing was saved: the settings were saved from another tab or window after this "
                         "page opened. Reload the page, then make your changes again."), False
             existed = d.save_path.exists()
             try:
@@ -327,12 +350,28 @@ class ThresholdsTab:
              Output({'type': 'thr-error', 'key': ALL}, 'children'),
              Output('thr-summary', 'children'),
              Output('thr-save', 'disabled'),
+             Output('thr-download-button', 'disabled'),
              Output('thr-unsaved', 'children'),
              Output('thr-add', 'options')],
             [Input({'type': f'thr-{f}', 'key': ALL}, 'value') for f in FIELDS]
         )
         def update_preview(*fields):
-            return self.preview(form_rows(_keys(ctx.inputs_list[0]), *fields))
+            shown = self.preview(form_rows(_keys(ctx.inputs_list[0]), *fields))
+            return [shown[k] for k in ('counts', 'errors', 'summary', 'save_off', 'download_off', 'unsaved',
+                                       'options')]
+
+        @app.callback(
+            Output('thr-download', 'data'),
+            [Input('thr-download-button', 'n_clicks')],
+            field_states,
+            prevent_initial_call=True
+        )
+        def download(n_clicks, *fields):
+            try:
+                name, text = self.config_file(form_rows(_keys(ctx.states_list[0]), *fields))
+            except ConfigError:
+                raise PreventUpdate
+            return dcc.send_string(text, name)
 
         @app.callback(
             [Output('thr-message', 'children'), Output('thr-saved', 'data')],

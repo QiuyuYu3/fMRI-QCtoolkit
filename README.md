@@ -166,7 +166,7 @@ fmriqc prep fmriprep --bold-file examples/example_data/fmriprep/group_bold.tsv -
 ### STEP3: Viewing and Filtering Results via Dashboard
 Visualize, filter, and export selected data.
 
-The left side of the dashboard features filter sidebars where users can select the desired ranges. The central tabs display the data table, the visualizations (heatmaps and lollipop charts), and the thresholds (see [Thresholds and filters](#thresholds-and-filters)). The table shows the ID, session and run columns, the metrics in the sidebar and the ratings; **Toggle Columns** above it shows the other columns of `df_final.csv`. After selecting rows in the data table, the blue download button below allows exporting the corresponding data frame with all its columns.
+The left side of the dashboard features filter sidebars where users can select the desired ranges. The central tabs display the data table, the visualizations (heatmaps and lollipop charts), and the settings (see [Thresholds and filters](#thresholds-and-filters)). The table shows the ID, session and run columns, the metrics in the sidebar and the ratings; **Toggle Columns** above it shows the other columns of `df_final.csv` until the page is reloaded. To show a metric for good, add it in the Settings tab. After selecting rows in the data table, the blue download button below allows exporting the corresponding data frame with all its columns.
 
 By default, runs rated bad on any metric are hidden, while runs rated other stay visible and show yellow in the heatmap. Under each rated metric, tick boxes choose which ratings (good, other, bad, NA) are shown; tick bad to bring those runs back. The sliders start at the full range and narrow the view further.
 
@@ -180,7 +180,7 @@ By default, runs rated bad on any metric are hidden, while runs rated other stay
 - `fmriqc dashboard afni`: Indicate which rating program.
 - `--data-file`: Input the merged dataframe (`df_final.csv`).
 - `--task`: Specify the task name to be used when downloading data.
-- `--config`: Optional. The file that holds your thresholds; the Thresholds tab saves to it and creates it if it does not exist. See [Thresholds and filters](#thresholds-and-filters).
+- `--config`: Optional. The file that holds your settings; the Settings tab saves to it and creates it if it does not exist. See [Thresholds and filters](#thresholds-and-filters).
 
 **Example Synatx:**
 ```bash
@@ -193,7 +193,7 @@ fmriqc dashboard afni --data-file /PATH/Output_dir/df_final.csv --task kidvid
 - `fmriqc dashboard fmriprep`: Indicate which rating program.
 - `--data-file`: Input the merged dataframe (`df_final.csv`).
 - `--task`: Specify the task name to be used when downloading data and filtering task in the merged dataframe.
-- `--config`: Optional. The file that holds your thresholds; the Thresholds tab saves to it and creates it if it does not exist. See [Thresholds and filters](#thresholds-and-filters).
+- `--config`: Optional. The file that holds your settings; the Settings tab saves to it and creates it if it does not exist. See [Thresholds and filters](#thresholds-and-filters).
 
 **Example Synatx:**
 ```bash
@@ -203,7 +203,7 @@ fmriqc dashboard fmriprep --data-file examples/example_data/fmriprep/df_final.cs
 ### Thresholds and filters
 Each dashboard reads a config file that lists the metrics in the sidebar and the thresholds that rate them. The ratings color the quantitative heatmap and set the default filters. The package ships a default for each pipeline ([AFNI](https://github.com/QiuyuYu3/fMRI-QCtoolkit/blob/main/fMRI_QCtoolkit/dashboard/afni_config.json), [fMRIPrep](https://github.com/QiuyuYu3/fMRI-QCtoolkit/blob/main/fMRI_QCtoolkit/dashboard/fmriprep_config.json)).
 
-To use your own thresholds, start the dashboard with `--config` and a file name, then change them in the **Thresholds** tab:
+To use your own thresholds, start the dashboard with `--config` and a file name, then change them in the **Settings** tab:
 
 ```bash
 fmriqc dashboard fmriprep --data-file examples/example_data/fmriprep/df_final.csv --task rest --config my_fmriprep_config.json
@@ -211,11 +211,11 @@ fmriqc dashboard fmriprep --data-file examples/example_data/fmriprep/df_final.cs
 
 - If the file does not exist yet, the dashboard starts from the default and creates the file when you first save. Pass the same `--config` next time to keep your thresholds.
 - Each row of the tab is one metric: its label, the `other` and `bad` rules (an operator and a number), and the slider step. Beside each row, the tab counts the runs that the thresholds in the form rate good, other, bad and NA, and above the rows it says how many runs would be shown when the dashboard opens.
-- The list under the rows adds a metric (it offers the numeric columns of `df_final.csv` not in the form yet), ✕ removes one, and the arrows change the order, which is the order of the sidebar and the heatmap.
+- The rows are the metrics the dashboard shows, in the sidebar and the table, in this order; those with a rule are also rated in the heatmap. The list under the rows adds a metric (it offers the numeric columns of `df_final.csv` not in the form yet), ✕ removes one, and the arrows change the order.
 - **Save** checks the thresholds, writes the file, and reloads the page with them. The file it replaces is kept beside it as `<name>.bak`. **Discard changes** goes back to the saved thresholds, and **Use defaults** fills in the package's defaults without saving them.
-- Without `--config`, the tab still shows what thresholds would do but cannot save them.
+- **Download config** saves the settings in the form as a file on the computer running the browser, for example to start with next time, to share, or to keep with a study. It works without `--config` too: the tab then cannot save, so download the file and pass it with `--config` next time.
 
-![dashboard_thresholds](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/dashboard_thresholds.png)
+![dashboard_settings](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/dashboard_settings.png)
 
 The config is a JSON file that can also be edited by hand. `fmriqc config` writes a copy of the default to start from, and a file edited by hand takes effect when the dashboard is started again:
 
@@ -242,7 +242,7 @@ Each metric is one entry, keyed by its column in `df_final.csv`:
 - `label`: The name shown in the sidebar and the heatmap. Defaults to the column name.
 - `bad` and `other`: An operator (`>`, `>=`, `<`, `<=`, `==`, `!=`) followed by a number. A run is bad if it meets the `bad` rule, otherwise other if it meets the `other` rule, otherwise good; a missing value is NA. Give only `other` for a metric without a bad level, and neither for a metric that is filtered but not rated (it is left out of the heatmap).
 - `step`: Optional. The slider step; by default it follows the range of the data.
-- A key with `*` covers every matching column, so `frac_TRs_cens_*` gives one entry per stimulus class, each labeled with its column name. The Thresholds tab can change or remove such an entry; a new one is added by editing the file.
+- A key with `*` covers every matching column, so `frac_TRs_cens_*` gives one entry per stimulus class, each labeled with its column name. The Settings tab can change or remove such an entry; a new one is added by editing the file.
 - Metrics appear in the sidebar and the heatmap in the order of the file. Metrics that are not in the data are skipped, and the dashboard lists them when it starts.
 - The file replaces the default as a whole: metrics you leave out are not shown.
 - Config files from version 1.x no longer work; write a new one with `fmriqc config`.

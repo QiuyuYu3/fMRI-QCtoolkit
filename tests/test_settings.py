@@ -1,5 +1,5 @@
 """
-Tests for the Thresholds tab: the form, its preview, editing the rows, and saving to the --config file.
+Tests for the Settings tab: the form, its preview, editing the rows, saving to the --config file and downloading.
 """
 
 import json
@@ -11,9 +11,10 @@ from dash._utils import stringify_id
 from dash.exceptions import PreventUpdate
 
 from fMRI_QCtoolkit.dashboard.afni_app import AFNIDashboard
-from fMRI_QCtoolkit.dashboard.config import default_config_path, load_config
+from fMRI_QCtoolkit.dashboard.config import ConfigError
+from fMRI_QCtoolkit.dashboard.config import default_config_path, dump_config, load_config, parse_config
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
-from fMRI_QCtoolkit.dashboard.thresholds import config_rows, form_raw, new_row, row_entry
+from fMRI_QCtoolkit.dashboard.settings import config_rows, form_raw, new_row, row_entry
 from tests.dashboard_helpers import (afni_runs, dash_call, layout_components, layout_values, make_dashboard,
                                      shown_ids)
 
@@ -64,7 +65,8 @@ class TestPreview:
 
     def test_counts_per_status(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
-        cells, errors, *_ = dashboard.thresholds.preview(rows_of(dashboard))
+        shown = dashboard.settings.preview(rows_of(dashboard))
+        cells, errors = shown['counts'], shown['errors']
         keys = [r["key"] for r in rows_of(dashboard)]
         assert chip_texts(cells[keys.index("fd_perc")]) == ["good 1", "other 1", "bad 1", "NA 1"]
         assert cells[keys.index("tsnr")].children == "not in the data"
@@ -73,7 +75,7 @@ class TestPreview:
     def test_an_unrated_metric_says_so(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         rows = rows_of(dashboard) + [new_row("efc")]
-        cells, *_ = dashboard.thresholds.preview(rows)
+        cells = dashboard.settings.preview(rows)['counts']
         assert cells[-1].children == "no thresholds"
 
     def test_a_pattern_counts_the_worst_status_of_its_columns(self, tmp_path):
@@ -81,7 +83,7 @@ class TestPreview:
         df["frac_TRs_cens_2"] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25, np.nan]
         dashboard = make_dashboard(AFNIDashboard, df, tmp_path)
         rows = rows_of(dashboard)
-        cells, *_ = dashboard.thresholds.preview(rows)
+        cells = dashboard.settings.preview(rows)['counts']
         cell = cells[[r["key"] for r in rows].index("frac_TRs_cens_*")]
         assert chip_texts(cell) == ["good 6", "bad 2", "NA 0", "worst of 2 columns"]
 
@@ -89,7 +91,7 @@ class TestPreview:
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         rows = rows_of(dashboard)
         row(rows, "fd_perc").update({"other-value": 8, "bad-value": 10})
-        _, _, summary, *_ = dashboard.thresholds.preview(rows)
+        summary = dashboard.settings.preview(rows)['summary']
         assert summary == "With these thresholds, 2 of 4 runs are shown when the dashboard opens (now 3)."
 
     def test_a_bad_row_shows_the_config_check_message(self, tmp_path):
@@ -97,31 +99,34 @@ class TestPreview:
         rows = rows_of(dashboard)
         row(rows, "fd_mean").update({"other-value": 0.5, "bad-value": 0.3})
         row(rows, "fd_perc").update({"bad-op": None})
-        _, errors, summary, save_off, unsaved, _ = dashboard.thresholds.preview(rows)
+        shown = dashboard.settings.preview(rows)
+        errors, summary = shown['errors'], shown['summary']
         keys = [r["key"] for r in rows]
         assert "bad is looser than other" in errors[keys.index("fd_mean")]
         assert errors[keys.index("fd_perc")].startswith("metrics.fd_perc.bad: '20' is not a rule")
         assert summary.endswith("Rows with an error are left out until they are fixed.")
-        assert save_off and unsaved == "Unsaved changes"
+        assert shown['save_off'] and shown['download_off'] and shown['unsaved'] == "Unsaved changes"
 
     def test_save_is_off_without_a_config_file(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         rows = rows_of(dashboard)
-        row(rows, "fd_perc")["bad-value"] = 10
-        *_, save_off, unsaved, _ = dashboard.thresholds.preview(rows)
-        assert save_off and unsaved == "Unsaved changes"
+        row(rows, "fd_perc").update({"other-value": 8, "bad-value": 10})
+        shown = dashboard.settings.preview(rows)
+        assert shown['save_off'] and not shown['download_off'] and shown['unsaved'] == "Unsaved changes"
 
     def test_save_is_on_only_when_something_changed(self, saved_to):
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())
         rows = rows_of(dashboard)
-        assert dashboard.thresholds.preview(rows)[3:5] == (True, "")
+        shown = dashboard.settings.preview(rows)
+        assert (shown['save_off'], shown['unsaved']) == (True, "")
         row(rows, "fd_mean")["label"] = "Mean FD"
-        assert dashboard.thresholds.preview(rows)[3:5] == (False, "Unsaved changes")
+        shown = dashboard.settings.preview(rows)
+        assert (shown['save_off'], shown['unsaved']) == (False, "Unsaved changes")
 
     def test_columns_on_offer_are_numeric_and_not_yet_covered(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
-        assert dashboard.thresholds.preview(rows_of(dashboard))[-1] == ["efc"]
-        assert dashboard.thresholds.preview(rows_of(dashboard) + [new_row("efc")])[-1] == []
+        assert dashboard.settings.preview(rows_of(dashboard))['options'] == ["efc"]
+        assert dashboard.settings.preview(rows_of(dashboard) + [new_row("efc")])['options'] == []
 
 
 class TestEditingRows:
@@ -130,7 +135,7 @@ class TestEditingRows:
         return [r["key"] for r in rows]
 
     def test_add_move_and_remove(self, tmp_path):
-        tab = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path).thresholds
+        tab = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path).settings
         rows = tab.edit(rows_of(tab.dashboard), "thr-add", None, "efc")
         assert self.keys(rows)[-1] == "efc"
         rows = tab.edit(rows, {"type": "thr-up", "key": "efc"}, 1, None)
@@ -141,7 +146,7 @@ class TestEditingRows:
         assert "efc" not in self.keys(rows)
 
     def test_newly_drawn_buttons_and_edges_change_nothing(self, tmp_path):
-        tab = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path).thresholds
+        tab = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path).settings
         rows = rows_of(tab.dashboard)
         for trigger, clicked in [({"type": "thr-delete", "key": "fd_perc"}, 0),
                                  ({"type": "thr-up", "key": "fd_perc"}, 1),
@@ -151,7 +156,7 @@ class TestEditingRows:
 
     def test_discard_and_defaults(self, saved_to):
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs(), {"metrics": {"fd_mean": {"bad": "> 1"}}})
-        tab = dashboard.thresholds
+        tab = dashboard.settings
         assert self.keys(tab.edit([new_row("efc")], "thr-discard", 1, None)) == ["fd_mean"]
         defaults = tab.edit([], "thr-defaults", 1, None)
         assert defaults == config_rows(load_config(default_config_path("fmriprep")))
@@ -163,7 +168,7 @@ class TestSaving:
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
         rows = rows_of(dashboard) + [{**new_row("efc"), "bad-op": ">=", "bad-value": 0.7}]
 
-        message, saved = dashboard.thresholds.save(rows, version=0)
+        message, saved = dashboard.settings.save(rows, version=0)
 
         assert saved, message
         assert json.loads(path.read_text(encoding="utf-8")) == form_raw(rows)
@@ -178,7 +183,7 @@ class TestSaving:
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs(), original)
         rows = rows_of(dashboard)
         rows[0]["bad-value"] = 2
-        assert dashboard.thresholds.save(rows, version=0)[1]
+        assert dashboard.settings.save(rows, version=0)[1]
         assert json.loads(path.with_name("thresholds.json.bak").read_text(encoding="utf-8")) == original
         assert load_config(path)["fd_mean"].rules == {"bad": (">", 2.0)}
 
@@ -186,7 +191,7 @@ class TestSaving:
         dashboard, _ = saved_to(AFNIDashboard, afni_runs())
         rows = rows_of(dashboard)
         row(rows, "cens_frac")["bad-value"] = 0.3
-        dashboard.thresholds.save(rows, version=0)
+        dashboard.settings.save(rows, version=0)
         lines = [c.children for c in dashboard.build_layout()._traverse() if type(c).__name__ == "Li"]
         assert "Censor Fraction: other ≥ 0.15, bad ≥ 0.3" in lines
         store = next(c for c in layout_components(dashboard) if c.id == "config-version")
@@ -196,25 +201,49 @@ class TestSaving:
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
         rows = rows_of(dashboard)
         row(rows, "fd_mean")["label"] = "Mean FD"
-        assert dashboard.thresholds.save(rows, version=0)[1]
+        assert dashboard.settings.save(rows, version=0)[1]
         row(rows, "fd_mean")["label"] = "Other tab"
-        message, saved = dashboard.thresholds.save(rows, version=0)
+        message, saved = dashboard.settings.save(rows, version=0)
         assert not saved and "Reload the page" in message
         assert load_config(path)["fd_mean"].label == "Mean FD"
 
     def test_nothing_is_saved_without_a_config_file(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
-        message, saved = dashboard.thresholds.save(rows_of(dashboard), version=0)
+        message, saved = dashboard.settings.save(rows_of(dashboard), version=0)
         assert not saved and "--config" in message
         assert dashboard.config_version == 0
 
     def test_an_invalid_form_leaves_the_file_alone(self, saved_to):
         original = {"metrics": {"fd_mean": {"bad": "> 1"}}}
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs(), original)
-        message, saved = dashboard.thresholds.save([], version=0)
+        message, saved = dashboard.settings.save([], version=0)
         assert not saved and "'metrics' must be a non-empty object" in message
         assert json.loads(path.read_text(encoding="utf-8")) == original
         assert sorted(p.name for p in path.parent.iterdir()) == ["thresholds.json"]
+
+
+class TestDownloading:
+
+    def test_the_file_is_the_form_laid_out_like_the_default(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        rows = rows_of(dashboard)
+        row(rows, "fd_perc")["bad-value"] = 30
+        name, text = dashboard.settings.config_file(rows)
+        assert name == "fmriprep_config.json"
+        assert text == dump_config(form_raw(rows))
+        assert parse_config(json.loads(text))["fd_perc"].rules["bad"] == (">", 30.0)
+
+    def test_the_file_takes_the_config_file_name(self, saved_to):
+        dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
+        assert dashboard.settings.config_file(rows_of(dashboard))[0] == path.name
+        assert not path.exists()
+
+    def test_an_invalid_form_gives_no_file(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        rows = rows_of(dashboard)
+        row(rows, "fd_mean")["bad-value"] = 0.1
+        with pytest.raises(ConfigError):
+            dashboard.settings.config_file(rows)
 
 
 def sid(kind, key):
@@ -223,6 +252,21 @@ def sid(kind, key):
 
 class TestThroughDash:
     """The tab's callbacks driven by Dash requests, as the browser sends them."""
+
+    def test_the_tab_is_called_settings(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        tabs = [c.label for c in dashboard.build_layout()._traverse() if type(c).__name__ == "Tab"]
+        assert tabs == ["Table", "Plots", "Settings"]
+
+    def test_the_download_button_sends_the_form(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        resp = dash_call(dashboard, "thr-download.data",
+                         {("thr-download-button", "n_clicks"): 1, (sid("thr-bad-value", "fd_perc"), "value"): 30},
+                         "thr-download-button.n_clicks")
+        sent = resp.get_json()["response"]["thr-download"]["data"]
+        assert sent["filename"] == "fmriprep_config.json"
+        assert parse_config(json.loads(sent["content"]))["fd_perc"].rules["bad"] == (">", 30.0)
+
 
     def test_the_save_button_writes_the_form_to_the_config_path(self, saved_to):
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
@@ -253,7 +297,7 @@ class TestThroughDash:
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())
         old_page = layout_components(dashboard)
         rows = rows_of(dashboard) + [{**new_row("efc"), "bad-op": ">=", "bad-value": 0.7}]
-        dashboard.thresholds.save(rows, version=0)
+        dashboard.settings.save(rows, version=0)
 
         resp = dash_call(dashboard, "datatable.data", {}, "select-all-button.n_clicks", comps=old_page)
         assert resp.status_code == 200

@@ -14,7 +14,7 @@ from dash.dash_table.Format import Format, Scheme, Trim
 from dash.exceptions import PreventUpdate
 
 from .config import ID_COLUMNS, default_config_path, load_config, resolve_metrics
-from .thresholds import THRESHOLDS_TAB, ThresholdsTab
+from .settings import SETTINGS_TAB, SettingsTab
 from ..utils.access import AccessGate, url_host
 from ..utils.filter_components_utils import (ACCENT, RANGE, STATUS, create_metric_filter,
                                              create_qualitative_dropdown, create_rules_summary, default_statuses,
@@ -51,7 +51,7 @@ class BaseDashboard:
         self.save_lock = threading.Lock()
         self._numeric = {}
         self.apply_config(load_config(self.config_path))
-        self.thresholds = ThresholdsTab(self)
+        self.settings = SettingsTab(self)
         self.app = dash.Dash(__name__)
         self.app.index_string = self.app.index_string.replace("{%css%}", "{%css%}" + ACCENT_STYLE)
         self.gate = AccessGate(self.app.server, token)
@@ -265,7 +265,7 @@ class BaseDashboard:
                             ])
                         ]),
 
-                        dcc.Tab(label='Thresholds', value=THRESHOLDS_TAB, children=[self.thresholds.layout()])
+                        dcc.Tab(label='Settings', value=SETTINGS_TAB, children=[self.settings.layout()])
                     ])
                 ], style={'width': '80%', 'display': 'inline-block', 'vertical-align': 'top'})
             ])
@@ -283,7 +283,7 @@ class BaseDashboard:
         self._setup_plot_callbacks()
         self._setup_common_callbacks()
         self._setup_stale_page_warning()
-        self.thresholds.register(self.app)
+        self.settings.register(self.app)
 
     def _setup_stale_page_warning(self):
         @self.app.callback(
@@ -294,7 +294,7 @@ class BaseDashboard:
         def warn_if_stale(_tab, _positions, version):
             if version == self.config_version:
                 return None
-            return html.Div("The thresholds were saved from another tab or window after this page opened. "
+            return html.Div("The settings were saved from another tab or window after this page opened. "
                             "Reload the page to use them.",
                             style={'background-color': '#fff3cd', 'border': '1px solid #ffe08a',
                                    'padding': '8px 12px', 'border-radius': '4px', 'margin-bottom': '8px'})
@@ -499,7 +499,7 @@ class BaseDashboard:
 
     def config_source(self):
         if self.save_path is None:
-            return (f"{self.config_path} (the package default; to save changes made in the Thresholds tab, "
+            return (f"{self.config_path} (the package default; to save changes made in the Settings tab, "
                     f"start the dashboard with --config FILE)")
         if self.save_path != self.config_path:
             return f"{self.save_path} (not created yet: starting from the default; the first save creates it)"
