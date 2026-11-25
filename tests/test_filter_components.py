@@ -15,9 +15,9 @@ from fMRI_QCtoolkit.utils.filter_components_utils import (
     status_options,
 )
 
-CENS_FRAC = Metric("cens_frac", "Censor Fraction", {"other": (">=", 0.15), "bad": (">=", 0.2)},
+CENS_FRAC = Metric("cens_frac", "Censor Fraction", {"good": ("<", 0.15), "bad": (">=", 0.2)},
                    entry="cens_frac", entry_label="Censor Fraction")
-TSNR = Metric("TSNR", "TSNR Average", {"other": ("<=", 150.0)}, entry="TSNR", entry_label="TSNR Average")
+TSNR = Metric("TSNR", "TSNR Average", {"good": (">", 150.0)}, entry="TSNR", entry_label="TSNR Average")
 FLIP = Metric("flip_guess", "Flip Guess", {"bad": ("!=", 0.0)}, step=1,
               entry="flip_guess", entry_label="Flip Guess")
 DVARS = Metric("dvars_nstd", "DVARS", {}, entry="dvars_nstd", entry_label="DVARS")
@@ -92,8 +92,8 @@ class TestRulesSummary:
                         entry="frac_TRs_cens_*", entry_label="Fraction TRs Censored")
         lines = self.text(create_rules_summary([CENS_FRAC, TSNR, FLIP, DVARS, frac_1, frac_2]))
         assert lines[1:] == [
-            "Censor Fraction: other ≥ 0.15, bad ≥ 0.2",
-            "TSNR Average: other ≤ 150",
+            "Censor Fraction: good < 0.15, bad ≥ 0.2",
+            "TSNR Average: good > 150",
             "Flip Guess: bad ≠ 0",
             "Fraction TRs Censored: bad ≥ 0.2",
         ]
@@ -121,6 +121,6 @@ class TestMarkKeys:
         assert mark_key(value) == key
 
     def test_whole_number_thresholds_get_their_labels(self):
-        metric = Metric("fd_perc", "FD", {"other": (">", 15.0), "bad": (">", 20.0)}, entry="fd_perc", entry_label="FD")
+        metric = Metric("fd_perc", "FD", {"good": ("<=", 15.0), "bad": (">", 20.0)}, entry="fd_perc", entry_label="FD")
         slider = by_id(create_metric_filter(metric, (5.3, 35.0, 0.1)), {"type": RANGE, "column": "fd_perc"})
         assert sorted(slider.marks) == ["15", "20", "35", "5.3"]

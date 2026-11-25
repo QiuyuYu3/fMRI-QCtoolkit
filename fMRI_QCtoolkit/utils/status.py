@@ -10,9 +10,12 @@ import pandas as pd
 _OPERATORS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt,
               "==": operator.eq, "!=": operator.ne}
 _SYMBOLS = {">=": "≥", "<=": "≤", "!=": "≠", "==": "=", ">": ">", "<": "<"}
+_NEGATED = {">": "<=", ">=": "<", "<": ">=", "<=": ">", "==": "!=", "!=": "=="}
 _RULE = re.compile(r"\s*(>=|<=|==|!=|>|<)\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\s*")
 UPWARD = {">", ">="}
 DOWNWARD = {"<", "<="}
+# The rules a metric can have, as named in the config; "other" is whatever meets neither
+RULE_TIERS = ("good", "bad")
 
 
 def parse_rule(text):
@@ -35,16 +38,45 @@ def format_rule(rule, symbols=False):
     return f"{_SYMBOLS[op] if symbols else op} {format_number(value)}"
 
 
+def negate_rule(rule):
+    """The rule a value meets exactly when it does not meet `rule`: ('>', 15) -> ('<=', 15)."""
+    op, value = rule
+    return _NEGATED[op], value
+
+
 def assign_status(values, rules):
-    """'bad' where a value meets rules['bad'], else 'other' where it meets rules['other'], else 'good'; missing is 'NA'."""
+    """'bad' where a value meets rules['bad'], 'good' where it meets rules['good'] (with no good rule, wherever it is
+    not bad), 'other' where it meets neither; missing is 'NA'."""
     values = pd.to_numeric(pd.Series(values), errors="coerce").astype(float)
-    status = pd.Series("good", index=values.index, dtype=object)
-    for tier in ("other", "bad"):
+    status = pd.Series("good" if "good" not in rules else "other", index=values.index, dtype=object)
+    for tier in ("good", "bad"):
         if tier in rules:
             op, threshold = rules[tier]
             status[_OPERATORS[op](values, threshold).to_numpy()] = tier
     status[values.isna().to_numpy()] = "NA"
     return status
+
+
+def _probes(rules):
+    """One value in every stretch of the number line that the rules' thresholds mark off."""
+    cuts = sorted({value for _, value in rules.values()})
+    if not cuts:
+        return []
+    return [cuts[0] - 1, *cuts, *[(a + b) / 2 for a, b in zip(cuts, cuts[1:])], cuts[-1] + 1]
+
+
+def rated_tiers(rules):
+    """The statuses a metric's rules can give, in good, other, bad order; none for a metric without rules."""
+    found = set(assign_status(_probes(rules), rules)) if rules else set()
+    return [tier for tier in ("good", "other", "bad") if tier in found]
+
+
+def overlap(good, bad):
+    """A value that meets both the good and the bad rule, or None."""
+    for value in _probes({"good": good, "bad": bad}):
+        if _OPERATORS[good[0]](value, good[1]) and _OPERATORS[bad[0]](value, bad[1]):
+            return value
+    return None
 
 
 def get_status_mapping():

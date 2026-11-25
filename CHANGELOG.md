@@ -12,6 +12,7 @@
 
 ### Changed
 - **Thresholds are set in the settings file instead of the code.** Config files from 1.x no longer work; `fmriqc config` writes a new one.
+- Each metric has a **good** and a **bad** rule; runs that meet neither are rated other.
 - **Only runs rated bad are hidden by default.** Runs rated other stay visible and are yellow in the heatmap; tick boxes under each metric choose which ratings to show.
 - A few runs are rated or hidden differently than in 1.0: values are no longer rounded before rating, runs with a `flip_guess` other than 0 are hidden, and a censored fraction of exactly 0.2 counts as bad.
 - fMRIPrep runs are rated on `fd_perc` and `fd_mean` only; `tsnr` and `gcor` no longer have thresholds.

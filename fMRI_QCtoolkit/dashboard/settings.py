@@ -12,14 +12,14 @@ from dash.exceptions import PreventUpdate
 from .config import (ID_COLUMNS, ConfigError, Metric, backup_path, default_config_path, dump_config, load_config,
                      parse_config, parse_entry, parse_table_columns, resolve_metrics, save_config)
 from ..utils.filter_components_utils import ACCENT, slider_bounds
-from ..utils.status import assign_status, format_number, get_status_colors, get_status_mapping
+from ..utils.status import (RULE_TIERS, assign_status, format_number, get_status_colors, get_status_mapping,
+                            rated_tiers)
 
 SETTINGS_TAB = 'settings-tab'
-FIELDS = ('label', 'other-op', 'other-value', 'bad-op', 'bad-value', 'step')
+FIELDS = ('label', 'good-op', 'good-value', 'bad-op', 'bad-value', 'step')
 OPERATORS = ['>', '>=', '<', '<=', '==', '!=']
 # A blank choice for "no rule" instead of a clear button, which leaves no room for the value in a narrow column
 OPERATOR_OPTIONS = [{'label': '\u00a0', 'value': ''}] + [{'label': op, 'value': op} for op in OPERATORS]
-TIERS = ('good', 'other', 'bad', 'NA')
 TIER_COLORS = {tier: get_status_colors()[number] for tier, number in get_status_mapping().items()}
 # Seconds of no typing before a box is sent, so the preview does not chase every keystroke
 TYPING_PAUSE_S = 0.5
@@ -39,7 +39,7 @@ _RANK = {'NA': 0, 'good': 1, 'other': 2, 'bad': 3}
 
 
 def new_row(column):
-    return {'key': column, 'label': column, 'other-op': None, 'other-value': None,
+    return {'key': column, 'label': column, 'good-op': None, 'good-value': None,
             'bad-op': None, 'bad-value': None, 'step': None}
 
 
@@ -65,7 +65,7 @@ def row_entry(row):
     label = (row.get('label') or '').strip()
     if label:
         entry['label'] = label
-    for tier in ('other', 'bad'):
+    for tier in RULE_TIERS:
         op, value = row.get(f'{tier}-op'), row.get(f'{tier}-value')
         if op or value is not None:
             entry[tier] = f"{op or ''} {'' if value is None else format_number(value)}".strip()
@@ -97,7 +97,7 @@ def _note(text):
 
 def _count_chips(status, rules, n_columns=None):
     counts = status.value_counts()
-    tiers = [t for t in TIERS if t in ('good', 'NA') or t in rules]
+    tiers = rated_tiers(rules) + ['NA']
     chips = [html.Span(f"{tier} {int(counts.get(tier, 0))}",
                        style={'background-color': TIER_COLORS[tier], 'padding': '1px 6px',
                               'border-radius': '3px', 'margin-right': '4px', 'white-space': 'nowrap'})
@@ -174,7 +174,7 @@ class SettingsTab:
             html.Div([
                 html.Code(key, style={'overflow-wrap': 'anywhere'}),
                 dcc.Input(id=ident('label'), type='text', value=row['label'], debounce=TYPING_PAUSE_S, style=_BOX),
-                operator('other'), number('other-value'),
+                operator('good'), number('good-value'),
                 operator('bad'), number('bad-value'),
                 number('step', self._auto_step(row)),
                 html.Div(id=ident('counts')),
@@ -203,7 +203,7 @@ class SettingsTab:
         config = self.dashboard.config
         rows = config_rows(config.metrics)
         keys = [r['key'] for r in rows]
-        heading = [html.B("Metric"), html.B("Label"), html.B("Other", style={'grid-column': 'span 2'}),
+        heading = [html.B("Metric"), html.B("Label"), html.B("Good", style={'grid-column': 'span 2'}),
                    html.B("Bad", style={'grid-column': 'span 2'}),
                    html.B("Step", title="The slider's step; left empty, the one shown in gray"),
                    html.B("Runs with these thresholds"), html.Span()]
@@ -212,8 +212,9 @@ class SettingsTab:
         return html.Div([
             html.P("The metrics listed here appear in the sidebar and the table, in this order; those with a "
                    "rule are also rated in the heatmap.", style=_TEXT_STYLE),
-            html.P("A run is bad if it meets the bad rule, else other if it meets the other rule, else good. "
-                   "Leave an operator empty for no rule.", style=_TEXT_STYLE),
+            html.P("A run is good if it meets the good rule, bad if it meets the bad rule, and other if it "
+                   "meets neither. Leave an operator empty for no rule; with no good rule, every run that is not "
+                   "bad is good.", style=_TEXT_STYLE),
             self._file_note(),
             html.Div(id='thr-summary', style={'font-weight': 'bold', 'margin': '10px 0'}),
             html.Div(heading, style={**GRID, 'font-size': '13px', 'padding-bottom': '4px',

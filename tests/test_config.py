@@ -42,9 +42,13 @@ class TestConfigErrors:
         ({"metrics": {"x": {}}, "heatmap": []}, "unknown top-level field(s) ['heatmap']"),
         ({"metrics": {"cens_frac": {"lable": "C"}}}, "metrics.cens_frac: unknown field(s) ['lable']"),
         ({"metrics": {"cens_frac": {"bad": "=> 0.2"}}}, "metrics.cens_frac.bad: '=> 0.2' is not a rule"),
-        ({"metrics": {"cens_frac": {"other": ">= 0.2", "bad": ">= 0.15"}}}, "are they swapped"),
-        ({"metrics": {"DF_frac": {"other": "<= 0.7", "bad": "<= 0.8"}}}, "are they swapped"),
-        ({"metrics": {"DF_frac": {"other": "<= 0.7", "bad": ">= 0.6"}}}, "opposite directions"),
+        ({"metrics": {"cens_frac": {"good": "< 0.25", "bad": ">= 0.2"}}},
+         "good (< 0.25) and bad (>= 0.2) overlap, so a value such as 0.2 would be both"),
+        ({"metrics": {"DF_frac": {"good": "> 0.7", "bad": "> 0.8"}}}, "overlap"),
+        ({"metrics": {"x": {"good": "!= 0", "bad": "> 5"}}}, "overlap"),
+        ({"metrics": {"DF_frac": {"other": "<= 0.7", "bad": "<= 0.6"}}},
+         "'other' is no longer a field, since other is whatever is neither good nor bad; "
+         "replace \"other\": \"<= 0.7\" with \"good\": \"> 0.7\""),
         ({"metrics": {"x": {"step": 0}}}, "metrics.x.step must be a positive number"),
         ({"metrics": {"x": {"label": 3}}}, "metrics.x.label must be text"),
         ({"metrics": {"x": "GCOR"}}, "metrics.x must be an object"),
@@ -61,9 +65,11 @@ class TestConfigErrors:
         assert message in str(err.value)
         assert str(path) in str(err.value)
 
-    def test_equality_rules_skip_the_order_check(self):
-        config = parse_config({"metrics": {"code": {"other": "== 1", "bad": "== 2"}}}).metrics
-        assert config["code"].rules == {"other": ("==", 1.0), "bad": ("==", 2.0)}
+    def test_rules_that_do_not_overlap_are_accepted(self):
+        config = parse_config({"metrics": {"code": {"good": "== 1", "bad": "== 2"},
+                                           "flip": {"good": "== 0", "bad": "!= 0"},
+                                           "fd": {"good": "<= 15", "bad": "> 15"}}}).metrics
+        assert config["code"].rules == {"good": ("==", 1.0), "bad": ("==", 2.0)}
 
     def test_byte_order_mark_is_accepted(self, tmp_path):
         path = tmp_path / "bom.json"
@@ -110,7 +116,7 @@ class TestWritingConfigs:
 
     def test_a_written_config_reads_back_the_same(self):
         config = parse_config({"metrics": {
-            "fd_mean": {"label": "Mean FD ≥ ok", "other": ">= 0.123456789", "bad": "> 0.5000000001"},
+            "fd_mean": {"label": "Mean FD ≥ ok", "good": "< 0.123456789", "bad": "> 0.5000000001"},
             "frac_TRs_cens_*": {"bad": ">= 0.2", "step": 0.05},
             "efc": {},
         }})
@@ -127,11 +133,11 @@ class TestWritingConfigs:
         assert parse_config({"metrics": {"a": {}}}).table_columns == ()
 
     def test_each_field_has_its_own_column(self):
-        text = dump_config({"metrics": {"a": {"label": "A", "other": "> 1", "bad": "> 2"},
+        text = dump_config({"metrics": {"a": {"label": "A", "good": "< 1", "bad": "> 2"},
                                         "long_name": {"label": "B", "bad": "!= 0", "step": 1}}})
         assert text.splitlines()[2:4] == [
-            '    "a":         {"label": "A", "other": "> 1", "bad": "> 2"},',
-            '    "long_name": {"label": "B", ' + ' ' * len('"other": "> 1", ') + '"bad": "!= 0", "step": 1}',
+            '    "a":         {"label": "A", "good": "< 1", "bad": "> 2"},',
+            '    "long_name": {"label": "B", ' + ' ' * len('"good": "< 1", ') + '"bad": "!= 0", "step": 1}',
         ]
 
 

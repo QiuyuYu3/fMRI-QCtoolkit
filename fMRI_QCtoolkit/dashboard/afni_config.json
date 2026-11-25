@@ -1,12 +1,12 @@
 {
   "metrics": {
-    "cens_frac":       {"label": "Censor Fraction",           "other": ">= 0.15", "bad": ">= 0.2"},
-    "cens_mot":        {"label": "Average Censored Motion",   "other": ">= 0.1",  "bad": ">= 0.15"},
-    "cens_displace":   {"label": "Max Censored Displacement", "other": ">= 6",    "bad": ">= 8"},
-    "TSNR":            {"label": "TSNR Average",              "other": "<= 150"},
-    "DF_frac":         {"label": "Final DF Fraction",         "other": "<= 0.7",  "bad": "<= 0.6"},
-    "flip_guess":      {"label": "Flip Guess",                                    "bad": "!= 0",    "step": 1},
-    "GCOR":            {"label": "GCOR",                      "other": ">= 0.15", "bad": ">= 0.2"},
-    "frac_TRs_cens_*": {"label": "Fraction TRs Censored",                         "bad": ">= 0.2"}
+    "cens_frac":       {"label": "Censor Fraction",           "good": "< 0.15", "bad": ">= 0.2"},
+    "cens_mot":        {"label": "Average Censored Motion",   "good": "< 0.1",  "bad": ">= 0.15"},
+    "cens_displace":   {"label": "Max Censored Displacement", "good": "< 6",    "bad": ">= 8"},
+    "TSNR":            {"label": "TSNR Average",              "good": "> 150"},
+    "DF_frac":         {"label": "Final DF Fraction",         "good": "> 0.7",  "bad": "<= 0.6"},
+    "flip_guess":      {"label": "Flip Guess",                                  "bad": "!= 0",    "step": 1},
+    "GCOR":            {"label": "GCOR",                      "good": "< 0.15", "bad": ">= 0.2"},
+    "frac_TRs_cens_*": {"label": "Fraction TRs Censored",                       "bad": ">= 0.2"}
   }
 }

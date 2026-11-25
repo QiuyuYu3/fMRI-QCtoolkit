@@ -90,19 +90,19 @@ class TestPreview:
     def test_summary_counts_the_runs_the_new_thresholds_would_show(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         rows = rows_of(dashboard)
-        row(rows, "fd_perc").update({"other-value": 8, "bad-value": 10})
+        row(rows, "fd_perc").update({"good-value": 8, "bad-value": 10})
         summary = dashboard.settings.preview(rows)['summary']
         assert summary == "With these thresholds, 2 of 4 runs are shown when the dashboard opens (now 3)."
 
     def test_a_bad_row_shows_the_config_check_message(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         rows = rows_of(dashboard)
-        row(rows, "fd_mean").update({"other-value": 0.5, "bad-value": 0.3})
+        row(rows, "fd_mean").update({"good-value": 0.5, "bad-value": 0.3})
         row(rows, "fd_perc").update({"bad-op": None})
         shown = dashboard.settings.preview(rows)
         errors, summary = shown['errors'], shown['summary']
         keys = [r["key"] for r in rows]
-        assert "bad is looser than other" in errors[keys.index("fd_mean")]
+        assert "overlap" in errors[keys.index("fd_mean")]
         assert errors[keys.index("fd_perc")].startswith("metrics.fd_perc.bad: '20' is not a rule")
         assert summary.endswith("Rows with an error are left out until they are fixed.")
         assert shown['save_off'] and shown['download_off'] and shown['unsaved'] == "Unsaved changes"
@@ -110,7 +110,7 @@ class TestPreview:
     def test_save_is_off_without_a_config_file(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         rows = rows_of(dashboard)
-        row(rows, "fd_perc").update({"other-value": 8, "bad-value": 10})
+        row(rows, "fd_perc").update({"good-value": 8, "bad-value": 10})
         shown = dashboard.settings.preview(rows)
         assert shown['save_off'] and not shown['download_off'] and shown['unsaved'] == "Unsaved changes"
 
@@ -205,7 +205,7 @@ class TestSaving:
         row(rows, "cens_frac")["bad-value"] = 0.3
         dashboard.settings.save(rows, version=0)
         lines = [c.children for c in dashboard.build_layout()._traverse() if type(c).__name__ == "Li"]
-        assert "Censor Fraction: other ≥ 0.15, bad ≥ 0.3" in lines
+        assert "Censor Fraction: good < 0.15, bad ≥ 0.3" in lines
         store = next(c for c in layout_components(dashboard) if c.id == "config-version")
         assert store.data == 1
 

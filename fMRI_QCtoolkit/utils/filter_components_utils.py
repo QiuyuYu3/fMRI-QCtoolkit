@@ -8,7 +8,7 @@ from decimal import Decimal
 from dash import dcc, html
 import pandas as pd
 
-from .status import DOWNWARD, UPWARD, format_rule
+from .status import DOWNWARD, RULE_TIERS, UPWARD, format_rule, rated_tiers
 
 RATING_OPTIONS = [
     {'label': 'Good', 'value': 'good'},
@@ -16,7 +16,7 @@ RATING_OPTIONS = [
     {'label': 'Bad', 'value': 'bad'},
     {'label': 'NA', 'value': 'NA'},
 ]
-_MARK_COLORS = {'other': '#9A7B00', 'bad': '#C0392B'}
+_MARK_COLORS = {'good': '#3B7D23', 'bad': '#C0392B'}
 # The dashboard's blue, muted so the controls do not outshine the data
 ACCENT = '#5289bd'
 # Component types of the sidebar's per-metric filters; the column names the instance
@@ -47,8 +47,7 @@ def slider_bounds(values, metric):
 def status_options(metric):
     if not metric.rules:
         return [{'label': 'Include NA', 'value': 'NA'}]
-    tiers = ['good'] + [tier for tier in ('other', 'bad') if tier in metric.rules]
-    return [{'label': tier, 'value': tier} for tier in tiers + ['NA']]
+    return [{'label': tier, 'value': tier} for tier in rated_tiers(metric.rules) + ['NA']]
 
 
 def default_statuses(metric):
@@ -123,7 +122,7 @@ def create_rules_summary(metrics):
     for metric in metrics:
         if metric.rules and metric.entry not in lines:
             tiers = [f"{tier} {format_rule(metric.rules[tier], symbols=True)}"
-                     for tier in ('other', 'bad') if tier in metric.rules]
+                     for tier in RULE_TIERS if tier in metric.rules]
             lines[metric.entry] = f"{metric.entry_label}: {', '.join(tiers)}"
     if not lines:
         return html.P("No thresholds are set, so no run is hidden by default.", style=_NOTE_STYLE)

@@ -73,7 +73,7 @@ class TestCustomConfig:
 
     def test_thresholds_come_from_the_given_file(self, tmp_path):
         config = tmp_path / "lab.json"
-        config.write_text(json.dumps({"metrics": {"cens_frac": {"other": ">= 0.4", "bad": ">= 0.5"}}}))
+        config.write_text(json.dumps({"metrics": {"cens_frac": {"good": "< 0.4", "bad": ">= 0.5"}}}))
         dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path, config=config)
 
         assert [m.column for m in dashboard.metrics] == ["cens_frac"]
@@ -89,11 +89,11 @@ class TestSidebarText:
 
     def test_each_pipeline_lists_its_own_thresholds(self, tmp_path):
         afni = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
-        assert "Censor Fraction: other ≥ 0.15, bad ≥ 0.2" in self.sidebar_lines(afni)
+        assert "Censor Fraction: good < 0.15, bad ≥ 0.2" in self.sidebar_lines(afni)
 
         fmriprep = FMRIPrepDashboard(FMRIPrepPipeline.from_saved_data(EXAMPLES / "df_final.csv"))
-        assert self.sidebar_lines(fmriprep) == ["% of FDs above threshold: other > 15, bad > 20",
-                                                "Average FD: other ≥ 0.2, bad ≥ 0.3"]
+        assert self.sidebar_lines(fmriprep) == ["% of FDs above threshold: good ≤ 15, bad > 20",
+                                                "Average FD: good < 0.2, bad ≥ 0.3"]
 
 
 class TestPageStyle:

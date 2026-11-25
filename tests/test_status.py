@@ -8,7 +8,10 @@ from fMRI_QCtoolkit.utils.status import (
     format_rule,
     get_status_colors,
     get_status_mapping,
+    negate_rule,
+    overlap,
     parse_rule,
+    rated_tiers,
 )
 
 # What the 1.x if-elif rules in utils/status.py returned at these values
@@ -61,9 +64,42 @@ class TestAssignStatus:
     def test_no_rules_means_good(self):
         assert assign_status([0.0, 1e6], {}).tolist() == ["good", "good"]
 
-    def test_bad_wins_over_other(self):
-        rules = {"other": (">=", 0.1), "bad": (">=", 0.2)}
-        assert assign_status([0.05, 0.1, 0.3], rules).tolist() == ["good", "other", "bad"]
+    def test_other_is_between_good_and_bad(self):
+        rules = {"good": ("<", 0.1), "bad": (">=", 0.2)}
+        assert assign_status([0.05, 0.1, 0.15, 0.2, 0.3], rules).tolist() == ["good", "other", "other", "bad", "bad"]
+
+    def test_with_only_a_bad_rule_the_rest_is_good(self):
+        assert assign_status([0, 1, 2], {"bad": ("!=", 0.0)}).tolist() == ["good", "bad", "bad"]
+
+    def test_with_only_a_good_rule_the_rest_is_other(self):
+        assert assign_status([100, 150, 151], {"good": (">", 150.0)}).tolist() == ["other", "other", "good"]
+
+    @pytest.mark.parametrize("rules,tiers", [
+        ({}, []),
+        ({"bad": (">=", 0.2)}, ["good", "bad"]),
+        ({"good": (">", 150.0)}, ["good", "other"]),
+        ({"good": ("<", 0.15), "bad": (">=", 0.2)}, ["good", "other", "bad"]),
+        ({"good": ("<=", 15.0), "bad": (">", 15.0)}, ["good", "bad"]),
+        ({"good": ("==", 0.0), "bad": ("!=", 0.0)}, ["good", "bad"]),
+    ])
+    def test_rated_tiers_are_the_statuses_the_rules_can_give(self, rules, tiers):
+        assert rated_tiers(rules) == tiers
+
+    @pytest.mark.parametrize("good,bad,both", [
+        (("<", 0.25), (">=", 0.2), 0.2),
+        (("<=", 0.2), (">=", 0.2), 0.2),
+        (("<", 0.2), (">=", 0.2), None),
+        ((">", 0.7), ("<=", 0.6), None),
+        (("==", 0.0), ("!=", 0.0), None),
+    ])
+    def test_overlap_finds_a_value_both_rules_take(self, good, bad, both):
+        assert overlap(good, bad) == both
+
+    @pytest.mark.parametrize("op,negated", [(">", "<="), (">=", "<"), ("<", ">="), ("<=", ">"), ("==", "!="), ("!=", "==")])
+    def test_negated_rules_split_every_value(self, op, negated):
+        values = [0.9, 1.0, 1.1]
+        assert negate_rule((op, 1.0)) == (negated, 1.0)
+        assert assign_status(values, {"bad": (op, 1.0)}).tolist() == assign_status(values, {"good": (negated, 1.0)}).replace({"other": "bad"}).tolist()
 
     def test_keeps_the_index(self):
         values = pd.Series([0.1, 0.3], index=[5, 7])

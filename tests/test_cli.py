@@ -77,7 +77,7 @@ class TestDashboardConfigOption:
 
     def test_thresholds_come_from_the_given_file(self, launched, tmp_path):
         config = tmp_path / "lab.json"
-        config.write_text(json.dumps({"metrics": {"fd_mean": {"other": ">= 0.25", "bad": ">= 0.5"}}}))
+        config.write_text(json.dumps({"metrics": {"fd_mean": {"good": "< 0.25", "bad": ">= 0.5"}}}))
 
         result = self.run_fmriprep(config)
 
@@ -85,7 +85,7 @@ class TestDashboardConfigOption:
         dashboard = launched[0][0]
         assert dashboard.config_path == config
         assert [(m.column, m.rules) for m in dashboard.metrics] == [
-            ("fd_mean", {"other": (">=", 0.25), "bad": (">=", 0.5)})]
+            ("fd_mean", {"good": ("<", 0.25), "bad": (">=", 0.5)})]
 
     def test_a_broken_config_stops_before_launch(self, launched, tmp_path):
         config = tmp_path / "lab.json"

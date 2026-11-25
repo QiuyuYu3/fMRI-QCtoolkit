@@ -9,12 +9,12 @@ from dataclasses import dataclass, replace
 from fnmatch import fnmatchcase
 from pathlib import Path
 
-from ..utils.status import DOWNWARD, UPWARD, format_rule, parse_rule
+from ..utils.status import RULE_TIERS, format_number, format_rule, negate_rule, overlap, parse_rule
 
 CONFIG_FILES = {"afni": "afni_config.json", "fmriprep": "fmriprep_config.json"}
 # Columns of df_final.csv that identify a run rather than measure it
 ID_COLUMNS = ("ID", "session", "run")
-_METRIC_FIELDS = ("label", "other", "bad", "step")
+_METRIC_FIELDS = ("label", *RULE_TIERS, "step")
 _TOP_FIELDS = ("metrics", "table_columns")
 
 
@@ -98,7 +98,7 @@ def config_to_raw(config):
     metrics = {}
     for key, metric in config.metrics.items():
         entry = {"label": metric.entry_label}
-        entry.update({tier: format_rule(metric.rules[tier]) for tier in ("other", "bad") if tier in metric.rules})
+        entry.update({tier: format_rule(metric.rules[tier]) for tier in RULE_TIERS if tier in metric.rules})
         if metric.step is not None:
             entry["step"] = metric.step
         metrics[key] = entry
@@ -181,6 +181,14 @@ def _reject_duplicate_keys(pairs):
 def _parse_metric(key, entry, where):
     if not isinstance(entry, dict):
         raise ConfigError(f"{where} must be an object, such as {{\"label\": \"GCOR\", \"bad\": \">= 0.2\"}}")
+    if "other" in entry:
+        try:
+            good = format_rule(negate_rule(parse_rule(entry["other"])))
+            hint = f'; replace "other": "{entry["other"]}" with "good": "{good}"'
+        except ValueError:
+            hint = ""
+        raise ConfigError(f"{where}: 'other' is no longer a field, since other is whatever is neither good nor "
+                          f"bad{hint}")
     unknown = sorted(set(entry) - set(_METRIC_FIELDS))
     if unknown:
         raise ConfigError(f"{where}: unknown field(s) {unknown}; allowed: {', '.join(_METRIC_FIELDS)}")
@@ -191,27 +199,15 @@ def _parse_metric(key, entry, where):
     if step is not None and (isinstance(step, bool) or not isinstance(step, (int, float)) or step <= 0):
         raise ConfigError(f"{where}.step must be a positive number")
     rules = {}
-    for tier in ("other", "bad"):
+    for tier in RULE_TIERS:
         if tier in entry:
             try:
                 rules[tier] = parse_rule(entry[tier])
             except ValueError as e:
                 raise ConfigError(f"{where}.{tier}: {e}") from None
-    _check_order(rules, where)
+    if len(rules) == 2:
+        both = overlap(rules["good"], rules["bad"])
+        if both is not None:
+            raise ConfigError(f"{where}: good ({format_rule(rules['good'])}) and bad ({format_rule(rules['bad'])}) "
+                              f"overlap, so a value such as {format_number(both)} would be both")
     return Metric(column=key, label=label, rules=rules, step=step, entry=key, entry_label=label)
-
-
-def _check_order(rules, where):
-    if len(rules) < 2:
-        return
-    (other_op, other_value), (bad_op, bad_value) = rules["other"], rules["bad"]
-    shown = f"other ({format_rule(rules['other'])}) and bad ({format_rule(rules['bad'])})"
-    for direction in (UPWARD, DOWNWARD):
-        if other_op in direction and bad_op in direction:
-            looser = bad_value < other_value if direction is UPWARD else bad_value > other_value
-            if looser:
-                raise ConfigError(f"{where}: bad is looser than other, so nothing can be 'other' "
-                                  f"({shown}); are they swapped?")
-            return
-    if {other_op, bad_op} <= UPWARD | DOWNWARD:
-        raise ConfigError(f"{where}: {shown} point in opposite directions")

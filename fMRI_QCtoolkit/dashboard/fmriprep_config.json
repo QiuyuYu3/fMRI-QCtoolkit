@@ -1,7 +1,7 @@
 {
   "metrics": {
-    "fd_perc":    {"label": "% of FDs above threshold", "other": "> 15",   "bad": "> 20"},
-    "fd_mean":    {"label": "Average FD",               "other": ">= 0.2", "bad": ">= 0.3"},
+    "fd_perc":    {"label": "% of FDs above threshold", "good": "<= 15", "bad": "> 20"},
+    "fd_mean":    {"label": "Average FD",               "good": "< 0.2", "bad": ">= 0.3"},
     "tsnr":       {"label": "TSNR Average"},
     "gcor":       {"label": "GCOR"},
     "dvars_nstd": {"label": "DVARS"},
