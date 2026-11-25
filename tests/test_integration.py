@@ -1,7 +1,11 @@
+import warnings
+
+import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal, assert_series_equal
 
 from fMRI_QCtoolkit.data.afni_pipeline import AFNIPipeline
+from fMRI_QCtoolkit.data.base import read_csv_exact
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
 
 
@@ -90,11 +94,22 @@ class TestSavedTableKeepsFullPrecision:
     def test_values_are_not_rounded(self, temp_dir, random_bold_data, random_rating_data):
         pipeline = self._run_prep(temp_dir, random_bold_data, random_rating_data)
 
-        saved = pd.read_csv(temp_dir / "output" / "df_final.csv", float_precision="round_trip")
+        saved = read_csv_exact(temp_dir / "output" / "df_final.csv")
 
         assert (saved["gsr_x"].dropna().round(3) != saved["gsr_x"].dropna()).any()
         assert_series_equal(saved["gsr_x"], pipeline.df_final["gsr_x"].reset_index(drop=True),
                             check_exact=True)
+
+    def test_reading_back_is_exact_and_raises_no_warning(self, temp_dir):
+        values = np.random.default_rng(0).uniform(0, 0.01, 20_000)
+        path = temp_dir / "values.csv"
+        pd.DataFrame({"v": values}).to_csv(path, index=False)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            back = read_csv_exact(path)["v"].to_numpy()
+
+        assert (back == values).all()
 
     def test_lollipop_from_the_file_equals_the_one_from_memory(self, temp_dir, random_bold_data,
                                                                random_rating_data):

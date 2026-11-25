@@ -6,6 +6,15 @@ import pandas as pd
 from pathlib import Path
 from abc import ABC, abstractmethod
 
+
+def read_csv_exact(path, **kwargs):
+    """pd.read_csv that returns exactly the floats to_csv wrote."""
+    # From pandas 3.1 the default parser is exact and float_precision is deprecated
+    if tuple(int(n) for n in pd.__version__.split(".")[:2]) < (3, 1):
+        kwargs.setdefault("float_precision", "round_trip")
+    return pd.read_csv(path, **kwargs)
+
+
 class BaseDataProcessor(ABC):
     """Base class for data processors."""
     
@@ -127,9 +136,7 @@ class BaseDataProcessor(ABC):
         instance = cls.__new__(cls)
         instance.task = task or ""
         instance.output_dir = Path(output_dir) if output_dir else Path(".")
-        # round_trip reads back exactly the floats prep wrote
-        instance.df_final = pd.read_csv(data_file, dtype={'ID': str, 'session': str},
-                                        float_precision="round_trip")
+        instance.df_final = read_csv_exact(data_file, dtype={'ID': str, 'session': str})
         instance.lollipop_chart_data = None
         instance._set_variables()
         instance.get_lollipop_data()

@@ -15,6 +15,7 @@ from fMRI_QCtoolkit.dashboard.afni_app import AFNIDashboard
 from fMRI_QCtoolkit.dashboard.base_app import BaseDashboard
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
 from fMRI_QCtoolkit.data.afni_pipeline import AFNIPipeline
+from fMRI_QCtoolkit.data.base import read_csv_exact
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "example_data" / "fmriprep"
@@ -300,7 +301,7 @@ class TestSelectedRows:
                          {("download-button", "n_clicks"): 1, ("datatable", "selected_rows"): [0],
                           ("filtered-rows", "data"): [0, 2]}, "download-button.n_clicks")
         csv = resp.get_json()["response"]["download-dataframe-csv"]["data"]["content"]
-        rows = pd.read_csv(io.StringIO(csv), dtype={"ID": str}, float_precision="round_trip")
+        rows = read_csv_exact(io.StringIO(csv), dtype={"ID": str})
         assert rows["ID"].tolist() == ["001"]
         assert rows["fd_mean"].tolist() == [0.123456789012345]
 
