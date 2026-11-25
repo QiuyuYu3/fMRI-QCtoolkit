@@ -176,7 +176,7 @@ class TestSaving:
         assert dashboard.config_version == 1
         assert dashboard.status["efc"].tolist() == ["good", "good", "bad", "bad"]
         assert shown_ids(dashboard, *layout_values(dashboard)) == ["001", "002"]
-        assert "efc" not in dashboard.hidden_columns()
+        assert dashboard.table_column_ids()[-2:] == ["efc", "Final"]
 
     def test_the_previous_file_is_kept_as_bak(self, saved_to):
         original = {"metrics": {"fd_mean": {"bad": "> 1"}}}

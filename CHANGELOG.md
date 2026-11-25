@@ -20,7 +20,7 @@
 - Heatmap cells sit 2 px apart again, as before 1.0, and the panels for different sessions or runs space their cells alike.
 - Select All and Clear only change the selection; they no longer refilter the table and redraw the plots.
 - `fmriqc prep` keeps every numeric metric in `df_final.csv`, so any of them can be added to the dashboard: for fMRIPrep, all of MRIQC's in `group_bold.tsv` instead of a fixed eleven (an MRIQC output without one of the eleven no longer stops it); for AFNI, every numeric field of `out.ss_review.*.json`, a field that holds a list (such as per-run values) giving one column per value.
-- The table shows the ID, session and run columns, the metrics in the sidebar and the ratings; the other columns start hidden and **Toggle Columns** shows them. Downloads keep every column.
+- The table shows the ID, session and run columns, the metrics in the sidebar in the same order, and the ratings; other columns are shown by adding them in the Settings tab. Downloads keep every column.
 - Reloading the dashboard keeps the tab that was open.
 - The dashboard's blue is muted, and with Dash 4 the sliders, tick boxes and tabs use it instead of Dash 4's purple.
 

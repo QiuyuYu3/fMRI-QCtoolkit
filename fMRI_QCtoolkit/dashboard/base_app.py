@@ -82,18 +82,20 @@ class BaseDashboard:
     def get_variable_labels(self):
         return {m.column: m.label for m in self.metrics}, self.RATING_LABELS
 
+    def table_column_ids(self):
+        """The table's columns: the IDs, the config's metrics in config order, then the ratings."""
+        df = self.processor.get_data()
+        columns = ([c for c in ID_COLUMNS if c in df.columns] + [m.column for m in self.metrics]
+                   + [g for g in self.processor.checkbox_groups if g in df.columns])
+        return list(dict.fromkeys(columns))
+
     def _table_columns(self):
         df = self.processor.get_data()
         return [
-            {"name": c, "id": c, "type": "numeric", "format": self.TABLE_NUMBER_FORMAT, "hideable": c != 'ID'}
-            if pd.api.types.is_numeric_dtype(df[c]) else {"name": c, "id": c, "hideable": c != 'ID'}
-            for c in df.columns
+            {"name": c, "id": c, "type": "numeric", "format": self.TABLE_NUMBER_FORMAT}
+            if pd.api.types.is_numeric_dtype(df[c]) else {"name": c, "id": c}
+            for c in self.table_column_ids()
         ]
-
-    def hidden_columns(self):
-        """Columns the table hides at first: all but the IDs, the config's metrics and the ratings."""
-        shown = {*ID_COLUMNS, *(m.column for m in self.metrics), *self.processor.checkbox_groups}
-        return [c for c in self.processor.get_data().columns if c not in shown]
 
     def build_layout(self):
         return html.Div([
@@ -187,8 +189,7 @@ class BaseDashboard:
                                     style_cell={'textAlign': 'left', 'fontSize': '12px', 'padding': '8px'},
                                     style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
                                     row_selectable='multi',
-                                    selected_rows=[],
-                                    hidden_columns=self.hidden_columns()
+                                    selected_rows=[]
                                 ),
 
                                 # Selected rows display
@@ -386,7 +387,7 @@ class BaseDashboard:
             ranges, statuses = ({item['id']['column']: item.get('value') for item in items}
                                 for items in ctx.inputs_list[:2])
             positions = self.filtered_positions(ranges, statuses, args[2:2 + len(groups)])
-            records = self.processor.get_data().iloc[positions].to_dict('records')
+            records = self.processor.get_data().iloc[positions][self.table_column_ids()].to_dict('records')
             return records, positions, self._carry_selection(prev_positions, prev_selected_rows, positions)
 
     @staticmethod
@@ -466,9 +467,8 @@ class BaseDashboard:
                 return html.Div("No row selected.", style={'padding': '10px', 'text-align': 'center'})
 
             return dash_table.DataTable(
-                data=selected.to_dict('records'),
+                data=selected[self.table_column_ids()].to_dict('records'),
                 columns=self._table_columns(),
-                hidden_columns=self.hidden_columns(),
                 style_table={'height': '300px', 'overflowY': 'auto', 'overflowX': 'auto'},
                 style_cell={'textAlign': 'left', 'fontSize': '11px', 'padding': '6px'},
                 style_header={'backgroundColor': '#e9ecef', 'fontWeight': 'bold'},

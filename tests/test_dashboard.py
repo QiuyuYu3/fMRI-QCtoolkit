@@ -115,6 +115,28 @@ class TestTableDisplay:
         assert columns["run"]["type"] == "numeric"
         assert "format" not in columns["ID"]
 
+    def test_the_table_has_the_ids_then_the_config_metrics_in_order_then_the_ratings(self, tmp_path):
+        df = pd.DataFrame({"ID": ["001", "002"], "session": ["01"] * 2, "run": [1, 1], "Final": ["good"] * 2,
+                           "efc": [0.5, 0.6], "fd_perc": [5.0, 25.0], "fd_mean": [0.1, 0.1],
+                           "modality": ["rest"] * 2})
+        config = tmp_path / "config.json"
+        config.write_text(json.dumps({"metrics": {"fd_mean": {"label": "Average FD"}, "fd_perc": {"bad": "> 20"}}}),
+                          encoding="utf-8")
+        dashboard = make_dashboard(FMRIPrepDashboard, df, tmp_path, config=config)
+        expected = ["ID", "session", "run", "fd_mean", "fd_perc", "Final"]
+
+        columns = dashboard._table_columns()
+        assert [c["id"] for c in columns] == expected
+        # Nothing hideable, so the table has no Toggle Columns button
+        assert not any("hideable" in c for c in columns)
+        table = dash_call(dashboard, "datatable.data", {}, FD_MEAN_RANGE).get_json()["response"]["datatable"]
+        assert [list(record) for record in table["data"]] == [expected]
+        shown = dash_call(dashboard, "selected-rows-display.children",
+                          {("datatable", "selected_rows"): [0], ("filtered-rows", "data"): [0]},
+                          "datatable.selected_rows").get_json()["response"]["selected-rows-display"]["children"]
+        assert [c["id"] for c in shown["props"]["columns"]] == expected
+        assert list(shown["props"]["data"][0]) == expected
+
 
 class TestPlotsAreDrawnOnDemand:
 

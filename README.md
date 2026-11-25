@@ -166,7 +166,7 @@ fmriqc prep fmriprep --bold-file examples/example_data/fmriprep/group_bold.tsv -
 ### STEP3: Viewing and Filtering Results via Dashboard
 Visualize, filter, and export selected data.
 
-The left side of the dashboard features filter sidebars where users can select the desired ranges. The central tabs display the data table, the visualizations (heatmaps and lollipop charts), and the settings (see [Thresholds and filters](#thresholds-and-filters)). The table shows the ID, session and run columns, the metrics in the sidebar and the ratings; **Toggle Columns** above it shows the other columns of `df_final.csv` until the page is reloaded. To show a metric for good, add it in the Settings tab. After selecting rows in the data table, the blue download button below allows exporting the corresponding data frame with all its columns.
+The left side of the dashboard features filter sidebars where users can select the desired ranges. The central tabs display the data table, the visualizations (heatmaps and lollipop charts), and the settings (see [Thresholds and filters](#thresholds-and-filters)). The table shows the ID, session and run columns, the metrics in the sidebar in the same order, and the ratings; to show another column of `df_final.csv`, add it in the Settings tab. After selecting rows in the data table, the blue download button below allows exporting the corresponding data frame with all its columns.
 
 By default, runs rated bad on any metric are hidden, while runs rated other stay visible and show yellow in the heatmap. Under each rated metric, tick boxes choose which ratings (good, other, bad, NA) are shown; tick bad to bring those runs back. The sliders start at the full range and narrow the view further.
 

@@ -28,6 +28,7 @@ GRID = {'display': 'grid', 'gap': '6px', 'align-items': 'center',
         'font-size': '13px'}
 _BOX = {'width': '100%', 'box-sizing': 'border-box', 'font-size': '13px'}
 _NOTE_STYLE = {'font-size': '12px', 'color': '#666'}
+_TEXT_STYLE = {'font-size': '15px', 'color': '#555'}
 _RANK = {'NA': 0, 'good': 1, 'other': 2, 'bad': 3}
 
 
@@ -165,38 +166,31 @@ class SettingsTab:
     def _file_note(self):
         d = self.dashboard
         if d.save_path is None:
-            return html.P(["These are the package's default settings and cannot be saved from here. To keep "
-                           "changes, press Download config and start the dashboard again with ",
-                           html.Code("--config"), " pointing to the file; or start it with ",
-                           html.Code("--config FILE"), " so that Save can write there (the file need not exist "
-                           "yet)."],
-                          style={**_NOTE_STYLE, 'color': '#8a6d00'})
+            return html.P(["Save needs the dashboard started with ", html.Code("--config FILE"),
+                           " (the file need not exist yet); Download config works without it."],
+                          style={**_TEXT_STYLE, 'color': '#8a6d00'})
         lines = [html.Span(["Saving to ", html.Code(str(d.save_path)),
-                            "" if d.save_path.exists() else " (not created yet; Save creates it)."])]
+                            "." if d.save_path.exists() else " (created on the first save)."])]
         if d.last_saved:
             saved_at, backed_up = d.last_saved
             lines.append(html.Br())
             lines.append(html.Span(f"Saved at {saved_at}." + (
                 f" The previous version is in {backup_path(d.save_path).name}." if backed_up else "")))
-        return html.P(lines, style=_NOTE_STYLE)
+        return html.P(lines, style=_TEXT_STYLE)
 
     def layout(self):
         rows = config_rows(self.dashboard.config)
         heading = [html.B("Metric"), html.B("Label"), html.B("Other", style={'grid-column': 'span 2'}),
-                   html.B("Bad", style={'grid-column': 'span 2'}), html.B("Step"),
+                   html.B("Bad", style={'grid-column': 'span 2'}),
+                   html.B("Step", title="The slider's step; left empty, the one shown in gray"),
                    html.B("Runs with these thresholds"), html.Span()]
         button_style = {'border': 'none', 'padding': '8px 16px', 'border-radius': '4px', 'cursor': 'pointer',
                         'margin-right': '8px'}
         return html.Div([
             html.P("The metrics listed here appear in the sidebar and the table, in this order; those with a "
-                   "rule are also rated in the heatmap. Add or remove them below; Toggle Columns above the table "
-                   "shows other columns for the moment only.", style=_NOTE_STYLE),
-            html.P("A run is bad if it meets the bad rule, otherwise other if it meets the other rule, "
-                   "otherwise good; a missing value is NA. Leave an operator empty for no rule, and both "
-                   "empty for a metric that is filtered but not rated. Runs rated bad on any metric are "
-                   "hidden when the dashboard opens. Step is the slider's step; left empty, it is the one "
-                   "shown in gray.",
-                   style=_NOTE_STYLE),
+                   "rule are also rated in the heatmap.", style=_TEXT_STYLE),
+            html.P("A run is bad if it meets the bad rule, else other if it meets the other rule, else good. "
+                   "Leave an operator empty for no rule.", style=_TEXT_STYLE),
             self._file_note(),
             html.Div(id='thr-summary', style={'font-weight': 'bold', 'margin': '10px 0'}),
             html.Div(heading, style={**GRID, 'font-size': '13px', 'padding-bottom': '4px',

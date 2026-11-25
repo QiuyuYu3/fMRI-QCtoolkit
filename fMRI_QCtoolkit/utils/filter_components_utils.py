@@ -22,7 +22,7 @@ ACCENT = '#5289bd'
 # Component types of the sidebar's per-metric filters; the column names the instance
 RANGE = 'metric-range'
 STATUS = 'metric-status'
-_NOTE_STYLE = {'font-size': '12px', 'color': '#666'}
+_NOTE_STYLE = {'font-size': '14px', 'color': '#555'}
 
 
 def _clean(x):
