@@ -139,7 +139,7 @@ class TestEditingRows:
         rows = tab.edit(rows_of(tab.dashboard), "thr-add", None, "efc")
         assert self.keys(rows)[-1] == "efc"
         rows = tab.edit(rows, {"type": "thr-up", "key": "efc"}, 1, None)
-        assert self.keys(rows)[-2:] == ["efc", "seconds_per_run"]
+        assert self.keys(rows)[-2:] == ["efc", "aqi"]
         rows = tab.edit(rows, {"type": "thr-down", "key": "fd_perc"}, 1, None)
         assert self.keys(rows)[:2] == ["fd_mean", "fd_perc"]
         rows = tab.edit(rows, {"type": "thr-delete", "key": "efc"}, 1, None)
@@ -150,7 +150,7 @@ class TestEditingRows:
         rows = rows_of(tab.dashboard)
         for trigger, clicked in [({"type": "thr-delete", "key": "fd_perc"}, 0),
                                  ({"type": "thr-up", "key": "fd_perc"}, 1),
-                                 ({"type": "thr-down", "key": "seconds_per_run"}, 1)]:
+                                 ({"type": "thr-down", "key": "aqi"}, 1)]:
             with pytest.raises(PreventUpdate):
                 tab.edit(rows, trigger, clicked, None)
 

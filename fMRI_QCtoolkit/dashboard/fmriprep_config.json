@@ -1,14 +1,13 @@
 {
   "metrics": {
-    "fd_perc":         {"label": "% of FDs above threshold", "other": "> 15",   "bad": "> 20"},
-    "fd_mean":         {"label": "Average FD",               "other": ">= 0.2", "bad": ">= 0.3"},
-    "tsnr":            {"label": "TSNR Average"},
-    "gcor":            {"label": "GCOR"},
-    "dvars_nstd":      {"label": "DVARS"},
-    "gsr_x":           {"label": "Ghost to Signal Ratio X"},
-    "gsr_y":           {"label": "Ghost to Signal Ratio Y"},
-    "aor":             {"label": "AFNI's Outlier Ratio"},
-    "aqi":             {"label": "AFNI's Quality Index"},
-    "seconds_per_run": {"label": "Seconds per Run"}
+    "fd_perc":    {"label": "% of FDs above threshold", "other": "> 15",   "bad": "> 20"},
+    "fd_mean":    {"label": "Average FD",               "other": ">= 0.2", "bad": ">= 0.3"},
+    "tsnr":       {"label": "TSNR Average"},
+    "gcor":       {"label": "GCOR"},
+    "dvars_nstd": {"label": "DVARS"},
+    "gsr_x":      {"label": "Ghost to Signal Ratio X"},
+    "gsr_y":      {"label": "Ghost to Signal Ratio Y"},
+    "aor":        {"label": "AFNI's Outlier Ratio"},
+    "aqi":        {"label": "AFNI's Quality Index"}
   }
 }

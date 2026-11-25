@@ -29,6 +29,7 @@
 ### Removed
 - `lollipop_chart_data.csv` and the dashboards' `--lollipop-file` option.
 - The old standalone scripts in `examples/scripts`, replaced by the `fmriqc` commands.
+- `seconds_per_run` from the default fMRIPrep metrics; `fmriqc prep` never produced it.
 - For Python users: `assign_afni_status` and `assign_fmriprep_status` (use `assign_status`), and the `lollipop_file` argument of `from_saved_data`.
 
 
