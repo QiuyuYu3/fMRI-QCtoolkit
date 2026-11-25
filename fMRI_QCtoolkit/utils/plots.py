@@ -140,16 +140,17 @@ def create_heatmap(data, variable_labels, title="",
             group_labels.append(f"Subjects {start_idx+1}-{end_idx}")
             start_idx = end_idx
 
-    # Create subplots
+    # Create subplots; each panel is cell_size per row, with room between panels for ticks and a title
     n_groups = len(group_data)
+    panel_gap = 100
+    plot_height = n_groups * (cell_size * len(var_order) + panel_gap) - panel_gap
     fig = make_subplots(
         rows=n_groups, cols=1,
-        vertical_spacing=0.25 / max(1, n_groups - 1) if n_groups > 1 else 0.25,
+        vertical_spacing=panel_gap / plot_height if n_groups > 1 else 0,
         subplot_titles=group_labels
     )
 
     max_subjects = 0
-    max_vars = 0
     traces = []
 
     # Process each group
@@ -175,7 +176,6 @@ def create_heatmap(data, variable_labels, title="",
         n_variables = len(pivot_data_num.index)
 
         max_subjects = max(max_subjects, n_subjects)
-        max_vars = max(max_vars, n_variables)
 
         # Create coordinates
         x_coords = list(range(n_subjects))
@@ -194,7 +194,8 @@ def create_heatmap(data, variable_labels, title="",
                       for label, row in zip(var_labels, statuses) for subject, status in zip(subjects, row)]
 
         # Build square-marker grid (discrete colors, no interpolation)
-        marker_size = max(6, cell_size - 4)
+        # A 2 px gap between cells, as the plot area gives each cell exactly cell_size
+        marker_size = max(6, cell_size - 2)
         cell_colors = [status_colors.get(int(num), status_colors[0]) for num in pivot_data_num.to_numpy().ravel()]
         traces.append(dict(
             type="scatter",
@@ -235,9 +236,12 @@ def create_heatmap(data, variable_labels, title="",
             row=i, col=1
         )
 
-    # Calculate figure dimensions; the left margin grows with the longest label
-    fig_width = cell_size * max_subjects + 150 + label_px
-    fig_height = (cell_size * max_vars + 100) * n_groups
+    # Every panel spaces its cells as the widest one does
+    fig.update_xaxes(range=[-0.5, max_subjects - 0.5])
+
+    # The plot area is cell_size per subject; the margins hold the row labels and the last tilted tick
+    fig_width = cell_size * max_subjects + 50 + label_px
+    fig_height = plot_height + 100
 
     fig.update_layout(
         title=title,

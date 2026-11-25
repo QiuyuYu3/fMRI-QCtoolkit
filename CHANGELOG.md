@@ -17,6 +17,7 @@
 - The table shows numbers with three decimals; its data and downloads keep full precision.
 - The Plots tab is drawn only while it is open, and its heatmaps are redrawn only when the filtered rows change, so a filter change on the Table tab no longer waits for the plots. The lollipop chart is drawn once, when the Plots tab first opens.
 - The heatmaps are drawn several times faster on large tables.
+- Heatmap cells sit 2 px apart again, as before 1.0, and the panels for different sessions or runs space their cells alike.
 - Select All and Clear only change the selection; they no longer refilter the table and redraw the plots.
 - `fmriqc prep fmriprep` keeps every numeric metric of `group_bold.tsv` in `df_final.csv` instead of a fixed eleven, so any of them can be added to the dashboard, and an MRIQC output without one of the eleven no longer stops it.
 - The table shows the ID, session and run columns, the metrics in the sidebar and the ratings; the other columns start hidden and **Toggle Columns** shows them. Downloads keep every column.
