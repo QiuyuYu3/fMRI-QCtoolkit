@@ -8,8 +8,8 @@ authors:
     family-names: Yu
     email: qiuyuyu.psych@gmail.com
     orcid: "https://orcid.org/0009-0003-5242-6302"
-version: 1.0.0
-date-released: "2026-10-24"
+version: 2.0.0
+date-released: "2026-11-25"
 license: Apache-2.0
 repository-code: "https://github.com/QiuyuYu3/fMRI-QCtoolkit"
 keywords:

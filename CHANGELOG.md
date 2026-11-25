@@ -3,6 +3,33 @@
 ## [Unreleased]
 
 
+## [2.0.0] - 2026-11-25
+### Changed
+- **`fmriqc prep` writes only `df_final.csv`, at full precision.** The dashboard computes the lollipop chart from it when it loads, so `lollipop_chart_data.csv` is gone and values are no longer rounded to three decimals on disk.
+- **Thresholds live in the dashboard config.** Each metric is one line in `afni_config.json` or `fmriprep_config.json`, with an optional label and slider step and `other`/`bad` rules such as `">= 0.2"`. The heatmap colors and the default filters both read them, so changing a threshold changes both. Config files from 1.x no longer work; `fmriqc config` writes the new format.
+- **By default only runs rated bad are hidden.** Runs rated other are shown and colored yellow in the heatmap, so more runs are shown by default than in 1.0. Each rated metric has good / other / bad / NA tick boxes in place of "Include NA", and its slider starts at the full range.
+- Runs with a `flip_guess` other than 0 are hidden by default; 1.0 showed them.
+- Runs whose fraction of TRs censored for a stimulus class is exactly 0.2 are hidden by default; 1.0 showed them.
+- Ratings use the unrounded values, so a value within 0.0005 of a threshold can be rated differently than in 1.0 (a censor fraction of 0.1496 is now good, not other).
+- fMRIPrep's `tsnr` and `gcor` no longer have thresholds: they are not colored and not in the heatmap, but can still be filtered with their sliders. fMRIPrep runs are rated on `fd_perc` and `fd_mean` only, and a `gcor` above 0.15 no longer hides a run by default.
+- The sidebar lists the thresholds of the pipeline shown; the fMRIPrep dashboard used to show AFNI's.
+- Heatmap rows use the sidebar labels and follow the config order from the top. The AFNI heatmap of a task has a row for each fraction-of-TRs-censored column.
+- The table shows numbers with three decimals; its data and downloads keep full precision.
+- The Plots tab is drawn only while it is open, and its heatmaps are redrawn only when the filtered rows change, so a filter change on the Table tab no longer waits for the plots. The lollipop chart is drawn once, when the Plots tab first opens.
+- The heatmaps are drawn several times faster on large tables.
+- Select All and Clear only change the selection; they no longer refilter the table and redraw the plots.
+
+### Added
+- `--config FILE` for both dashboard commands, to use your own thresholds.
+- `fmriqc config afni|fmriprep --output FILE` writes the default config to edit. It refuses to overwrite an existing file unless `--force` is given.
+- The dashboard prints the config it uses when it starts, and lists the config metrics missing from the data.
+
+### Removed
+- The `--lollipop-file` option of both dashboard commands, and the `lollipop_file` argument of `from_saved_data`.
+- `assign_afni_status` and `assign_fmriprep_status`, replaced by `assign_status`.
+- The early standalone scripts in `examples/scripts` (`dash/`, the AFNI and fMRIPrep scripts in `data_prep/`, the two `*_dataprep_dash.py` scripts and `afni_QC_shinyR.R`), which the `fmriqc` commands replace.
+
+
 ## [1.0.0] - 2026-10-24
 ### Security
 - The rating interface and dashboards now require a per-session token. The terminal prints a link containing it; requests without it get "Access denied". This keeps other users on a shared machine (such as an HPC login node) out of the pages and the ratings.
