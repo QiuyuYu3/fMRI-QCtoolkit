@@ -179,6 +179,15 @@ class TestFromSavedData:
         assert pipeline.df_final['session'].tolist()[:2] == ['01', 'pre']
         assert pipeline.get_lollipop_data()['session'].tolist()[:2] == ['01', 'pre']
 
+    def test_a_metric_that_never_varies_sits_at_zero(self, temp_dir):
+        data_file = temp_dir / "df_final.csv"
+        data_file.write_text("ID,session,run,fd_mean,tsnr\n001,01,1,0.1,135\n002,01,1,0.3,135\n003,01,1,,135\n")
+
+        lol = FMRIPrepPipeline.from_saved_data(data_file=data_file).get_lollipop_data()
+
+        assert lol.loc[lol["Variable"] == "tsnr", "Value"].tolist() == [0.0, 0.0, 0.0]
+        assert lol.loc[lol["Variable"] == "fd_mean", "Value"].tolist()[:2] == [-0.707, 0.707]
+
     def test_table_without_metrics_gives_an_empty_lollipop(self, temp_dir):
         data_file = temp_dir / "df_final.csv"
         data_file.write_text("ID,session,run\n001,01,1\n")

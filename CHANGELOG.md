@@ -26,6 +26,7 @@
 
 ### Fixed
 - With Dash 4, the value boxes under each sidebar slider no longer cover the first tick box below them.
+- In the lollipop chart, a metric with the same value in every run (such as `TRs_total_raw` when all runs have the same length) is drawn at 0 instead of at its raw value, which flattened every other metric.
 
 ### Added
 - A **Thresholds** tab in both dashboards. It edits the labels, rules and slider steps, adds, removes and reorders metrics, and counts the runs each metric would rate good, other, bad and NA before anything is saved. Save writes the `--config` file, keeps the previous version as `<name>.bak`, and reloads the page with the new thresholds, without restarting the dashboard.

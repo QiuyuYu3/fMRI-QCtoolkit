@@ -64,8 +64,10 @@ class BaseDataProcessor(ABC):
         # Create scaled data (z-scores)
         scaled_data = quan_data.copy()
         for var in vars_of_interest:
-            if var in scaled_data.columns and std_values[var] != 0:
-                scaled_data[var] = (scaled_data[var] - mean_values[var]) / std_values[var]
+            if var in scaled_data.columns:
+                centered = scaled_data[var] - mean_values[var]
+                # A metric that never varies (or has one value) sits at 0 rather than at its raw value
+                scaled_data[var] = centered / std_values[var] if std_values[var] > 0 else centered
         
         # Pivot to long format for visualization (keep session/run for grouping)
         id_vars = ["ID"] + [c for c in ("session", "run") if c in scaled_data.columns]
