@@ -1,8 +1,9 @@
 """
 Tests for the dashboards' filtering, heatmap data, sidebar and table selection.
-Callbacks are not driven through Dash; their logic is called directly.
+Most callback logic is called directly; `dash_call` drives a callback through Dash's request path.
 """
 
+import io
 import json
 from pathlib import Path
 
@@ -38,6 +39,27 @@ def layout_values(dashboard):
 def shown_ids(dashboard, ranges, statuses, ratings):
     positions = dashboard.filtered_positions(ranges, statuses, ratings)
     return dashboard.processor.get_data().iloc[positions]["ID"].tolist()
+
+
+def dash_call(dashboard, output, values, changed):
+    """POST the callback that has `output` as the browser would; inputs not in `values` keep their layout values."""
+    key, spec = next((k, s) for k, s in dashboard.app.callback_map.items() if output in k)
+    comps = {c.id: c for c in dashboard.app.layout._traverse() if isinstance(getattr(c, "id", None), str)}
+
+    def value(item):
+        ident = (item["id"], item["property"])
+        return values[ident] if ident in values else getattr(comps.get(item["id"]), item["property"], None)
+
+    outputs = [dict(zip(("id", "property"), o.rsplit(".", 1))) for o in key.strip(".").split("...")]
+    client = dashboard.app.server.test_client()
+    client.get(f"/?token={dashboard.gate.token}")
+    return client.post("/_dash-update-component", json={
+        "output": key,
+        "outputs": outputs if len(outputs) > 1 else outputs[0],
+        "inputs": [dict(item, value=value(item)) for item in spec["inputs"]],
+        "state": [dict(item, value=value(item)) for item in spec.get("state", [])],
+        "changedPropIds": [changed],
+    })
 
 
 def afni_runs():
@@ -241,36 +263,61 @@ class TestQualitativeHeatmapRows:
 
 
 class TestCarrySelection:
-
-    @staticmethod
-    def _runs():
-        return pd.DataFrame({
-            'ID': ['001', '001', '001', '002'],
-            'session': ['01', '01', '02', '01'],
-            'run': [1, 2, 1, 1],
-            'fd': [0.1, 0.2, 0.3, 0.4],
-        })
-
-    def test_keeps_the_selected_run_not_the_subjects_last_row(self):
-        prev = self._runs()
-        rows = BaseDashboard._carry_selection(prev.to_dict('records'), [0], prev)
-        assert rows == [0]
+    """Selections are indices into the filtered table; the store keeps each row's position in the full table."""
 
     def test_follows_rows_when_the_filter_removes_others(self):
-        prev = self._runs()
-        filtered = prev[prev['fd'] > 0.15].reset_index(drop=True)
-        rows = BaseDashboard._carry_selection(prev.to_dict('records'), [1, 2], filtered)
-        assert filtered.iloc[rows][['session', 'run']].values.tolist() == [['01', 2], ['02', 1]]
+        assert BaseDashboard._carry_selection([0, 1, 2, 3], [1, 2], [1, 2, 3]) == [0, 1]
 
     def test_rows_filtered_out_are_dropped(self):
-        prev = self._runs()
-        filtered = prev[prev['ID'] == '002'].reset_index(drop=True)
-        assert BaseDashboard._carry_selection(prev.to_dict('records'), [0], filtered) == []
+        assert BaseDashboard._carry_selection([0, 1, 2, 3], [0], [3]) == []
 
-    def test_frames_without_session_or_run_match_on_id(self):
-        prev = pd.DataFrame({'ID': ['001', '002', '003']})
-        filtered = prev.iloc[1:].reset_index(drop=True)
-        assert BaseDashboard._carry_selection(prev.to_dict('records'), [2], filtered) == [1]
+    def test_rows_that_come_back_stay_unselected(self):
+        assert BaseDashboard._carry_selection([1, 2], [0], [0, 1, 2]) == [1]
+
+    def test_indices_past_the_previous_table_are_ignored(self):
+        assert BaseDashboard._carry_selection([5], [0, 3], [5]) == [0]
 
     def test_nothing_selected(self):
-        assert BaseDashboard._carry_selection(None, [], self._runs()) == []
+        assert BaseDashboard._carry_selection(None, [], [0, 1]) == []
+
+
+def precise_runs():
+    return pd.DataFrame({"ID": ["001", "002", "003"], "session": ["01"] * 3, "run": [1, 1, 1],
+                         "fd_perc": [1.0, 2.0, 3.0], "fd_mean": [0.123456789012345, 0.2, 0.25]})
+
+
+class TestSelectedRows:
+
+    def test_selection_reads_the_loaded_table_at_full_precision(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
+        rows = dashboard.selected_data([0, 2], [1, 0])
+        assert rows["ID"].tolist() == ["003", "001"]
+        assert rows["fd_mean"].tolist() == [0.25, 0.123456789012345]
+
+    def test_download_keeps_full_precision(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
+        resp = dash_call(dashboard, "download-dataframe-csv.data",
+                         {("download-button", "n_clicks"): 1, ("datatable", "selected_rows"): [0],
+                          ("filtered-rows", "data"): [0, 2]}, "download-button.n_clicks")
+        csv = resp.get_json()["response"]["download-dataframe-csv"]["data"]["content"]
+        rows = pd.read_csv(io.StringIO(csv), dtype={"ID": str}, float_precision="round_trip")
+        assert rows["ID"].tolist() == ["001"]
+        assert rows["fd_mean"].tolist() == [0.123456789012345]
+
+    @pytest.mark.parametrize("button, expected", [("select-all-button", [0, 1]), ("clear-selection-button", [])])
+    def test_buttons_change_the_selection_without_resending_the_table(self, tmp_path, button, expected):
+        dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
+        resp = dash_call(dashboard, "datatable.data",
+                         {("filtered-rows", "data"): [0, 2], ("datatable", "selected_rows"): [1],
+                          (button, "n_clicks"): 1}, f"{button}.n_clicks")
+        assert resp.get_json()["response"] == {"datatable": {"selected_rows": expected}}
+
+    def test_a_filter_change_stores_positions_and_keeps_the_selected_run(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
+        resp = dash_call(dashboard, "datatable.data",
+                         {("filtered-rows", "data"): [1, 2], ("datatable", "selected_rows"): [1]},
+                         "fd_mean_slider.value")
+        response = resp.get_json()["response"]
+        assert response["filtered-rows"]["data"] == [0, 1, 2]
+        assert [r["ID"] for r in response["datatable"]["data"]] == ["001", "002", "003"]
+        assert response["datatable"]["selected_rows"] == [2]

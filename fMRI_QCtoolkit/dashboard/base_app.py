@@ -8,7 +8,7 @@ from pathlib import Path
 import dash
 import numpy as np
 import pandas as pd
-from dash import dcc, html, Input, Output, State, dash_table
+from dash import ctx, dcc, html, no_update, Input, Output, State, dash_table
 from dash.dash_table.Format import Format, Scheme, Trim
 
 from .config import default_config_path, load_config, resolve_metrics
@@ -68,7 +68,8 @@ class BaseDashboard:
     def setup_layout(self):
         """Setup the dashboard layout."""
         self.app.layout = html.Div([
-            dcc.Store(id='filtered-data-store'),
+            # Positions in the full table of the rows that pass the filters
+            dcc.Store(id='filtered-rows'),
 
             html.Div([
                 # Sidebar
@@ -284,7 +285,7 @@ class BaseDashboard:
                 Output('datatable', 'data'),
                 Output('quantitative-heatmap', 'figure'),
                 Output('qualitative-heatmap', 'figure'),
-                Output('filtered-data-store', 'data'),
+                Output('filtered-rows', 'data'),
                 Output('datatable', 'selected_rows')
             ],
             [Input(f'{m.column}_slider', 'value') for m in self.metrics]
@@ -293,48 +294,38 @@ class BaseDashboard:
             + [Input('select-all-button', 'n_clicks'), Input('clear-selection-button', 'n_clicks')],
             [
                 State('datatable', 'selected_rows'),
-                State('filtered-data-store', 'data')
+                State('filtered-rows', 'data')
             ]
         )
         def update_all_data(*args):
+            prev_selected_rows, prev_positions = args[-2], args[-1]
+            # The buttons change the selection only; the filtered rows stay as they are
+            if ctx.triggered_id == 'select-all-button':
+                return no_update, no_update, no_update, no_update, list(range(len(prev_positions or [])))
+            if ctx.triggered_id == 'clear-selection-button':
+                return no_update, no_update, no_update, no_update, []
+
             ranges, statuses = args[:n_metrics], args[n_metrics:2 * n_metrics]
             ratings = args[2 * n_metrics:2 * n_metrics + len(groups)]
-            prev_selected_rows, prev_filtered_data = args[-2], args[-1]
-
-            df = self.processor.get_data().iloc[self.filtered_positions(ranges, statuses, ratings)]
+            positions = self.filtered_positions(ranges, statuses, ratings)
+            df = self.processor.get_data().iloc[positions]
             quant_fig, qual_fig = self.heatmap_figures(df)
-
-            triggered = dash.callback_context.triggered
-            trigger_id = triggered[0]['prop_id'].split('.')[0] if triggered else None
-
-            if trigger_id == 'select-all-button':
-                new_selected_rows = list(range(len(df)))
-            elif trigger_id == 'clear-selection-button':
-                new_selected_rows = []
-            else:
-                new_selected_rows = self._carry_selection(prev_filtered_data, prev_selected_rows, df)
-
-            records = df.to_dict('records')
-            return records, quant_fig, qual_fig, records, new_selected_rows
+            return (df.to_dict('records'), quant_fig, qual_fig, positions,
+                    self._carry_selection(prev_positions, prev_selected_rows, positions))
 
     @staticmethod
-    def _row_keys(frame):
-        """One key per row; a subject can have several sessions and runs."""
-        cols = [c for c in ('ID', 'session', 'run') if c in frame.columns]
-        return frame[cols].fillna('').astype(str).agg('|'.join, axis=1).tolist()
+    def _carry_selection(prev_positions, prev_selected_rows, positions):
+        """Indices in the new table of the rows that were selected in the previous one."""
+        if not prev_positions or not prev_selected_rows:
+            return []
+        selected = {prev_positions[i] for i in prev_selected_rows if i < len(prev_positions)}
+        return [i for i, position in enumerate(positions) if position in selected]
 
-    @classmethod
-    def _carry_selection(cls, prev_records, prev_selected_rows, df):
-        """Indices in `df` of the rows that were selected in the previous table."""
-        if not prev_selected_rows or not prev_records or df.empty:
-            return []
-        try:
-            prev_df = pd.DataFrame(prev_records)
-            selected = set(cls._row_keys(prev_df.iloc[prev_selected_rows]))
-        except Exception as e:
-            print("Failed to extract previous selected rows:", e)
-            return []
-        return [i for i, key in enumerate(cls._row_keys(df)) if key in selected]
+    def selected_data(self, positions, selected_rows):
+        """Full-precision rows behind the table's selection; `selected_rows` index the filtered table."""
+        positions = positions or []
+        picked = [positions[i] for i in selected_rows or [] if i < len(positions)]
+        return self.processor.get_data().iloc[picked]
 
     def heatmap_figures(self, df):
         quant_labels, qual_labels = self.get_variable_labels()
@@ -391,22 +382,15 @@ class BaseDashboard:
         @self.app.callback(
             Output('selected-rows-display', 'children'),
             [Input('datatable', 'selected_rows'),
-            Input('filtered-data-store', 'data')]
+            Input('filtered-rows', 'data')]
         )
-        def display_selected_rows(selected_rows, filtered_data):
-            if not selected_rows or not filtered_data:
+        def display_selected_rows(selected_rows, positions):
+            selected = self.selected_data(positions, selected_rows)
+            if selected.empty:
                 return html.Div("No row selected.", style={'padding': '10px', 'text-align': 'center'})
 
-            max_index = len(filtered_data)
-            safe_selected_rows = [i for i in selected_rows if i < max_index]
-
-            if not safe_selected_rows:
-                return html.Div("Selected rows are out of range due to filtering.", style={'padding': '10px', 'text-align': 'center', 'color': 'red'})
-
-            selected_data = [filtered_data[i] for i in safe_selected_rows]
-
             return dash_table.DataTable(
-                data=selected_data,
+                data=selected.to_dict('records'),
                 columns=self._table_columns(),
                 style_table={'height': '300px', 'overflowY': 'auto', 'overflowX': 'auto'},
                 style_cell={'textAlign': 'left', 'fontSize': '11px', 'padding': '6px'},
@@ -419,25 +403,15 @@ class BaseDashboard:
             Output("download-dataframe-csv", "data"),
             [Input("download-button", "n_clicks")],
             [State('datatable', 'selected_rows'),
-            State('filtered-data-store', 'data')]
+            State('filtered-rows', 'data')]
         )
-        def download_selected_data(n_clicks, selected_rows, filtered_data):
-            if n_clicks:
-                if selected_rows and filtered_data:
-                    max_index = len(filtered_data)
-                    safe_selected_rows = [i for i in selected_rows if i < max_index]
-
-                    if safe_selected_rows:
-                        selected_data = [filtered_data[i] for i in safe_selected_rows]
-                        df_result = pd.DataFrame(selected_data)
-                    else:
-                        df_result = pd.DataFrame({"Message": ["Selected rows are out of range due to filtering."]})
-                else:
-                    df_result = pd.DataFrame({"Message": ["No row selected."]})
-
-                return dcc.send_data_frame(df_result.to_csv, f"{self.task}_MRI_QC_subj.csv", index=False)
-
-            return dash.no_update
+        def download_selected_data(n_clicks, selected_rows, positions):
+            if not n_clicks:
+                return no_update
+            selected = self.selected_data(positions, selected_rows)
+            if selected.empty:
+                selected = pd.DataFrame({"Message": ["No row selected."]})
+            return dcc.send_data_frame(selected.to_csv, f"{self.task}_MRI_QC_subj.csv", index=False)
 
         @self.app.callback(
             Output('datatable', 'page_size'),
