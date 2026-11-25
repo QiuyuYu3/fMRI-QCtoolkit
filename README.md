@@ -114,7 +114,7 @@ The directory structure of fMRIPrep derivatives is as follows:
 - `--input-dir`: Root directory, containing results that preprocessed from different participants.
 - `--subjects`: Support input multiple participants IDs.
 - `--output-dir`: Path for exporting the scoring CSV file.
-- `--no-browser`: Only print the links, without opening browser tabs (useful on HPC; see [Access Links](#access-links)).
+- `--no-browser`: Only print the links, without opening browser tabs (useful on HPC; see [Opening the Pages](#opening-the-pages)).
 
 **Example Synatx:**
 ```bash
@@ -232,27 +232,28 @@ Each metric is one entry, keyed by its column in `df_final.csv`:
 - The file replaces the default as a whole: metrics you leave out are not shown.
 - Config files from version 1.x no longer work; write a new one with `fmriqc config`.
 
-# Access Links
-`fmriqc rating fmriprep` and `fmriqc dashboard` start a local web server that only answers requests carrying a session token. The terminal prints one link per subject (or one for the dashboard), for example:
+# Opening the Pages
+`fmriqc rating fmriprep` and `fmriqc dashboard` print a link in the terminal, for example:
 
 ```
-INFO -   http://localhost:5003/0030?token=Xk3v9QpL2mR7tYwZ8aBcD1eF4gH6jK0n
+http://localhost:5003/0030?token=Xk3v9QpL2mR7tYwZ8aBcD1eF4gH6jK0n
 ```
 
-On your own computer, the rating tabs open automatically. Otherwise, click or paste the printed link. After the first visit, the token is kept in a browser cookie and dropped from the address bar. A new token is created every time the server starts, so after a restart (or after closing the browser) use the newly printed link. An "Access denied" page means the link is missing or out of date.
+Open that link in your browser; on your own computer the rating pages open by themselves. Every start prints a new link, so if a page says "Access denied", use the link printed most recently.
 
-**Running on HPC.** Start the server on the cluster with `--no-browser`, then forward its port from your own computer and open the printed link there:
+**On HPC.** Add `--no-browser` to `fmriqc rating fmriprep`. Then, on your own computer, open a terminal and forward the port number in the link (5003 here):
 
 ```bash
-# Server on the login node
 ssh -N -L 5003:127.0.0.1:5003 user@hpc.example.edu
-# Server on a compute node (e.g. node123 inside an srun/salloc session)
+```
+
+Leave that terminal open and open the printed link in your browser. If the server runs on a compute node (for example `node123` in an `srun` or `salloc` session), go through the login node instead:
+
+```bash
 ssh -N -L 5003:127.0.0.1:5003 -J user@hpc.example.edu user@node123
 ```
 
-The local port may differ from the remote one (`-L 8888:127.0.0.1:5003`); change the port in the link accordingly and keep the token. Other users on the same node cannot open the pages without the token.
-
-`fmriqc dashboard --host` can bind to a non-loopback address, in which case the token is the only protection. With `--host 0.0.0.0` the printed link uses this machine's hostname. `--debug` is refused on such a host.
+**Advanced.** The token in the link keeps other users on the same machine out of the pages; after the first visit it is kept in a browser cookie. If you forward to a different local port (`-L 8888:127.0.0.1:5003`), change the port in the link and keep the token. `fmriqc dashboard --host` can bind to an address that other machines can reach, in which case the token is the only protection; with `--host 0.0.0.0` the printed link uses this machine's hostname, and `--debug` is refused.
 
 # [Training Materials](https://github.com/QiuyuYu3/fMRI-QCtoolkit/tree/main/training_materials)
 We have summarized the AFNI QC training documentation based on existing literature and included several case studies (still under revision).
