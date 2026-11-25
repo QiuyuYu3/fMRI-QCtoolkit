@@ -5,7 +5,7 @@ import pytest
 from fMRI_QCtoolkit.dashboard.config import default_config_path, load_config
 from fMRI_QCtoolkit.utils.status import (
     assign_status,
-    describe_other,
+    describe_rest,
     format_rule,
     get_status_colors,
     get_status_mapping,
@@ -86,17 +86,33 @@ class TestAssignStatus:
     def test_rated_tiers_are_the_statuses_the_rules_can_give(self, rules, tiers):
         assert rated_tiers(rules) == tiers
 
-    @pytest.mark.parametrize("rules,other", [
+    @pytest.mark.parametrize("rules,rest", [
         ({"good": ("<=", 15.0), "bad": (">", 25.0)}, "15 < x ≤ 25"),
         ({"good": ("<", 0.15), "bad": (">=", 0.2)}, "0.15 ≤ x < 0.2"),
         ({"good": (">", 0.7), "bad": ("<=", 0.6)}, "0.6 < x ≤ 0.7"),
         ({"good": (">", 150.0)}, "x ≤ 150"),
+        ({"bad": (">=", 0.2)}, "x < 0.2"),
         ({"good": ("==", 1.0), "bad": ("==", 2.0)}, "x ≠ 1 and x ≠ 2"),
-        ({"bad": (">=", 0.2)}, None),
+        ({"good": ("<", 15.0), "bad": (">", 15.0)}, "x = 15"),
         ({"good": ("<=", 20.0), "bad": (">", 20.0)}, None),
+        ({}, "all"),
     ])
-    def test_describe_other_gives_the_values_between_good_and_bad(self, rules, other):
-        assert describe_other(rules) == other
+    def test_describe_rest_gives_the_values_that_meet_neither_rule(self, rules, rest):
+        assert describe_rest(rules) == rest
+
+    def test_otherwise_sets_the_level_of_the_rest(self):
+        assert assign_status([1, 135, 140], {"good": ("==", 135.0)}, "bad").tolist() == ["bad", "good", "bad"]
+        assert assign_status([10, 30], {"bad": (">", 20.0)}, "other").tolist() == ["other", "bad"]
+        assert assign_status([0, 5, None], {}, "other").tolist() == ["other", "other", "NA"]
+
+    @pytest.mark.parametrize("rules,otherwise,tiers", [
+        ({}, "other", ["other"]),
+        ({"good": ("==", 135.0)}, "bad", ["good", "bad"]),
+        ({"bad": (">", 20.0)}, "other", ["other", "bad"]),
+        ({"good": ("<=", 20.0), "bad": (">", 20.0)}, "other", ["good", "bad"]),
+    ])
+    def test_rated_tiers_follow_otherwise(self, rules, otherwise, tiers):
+        assert rated_tiers(rules, otherwise) == tiers
 
     @pytest.mark.parametrize("good,bad,both", [
         (("<", 0.25), (">=", 0.2), 0.2),

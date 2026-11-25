@@ -57,6 +57,16 @@ class TestFormEntries:
     def test_an_empty_label_falls_back_to_the_column_name(self):
         assert row_entry({**new_row("efc"), "label": "  "}) == {}
 
+    @pytest.mark.parametrize("fields,otherwise", [
+        ({"good-op": "<=", "good-value": 15}, None),
+        ({"good-op": "<=", "good-value": 15, "otherwise": "other"}, None),
+        ({"good-op": "<=", "good-value": 15, "otherwise": "bad"}, "bad"),
+        ({"otherwise": "good"}, None),
+        ({"otherwise": "other"}, "other"),
+    ])
+    def test_otherwise_is_written_only_where_it_differs_from_the_default(self, fields, otherwise):
+        assert row_entry({**new_row("efc"), **fields}).get("otherwise") == otherwise
+
     def test_a_number_without_an_operator_is_kept_for_the_check_to_reject(self):
         assert row_entry({**new_row("efc"), "bad-value": 0.3}) == {"label": "efc", "bad": "0.3"}
 
@@ -72,12 +82,24 @@ class TestPreview:
         assert cells[keys.index("tsnr")].children == "not in the data"
         assert errors == [None] * len(keys)
 
-    def test_each_row_shows_what_is_rated_other(self, tmp_path):
+    def test_each_row_shows_the_values_that_meet_neither_rule(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         rows = rows_of(dashboard) + [{**new_row("efc"), "bad-op": ">=", "bad-value": 0.7}]
-        others = dict(zip([r["key"] for r in rows], dashboard.settings.preview(rows)['others']))
-        assert (others["fd_perc"], others["fd_mean"], others["tsnr"], others["efc"]) == (
-            "15 < x ≤ 20", "0.2 ≤ x < 0.3", None, "none")
+        rests = dict(zip([r["key"] for r in rows], dashboard.settings.preview(rows)['rests']))
+        assert (rests["fd_perc"], rests["fd_mean"], rests["tsnr"], rests["efc"]) == (
+            "15 < x ≤ 20", "0.2 ≤ x < 0.3", "all", "x < 0.7")
+
+    def test_otherwise_shows_in_gray_the_level_the_rules_give(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        rows = rows_of(dashboard) + [{**new_row("efc"), "good-op": "<", "good-value": 0.6}]
+        assert all(r["otherwise"] is None for r in rows)
+        defaults = dict(zip([r["key"] for r in rows], dashboard.settings.preview(rows)['rest_defaults']))
+        assert (defaults["fd_perc"], defaults["tsnr"], defaults["efc"]) == ("other", "good", "other")
+
+    def test_a_metric_rated_other_throughout_is_counted(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        rows = rows_of(dashboard) + [{**new_row("efc"), "otherwise": "other"}]
+        assert chip_texts(dashboard.settings.preview(rows)['counts'][-1]) == ["other 4", "NA 0"]
 
     def test_an_unrated_metric_says_so(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
@@ -196,6 +218,14 @@ class TestSaving:
         assert not saved
         assert all(part in message for part in ("Permission denied", "--config FILE", "Download config"))
         assert dashboard.config_version == 0
+
+    def test_saving_otherwise_rates_the_rest_with_it(self, saved_to):
+        dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs(), {"metrics": {"fd_mean": {}}})
+        rows = rows_of(dashboard) + [{**new_row("efc"), "good-op": "<", "good-value": 0.65, "otherwise": "bad"}]
+        assert dashboard.settings.save(rows, version=0)[1]
+        assert json.loads(path.read_text(encoding="utf-8"))["metrics"]["efc"] == {
+            "label": "efc", "good": "< 0.65", "otherwise": "bad"}
+        assert dashboard.status["efc"].tolist() == ["good", "good", "bad", "bad"]
 
     def test_the_previous_file_is_kept_as_bak(self, saved_to):
         original = {"metrics": {"fd_mean": {"bad": "> 1"}}}

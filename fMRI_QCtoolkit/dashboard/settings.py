@@ -12,14 +12,15 @@ from dash.exceptions import PreventUpdate
 from .config import (ID_COLUMNS, ConfigError, Metric, backup_path, default_config_path, dump_config, load_config,
                      parse_config, parse_entry, parse_table_columns, resolve_metrics, save_config)
 from ..utils.filter_components_utils import ACCENT, slider_bounds
-from ..utils.status import (RULE_TIERS, assign_status, describe_other, format_number, get_status_colors,
-                            get_status_mapping, rated_tiers)
+from ..utils.status import (LEVELS, RULE_TIERS, assign_status, describe_rest, format_number, get_status_colors,
+                            get_status_mapping, rated_tiers, rest_tier)
 
 SETTINGS_TAB = 'settings-tab'
-FIELDS = ('label', 'good-op', 'good-value', 'bad-op', 'bad-value', 'step')
+FIELDS = ('label', 'good-op', 'good-value', 'bad-op', 'bad-value', 'otherwise', 'step')
 OPERATORS = ['>', '>=', '<', '<=', '==', '!=']
 # A blank choice for "no rule" instead of a clear button, which leaves no room for the value in a narrow column
 OPERATOR_OPTIONS = [{'label': '\u00a0', 'value': ''}] + [{'label': op, 'value': op} for op in OPERATORS]
+LEVEL_OPTIONS = [{'label': level, 'value': level} for level in LEVELS]
 TIER_COLORS = {tier: get_status_colors()[number] for tier, number in get_status_mapping().items()}
 # Seconds of no typing before a box is sent, so the preview does not chase every keystroke
 TYPING_PAUSE_S = 0.5
@@ -40,14 +41,14 @@ _RANK = {'NA': 0, 'good': 1, 'other': 2, 'bad': 3}
 
 def new_row(column):
     return {'key': column, 'label': column, 'good-op': None, 'good-value': None,
-            'bad-op': None, 'bad-value': None, 'step': None}
+            'bad-op': None, 'bad-value': None, 'otherwise': None, 'step': None}
 
 
 def config_rows(metrics):
     rows = []
     for key, metric in metrics.items():
         row = new_row(key)
-        row.update(label=metric.entry_label, step=metric.step)
+        row.update(label=metric.entry_label, step=metric.step, otherwise=metric.otherwise)
         for tier, (op, value) in metric.rules.items():
             row[f'{tier}-op'], row[f'{tier}-value'] = op, value
         rows.append(row)
@@ -69,9 +70,19 @@ def row_entry(row):
         op, value = row.get(f'{tier}-op'), row.get(f'{tier}-value')
         if op or value is not None:
             entry[tier] = f"{op or ''} {'' if value is None else format_number(value)}".strip()
+    # Written only where it differs from what the rules give anyway, so default entries read as before
+    otherwise = row.get('otherwise')
+    if otherwise and otherwise != default_rest(row):
+        entry['otherwise'] = otherwise
     if row.get('step') is not None:
         entry['step'] = row['step']
     return entry
+
+
+def default_rest(row):
+    """The level a row's rules give the values that meet neither, before Otherwise is picked."""
+    given = [tier for tier in RULE_TIERS if row.get(f'{tier}-op') or row.get(f'{tier}-value') is not None]
+    return rest_tier(dict.fromkeys(given))
 
 
 def form_raw(rows, table=()):
@@ -95,9 +106,9 @@ def _note(text):
     return html.Span(text, style=_NOTE_STYLE)
 
 
-def _count_chips(status, rules, n_columns=None):
+def _count_chips(status, metric, n_columns=None):
     counts = status.value_counts()
-    tiers = rated_tiers(rules) + ['NA']
+    tiers = rated_tiers(metric.rules, metric.otherwise) + ['NA']
     chips = [html.Span(f"{tier} {int(counts.get(tier, 0))}",
                        style={'background-color': TIER_COLORS[tier], 'padding': '1px 6px',
                               'border-radius': '3px', 'margin-right': '4px', 'white-space': 'nowrap'})
@@ -175,7 +186,12 @@ class SettingsTab:
                 html.Code(key, style={'overflow-wrap': 'anywhere'}),
                 dcc.Input(id=ident('label'), type='text', value=row['label'], debounce=TYPING_PAUSE_S, style=_BOX),
                 operator('good'), number('good-value'),
-                html.Div(id=ident('other'), style={'font-size': '12px', 'color': '#555'}),
+                # Empty follows the rules, shown in gray like the automatic step
+                html.Div([dcc.Dropdown(id=ident('otherwise'), options=LEVEL_OPTIONS, value=row['otherwise'],
+                                       placeholder=default_rest(row), clearable=False, searchable=False,
+                                       style={'font-size': '13px'}),
+                          html.Div(id=ident('rest'),
+                                   style={'font-size': '12px', 'color': '#555', 'margin-top': '2px'})]),
                 operator('bad'), number('bad-value'),
                 number('step', self._auto_step(row)),
                 html.Div(id=ident('counts')),
@@ -205,7 +221,8 @@ class SettingsTab:
         rows = config_rows(config.metrics)
         keys = [r['key'] for r in rows]
         heading = [html.B("Metric"), html.B("Label"), html.B("Good", style={'grid-column': 'span 2'}),
-                   html.B("Other", title="Neither good nor bad; follows from the two rules"),
+                   html.B("Otherwise", title="The level of a value that meets neither rule, with the range below; "
+                                             "gray is what the rules give"),
                    html.B("Bad", style={'grid-column': 'span 2'}),
                    html.B("Step", title="The slider's step; left empty, the one shown in gray"),
                    html.B("Runs with these thresholds"), html.Span()]
@@ -214,9 +231,8 @@ class SettingsTab:
         return html.Div([
             html.P("The metrics listed here appear in the sidebar and the table, in this order; those with a "
                    "rule are also rated in the heatmap.", style=_TEXT_STYLE),
-            html.P("A run is good if it meets the good rule, bad if it meets the bad rule, and other if it "
-                   "meets neither. Fill in only Bad for two levels (good and bad), only Good to flag runs without "
-                   "hiding any (good and other), or both for all three.", style=_TEXT_STYLE),
+            html.P("A run is good if it meets the good rule, bad if it meets the bad rule, and gets the level "
+                   "under Otherwise if it meets neither. Leave an operator empty for no rule.", style=_TEXT_STYLE),
             self._file_note(),
             html.Div(id='thr-summary', style={'font-weight': 'bold', 'margin': '10px 0'}),
             html.Div(heading, style={**GRID, 'font-size': '13px', 'padding-bottom': '4px',
@@ -272,20 +288,20 @@ class SettingsTab:
 
         hidden = np.zeros(len(df), dtype=bool)
         cells = []
-        others = [None if row['key'] in errors or not parsed[row['key']].rules
-                  else describe_other(parsed[row['key']].rules) or "none" for row in rows]
+        rests = [None if row['key'] in errors else describe_rest(parsed[row['key']].rules) or "none"
+                 for row in rows]
         for row in rows:
             key, metrics = row['key'], by_entry.get(row['key'], [])
             if key in errors:
                 cells.append(None)
             elif not metrics:
                 cells.append(_note("not in the data"))
-            elif not parsed[key].rules:
+            elif not parsed[key].rated:
                 cells.append(_note("no thresholds"))
             else:
-                status = worst_status([assign_status(d.numeric(m.column), m.rules) for m in metrics])
+                status = worst_status([assign_status(d.numeric(m.column), m.rules, m.otherwise) for m in metrics])
                 hidden |= (status == 'bad').to_numpy()
-                cells.append(_count_chips(status, parsed[key].rules, len(metrics) if '*' in key else None))
+                cells.append(_count_chips(status, parsed[key], len(metrics) if '*' in key else None))
 
         keys = [row['key'] for row in rows]
         try:
@@ -306,7 +322,8 @@ class SettingsTab:
             summary = "Add at least one metric."
         return {
             'counts': cells,
-            'others': others,
+            'rests': rests,
+            'rest_defaults': [default_rest(row) for row in rows],
             'errors': [errors.get(row['key']) for row in rows],
             'summary': summary,
             'save_off': d.save_path is None or invalid or not changed,
@@ -417,7 +434,8 @@ class SettingsTab:
 
         @app.callback(
             [Output({'type': 'thr-counts', 'key': ALL}, 'children'),
-             Output({'type': 'thr-other', 'key': ALL}, 'children'),
+             Output({'type': 'thr-rest', 'key': ALL}, 'children'),
+             Output({'type': 'thr-otherwise', 'key': ALL}, 'placeholder'),
              Output({'type': 'thr-error', 'key': ALL}, 'children'),
              Output('thr-summary', 'children'),
              Output('thr-save', 'disabled'),
@@ -431,8 +449,8 @@ class SettingsTab:
         def update_preview(*args):
             *fields, table = args
             shown = self.preview(form_rows(_keys(ctx.inputs_list[0]), *fields), table or [])
-            return [shown[k] for k in ('counts', 'others', 'errors', 'summary', 'save_off', 'download_off',
-                                       'unsaved', 'options', 'table_options', 'table_error')]
+            return [shown[k] for k in ('counts', 'rests', 'rest_defaults', 'errors', 'summary', 'save_off',
+                                       'download_off', 'unsaved', 'options', 'table_options', 'table_error')]
 
         @app.callback(
             Output('thr-download', 'data'),

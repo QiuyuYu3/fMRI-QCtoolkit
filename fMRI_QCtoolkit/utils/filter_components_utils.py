@@ -54,9 +54,9 @@ def slider_bounds(values, metric):
 
 
 def status_options(metric):
-    if not metric.rules:
+    if not metric.rated:
         return [{'label': 'Include NA', 'value': 'NA'}]
-    return [{'label': tier, 'value': tier} for tier in rated_tiers(metric.rules) + ['NA']]
+    return [{'label': tier, 'value': tier} for tier in rated_tiers(metric.rules, metric.otherwise) + ['NA']]
 
 
 def default_statuses(metric):
@@ -134,9 +134,11 @@ def create_rules_summary(metrics):
     """The thresholds in force, one line per config entry, shown above the filters."""
     lines = {}
     for metric in metrics:
-        if metric.rules and metric.entry not in lines:
+        if metric.rated and metric.entry not in lines:
             tiers = [f"{tier} {format_rule(metric.rules[tier], symbols=True)}"
                      for tier in RULE_TIERS if tier in metric.rules]
+            if metric.otherwise:
+                tiers.append(f"otherwise {metric.otherwise}" if tiers else f"all {metric.otherwise}")
             lines[metric.entry] = f"{metric.entry_label}: {', '.join(tiers)}"
     if not lines:
         return html.P("No thresholds are set, so no run is hidden by default.", style=_NOTE_STYLE)

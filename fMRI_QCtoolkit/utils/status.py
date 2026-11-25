@@ -16,6 +16,8 @@ UPWARD = {">", ">="}
 DOWNWARD = {"<", "<="}
 # The rules a metric can have, as named in the config; "other" is whatever meets neither
 RULE_TIERS = ("good", "bad")
+# The levels a metric can give a run, best first
+LEVELS = ("good", "other", "bad")
 
 
 def parse_rule(text):
@@ -44,12 +46,17 @@ def negate_rule(rule):
     return _NEGATED[op], value
 
 
-def assign_status(values, rules):
-    """'bad' where a value meets rules['bad'], 'good' where it meets rules['good'] (with no good rule, wherever it is
-    not bad), 'other' where it meets neither; missing is 'NA'."""
+def rest_tier(rules, otherwise=None):
+    """The level of a value that meets neither rule: `otherwise` if set, else other with a good rule, else good."""
+    return otherwise or ("other" if "good" in rules else "good")
+
+
+def assign_status(values, rules, otherwise=None):
+    """'good' where a value meets rules['good'], 'bad' where it meets rules['bad'], and rest_tier where it meets
+    neither; missing is 'NA'."""
     values = pd.to_numeric(pd.Series(values), errors="coerce").astype(float)
-    status = pd.Series("good" if "good" not in rules else "other", index=values.index, dtype=object)
-    for tier in ("good", "bad"):
+    status = pd.Series(rest_tier(rules, otherwise), index=values.index, dtype=object)
+    for tier in RULE_TIERS:
         if tier in rules:
             op, threshold = rules[tier]
             status[_OPERATORS[op](values, threshold).to_numpy()] = tier
@@ -61,25 +68,32 @@ def _probes(rules):
     """One value in every stretch of the number line that the rules' thresholds mark off."""
     cuts = sorted({value for _, value in rules.values()})
     if not cuts:
-        return []
+        return [0.0]
     return [cuts[0] - 1, *cuts, *[(a + b) / 2 for a, b in zip(cuts, cuts[1:])], cuts[-1] + 1]
 
 
-def rated_tiers(rules):
-    """The statuses a metric's rules can give, in good, other, bad order; none for a metric without rules."""
-    found = set(assign_status(_probes(rules), rules)) if rules else set()
-    return [tier for tier in ("good", "other", "bad") if tier in found]
+def rated_tiers(rules, otherwise=None):
+    """The levels a metric can give, in good, other, bad order; none for a metric that is not rated."""
+    if not rules and otherwise is None:
+        return []
+    found = set(assign_status(_probes(rules), rules, otherwise))
+    return [tier for tier in LEVELS if tier in found]
 
 
-def describe_other(rules):
-    """The values rated other, such as '15 < x ≤ 25'; None if the rules rate nothing other."""
-    if "other" not in rated_tiers(rules):
+def describe_rest(rules):
+    """The values that meet neither rule, such as '15 < x ≤ 25'; 'all' without rules, None if there are none."""
+    if not rules:
+        return "all"
+    # Neither rule ever gives 'other', so it marks the values left over
+    if "other" not in set(assign_status(_probes(rules), rules, "other")):
         return None
     conditions = [negate_rule(rule) for rule in rules.values()]
     lower = [c for c in conditions if c[0] in UPWARD]
     upper = [c for c in conditions if c[0] in DOWNWARD]
     if len(lower) == 1 and len(upper) == 1:
         (low_op, low), (up_op, up) = lower[0], upper[0]
+        if low == up:
+            return f"x = {format_number(low)}"
         return f"{format_number(low)} {'<' if low_op == '>' else '≤'} x {_SYMBOLS[up_op]} {format_number(up)}"
     return " and ".join(f"x {format_rule(c, symbols=True)}" for c in conditions)
 

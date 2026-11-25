@@ -9,12 +9,12 @@ from dataclasses import dataclass, replace
 from fnmatch import fnmatchcase
 from pathlib import Path
 
-from ..utils.status import RULE_TIERS, format_number, format_rule, negate_rule, overlap, parse_rule
+from ..utils.status import LEVELS, RULE_TIERS, format_number, format_rule, negate_rule, overlap, parse_rule
 
 CONFIG_FILES = {"afni": "afni_config.json", "fmriprep": "fmriprep_config.json"}
 # Columns of df_final.csv that identify a run rather than measure it
 ID_COLUMNS = ("ID", "session", "run")
-_METRIC_FIELDS = ("label", *RULE_TIERS, "step")
+_METRIC_FIELDS = ("label", *RULE_TIERS, "otherwise", "step")
 _TOP_FIELDS = ("metrics", "table_columns")
 
 
@@ -30,6 +30,12 @@ class Metric:
     step: float = None
     entry: str = ""
     entry_label: str = ""
+    # The level of a value that meets neither rule, when the config sets one
+    otherwise: str = None
+
+    @property
+    def rated(self):
+        return bool(self.rules) or self.otherwise is not None
 
 
 @dataclass(frozen=True)
@@ -99,6 +105,8 @@ def config_to_raw(config):
     for key, metric in config.metrics.items():
         entry = {"label": metric.entry_label}
         entry.update({tier: format_rule(metric.rules[tier]) for tier in RULE_TIERS if tier in metric.rules})
+        if metric.otherwise is not None:
+            entry["otherwise"] = metric.otherwise
         if metric.step is not None:
             entry["step"] = metric.step
         metrics[key] = entry
@@ -210,4 +218,7 @@ def _parse_metric(key, entry, where):
         if both is not None:
             raise ConfigError(f"{where}: good ({format_rule(rules['good'])}) and bad ({format_rule(rules['bad'])}) "
                               f"overlap, so a value such as {format_number(both)} would be both")
-    return Metric(column=key, label=label, rules=rules, step=step, entry=key, entry_label=label)
+    otherwise = entry.get("otherwise")
+    if otherwise is not None and otherwise not in LEVELS:
+        raise ConfigError(f"{where}.otherwise must be one of {', '.join(LEVELS)}")
+    return Metric(column=key, label=label, rules=rules, step=step, entry=key, entry_label=label, otherwise=otherwise)

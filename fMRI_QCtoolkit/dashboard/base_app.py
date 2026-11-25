@@ -70,7 +70,8 @@ class BaseDashboard:
         df = self.processor.get_data()
         metrics = resolve_metrics(config.metrics, list(df.columns))
         values = {m.column: self.numeric(m.column) for m in metrics}
-        status = pd.DataFrame({m.column: assign_status(values[m.column], m.rules) for m in metrics}, index=df.index)
+        status = pd.DataFrame({m.column: assign_status(values[m.column], m.rules, m.otherwise) for m in metrics},
+                              index=df.index)
         bounds = {m.column: slider_bounds(values[m.column], m) for m in metrics}
         unmatched = [key for key in [*config.metrics, *config.table_columns]
                      if '*' not in key and key not in df.columns]
@@ -339,7 +340,7 @@ class BaseDashboard:
         for metric in self.metrics:
             # A page built before a save may lack a metric; it then gets the default filter
             selected = statuses.get(metric.column, default_statuses(metric))
-            allowed = set(selected or []) | (set() if metric.rules else {'good'})
+            allowed = set(selected or []) | (set() if metric.rated else {'good'})
             keep &= self.status[metric.column].isin(allowed).to_numpy()
             keep &= self._in_range(metric.column, ranges.get(metric.column))
         for group, selected in zip(self.processor.checkbox_groups, ratings):
@@ -427,7 +428,7 @@ class BaseDashboard:
 
     def quantitative_heatmap_rows(self, df):
         """Long table for the quantitative heatmap: one row per run and thresholded metric."""
-        metrics = [m for m in self.metrics if m.rules]
+        metrics = [m for m in self.metrics if m.rated]
         if df.empty or not metrics:
             return pd.DataFrame(columns=HEATMAP_COLUMNS)
         index = self._heatmap_index(df)

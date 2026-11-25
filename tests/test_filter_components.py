@@ -58,6 +58,8 @@ class TestStatusChecklist:
         (TSNR, ["good", "other", "NA"], ["good", "other", "NA"]),
         (FLIP, ["good", "bad", "NA"], ["good", "NA"]),
         (DVARS, ["NA"], ["NA"]),
+        (Metric("x", "X", {}, otherwise="other"), ["other", "NA"], ["other", "NA"]),
+        (Metric("x", "X", {"good": ("==", 1.0)}, otherwise="bad"), ["good", "bad", "NA"], ["good", "NA"]),
     ])
     def test_bad_is_unticked_by_default(self, metric, options, defaults):
         assert [o["value"] for o in status_options(metric)] == options

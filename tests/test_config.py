@@ -46,6 +46,7 @@ class TestConfigErrors:
          "good (< 0.25) and bad (>= 0.2) overlap, so a value such as 0.2 would be both"),
         ({"metrics": {"DF_frac": {"good": "> 0.7", "bad": "> 0.8"}}}, "overlap"),
         ({"metrics": {"x": {"good": "!= 0", "bad": "> 5"}}}, "overlap"),
+        ({"metrics": {"x": {"otherwise": "fine"}}}, "metrics.x.otherwise must be one of good, other, bad"),
         ({"metrics": {"DF_frac": {"other": "<= 0.7", "bad": "<= 0.6"}}},
          "'other' is no longer a field, since other is whatever is neither good nor bad; "
          "replace \"other\": \"<= 0.7\" with \"good\": \"> 0.7\""),
@@ -119,6 +120,8 @@ class TestWritingConfigs:
             "fd_mean": {"label": "Mean FD ≥ ok", "good": "< 0.123456789", "bad": "> 0.5000000001"},
             "frac_TRs_cens_*": {"bad": ">= 0.2", "step": 0.05},
             "efc": {},
+            "size_t": {"good": "== 135", "otherwise": "bad"},
+            "flagged": {"otherwise": "other"},
         }})
         assert parse_config(json.loads(dump_config(config_to_raw(config)))) == config
 

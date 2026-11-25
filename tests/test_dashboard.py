@@ -81,6 +81,21 @@ class TestCustomConfig:
         assert shown_ids(dashboard, *layout_values(dashboard)) == [f"00{i}" for i in range(1, 9)]
 
 
+class TestOtherwise:
+
+    def test_a_good_rule_with_otherwise_bad_hides_the_rest(self, tmp_path):
+        config = tmp_path / "lab.json"
+        config.write_text(json.dumps({"metrics": {"cens_frac": {"good": "< 0.15", "otherwise": "bad"},
+                                                  "GCOR": {"otherwise": "other"}}}))
+        dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path, config=config)
+
+        assert shown_ids(dashboard, *layout_values(dashboard)) == ["001", "004", "005", "006", "007", "008"]
+        lines = [c.children for c in dashboard.build_layout()._traverse() if type(c).__name__ == "Li"]
+        assert lines == ["cens_frac: good < 0.15, otherwise bad", "GCOR: all other"]
+        heatmap = dashboard.quantitative_heatmap_rows(dashboard.processor.get_data())
+        assert set(heatmap[heatmap["Variables"] == "GCOR"]["StatusStr"]) == {"other", "NA"}
+
+
 class TestSidebarText:
 
     @staticmethod
