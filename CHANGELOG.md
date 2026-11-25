@@ -21,7 +21,7 @@
 - `fmriqc prep fmriprep` keeps every numeric metric of `group_bold.tsv` in `df_final.csv` instead of a fixed eleven, so any of them can be added to the dashboard, and an MRIQC output without one of the eleven no longer stops it.
 - The table shows the ID, session and run columns, the metrics in the sidebar and the ratings; the other columns start hidden and **Toggle Columns** shows them. Downloads keep every column.
 - Reloading the dashboard keeps the tab that was open.
-- With Dash 4, the sliders, tick boxes and tabs take the blue of the dashboard's buttons instead of Dash 4's purple.
+- The dashboard's blue is muted, and with Dash 4 the sliders, tick boxes and tabs use it instead of Dash 4's purple.
 
 ### Fixed
 - With Dash 4, the value boxes under each sidebar slider no longer cover the first tick box below them.

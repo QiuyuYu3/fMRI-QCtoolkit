@@ -11,7 +11,7 @@ from dash.exceptions import PreventUpdate
 
 from .config import (ID_COLUMNS, ConfigError, Metric, backup_path, default_config_path, load_config,
                      parse_entry, resolve_metrics, save_config)
-from ..utils.filter_components_utils import slider_bounds
+from ..utils.filter_components_utils import ACCENT, slider_bounds
 from ..utils.status import assign_status, format_number, get_status_colors, get_status_mapping
 
 THRESHOLDS_TAB = 'thresholds-tab'
@@ -201,7 +201,7 @@ class ThresholdsTab:
                          placeholder="Add a metric from df_final.csv", style={'width': '340px', 'margin': '10px 0'}),
             html.Div([
                 html.Button("Save", id='thr-save', n_clicks=0,
-                            style={**button_style, 'background-color': '#007bff', 'color': 'white'}),
+                            style={**button_style, 'background-color': ACCENT, 'color': 'white'}),
                 html.Button("Discard changes", id='thr-discard', n_clicks=0,
                             style={**button_style, 'background-color': '#6c757d', 'color': 'white'}),
                 html.Button("Use defaults", id='thr-defaults', n_clicks=0,

@@ -17,6 +17,8 @@ RATING_OPTIONS = [
     {'label': 'NA', 'value': 'NA'},
 ]
 _MARK_COLORS = {'other': '#9A7B00', 'bad': '#C0392B'}
+# The dashboard's blue, muted so the controls do not outshine the data
+ACCENT = '#4a7fb0'
 # Component types of the sidebar's per-metric filters; the column names the instance
 RANGE = 'metric-range'
 STATUS = 'metric-status'
