@@ -12,8 +12,8 @@ from dash.exceptions import PreventUpdate
 from .config import (ID_COLUMNS, ConfigError, Metric, backup_path, default_config_path, dump_config, load_config,
                      parse_config, parse_entry, parse_table_columns, resolve_metrics, save_config)
 from ..utils.filter_components_utils import ACCENT, slider_bounds
-from ..utils.status import (RULE_TIERS, assign_status, format_number, get_status_colors, get_status_mapping,
-                            rated_tiers)
+from ..utils.status import (RULE_TIERS, assign_status, describe_other, format_number, get_status_colors,
+                            get_status_mapping, rated_tiers)
 
 SETTINGS_TAB = 'settings-tab'
 FIELDS = ('label', 'good-op', 'good-value', 'bad-op', 'bad-value', 'step')
@@ -24,7 +24,7 @@ TIER_COLORS = {tier: get_status_colors()[number] for tier, number in get_status_
 # Seconds of no typing before a box is sent, so the preview does not chase every keystroke
 TYPING_PAUSE_S = 0.5
 GRID = {'display': 'grid', 'gap': '6px', 'align-items': 'center',
-        'grid-template-columns': '130px minmax(170px, 1fr) 80px 68px 80px 68px 130px 232px 90px',
+        'grid-template-columns': '116px minmax(140px, 1fr) 80px 68px 94px 80px 68px 124px 212px 90px',
         'font-size': '13px'}
 _BOX = {'width': '100%', 'box-sizing': 'border-box', 'font-size': '13px'}
 _NOTE_STYLE = {'font-size': '12px', 'color': '#666'}
@@ -175,6 +175,7 @@ class SettingsTab:
                 html.Code(key, style={'overflow-wrap': 'anywhere'}),
                 dcc.Input(id=ident('label'), type='text', value=row['label'], debounce=TYPING_PAUSE_S, style=_BOX),
                 operator('good'), number('good-value'),
+                html.Div(id=ident('other'), style={'font-size': '12px', 'color': '#555'}),
                 operator('bad'), number('bad-value'),
                 number('step', self._auto_step(row)),
                 html.Div(id=ident('counts')),
@@ -204,6 +205,7 @@ class SettingsTab:
         rows = config_rows(config.metrics)
         keys = [r['key'] for r in rows]
         heading = [html.B("Metric"), html.B("Label"), html.B("Good", style={'grid-column': 'span 2'}),
+                   html.B("Other", title="Neither good nor bad; follows from the two rules"),
                    html.B("Bad", style={'grid-column': 'span 2'}),
                    html.B("Step", title="The slider's step; left empty, the one shown in gray"),
                    html.B("Runs with these thresholds"), html.Span()]
@@ -213,8 +215,8 @@ class SettingsTab:
             html.P("The metrics listed here appear in the sidebar and the table, in this order; those with a "
                    "rule are also rated in the heatmap.", style=_TEXT_STYLE),
             html.P("A run is good if it meets the good rule, bad if it meets the bad rule, and other if it "
-                   "meets neither. Leave an operator empty for no rule; with no good rule, every run that is not "
-                   "bad is good.", style=_TEXT_STYLE),
+                   "meets neither. Fill in only Bad for two levels (good and bad), only Good to flag runs without "
+                   "hiding any (good and other), or both for all three.", style=_TEXT_STYLE),
             self._file_note(),
             html.Div(id='thr-summary', style={'font-weight': 'bold', 'margin': '10px 0'}),
             html.Div(heading, style={**GRID, 'font-size': '13px', 'padding-bottom': '4px',
@@ -269,6 +271,8 @@ class SettingsTab:
 
         hidden = np.zeros(len(df), dtype=bool)
         cells = []
+        others = [None if row['key'] in errors or not parsed[row['key']].rules
+                  else describe_other(parsed[row['key']].rules) or "none" for row in rows]
         for row in rows:
             key, metrics = row['key'], by_entry.get(row['key'], [])
             if key in errors:
@@ -301,6 +305,7 @@ class SettingsTab:
             summary = "Add at least one metric."
         return {
             'counts': cells,
+            'others': others,
             'errors': [errors.get(row['key']) for row in rows],
             'summary': summary,
             'save_off': d.save_path is None or invalid or not changed,
@@ -411,6 +416,7 @@ class SettingsTab:
 
         @app.callback(
             [Output({'type': 'thr-counts', 'key': ALL}, 'children'),
+             Output({'type': 'thr-other', 'key': ALL}, 'children'),
              Output({'type': 'thr-error', 'key': ALL}, 'children'),
              Output('thr-summary', 'children'),
              Output('thr-save', 'disabled'),
@@ -424,8 +430,8 @@ class SettingsTab:
         def update_preview(*args):
             *fields, table = args
             shown = self.preview(form_rows(_keys(ctx.inputs_list[0]), *fields), table or [])
-            return [shown[k] for k in ('counts', 'errors', 'summary', 'save_off', 'download_off', 'unsaved',
-                                       'options', 'table_options', 'table_error')]
+            return [shown[k] for k in ('counts', 'others', 'errors', 'summary', 'save_off', 'download_off',
+                                       'unsaved', 'options', 'table_options', 'table_error')]
 
         @app.callback(
             Output('thr-download', 'data'),

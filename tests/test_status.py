@@ -5,6 +5,7 @@ import pytest
 from fMRI_QCtoolkit.dashboard.config import default_config_path, load_config
 from fMRI_QCtoolkit.utils.status import (
     assign_status,
+    describe_other,
     format_rule,
     get_status_colors,
     get_status_mapping,
@@ -84,6 +85,18 @@ class TestAssignStatus:
     ])
     def test_rated_tiers_are_the_statuses_the_rules_can_give(self, rules, tiers):
         assert rated_tiers(rules) == tiers
+
+    @pytest.mark.parametrize("rules,other", [
+        ({"good": ("<=", 15.0), "bad": (">", 25.0)}, "15 < x ≤ 25"),
+        ({"good": ("<", 0.15), "bad": (">=", 0.2)}, "0.15 ≤ x < 0.2"),
+        ({"good": (">", 0.7), "bad": ("<=", 0.6)}, "0.6 < x ≤ 0.7"),
+        ({"good": (">", 150.0)}, "x ≤ 150"),
+        ({"good": ("==", 1.0), "bad": ("==", 2.0)}, "x ≠ 1 and x ≠ 2"),
+        ({"bad": (">=", 0.2)}, None),
+        ({"good": ("<=", 20.0), "bad": (">", 20.0)}, None),
+    ])
+    def test_describe_other_gives_the_values_between_good_and_bad(self, rules, other):
+        assert describe_other(rules) == other
 
     @pytest.mark.parametrize("good,bad,both", [
         (("<", 0.25), (">=", 0.2), 0.2),

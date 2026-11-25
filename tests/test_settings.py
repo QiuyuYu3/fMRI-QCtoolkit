@@ -72,6 +72,13 @@ class TestPreview:
         assert cells[keys.index("tsnr")].children == "not in the data"
         assert errors == [None] * len(keys)
 
+    def test_each_row_shows_what_is_rated_other(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        rows = rows_of(dashboard) + [{**new_row("efc"), "bad-op": ">=", "bad-value": 0.7}]
+        others = dict(zip([r["key"] for r in rows], dashboard.settings.preview(rows)['others']))
+        assert (others["fd_perc"], others["fd_mean"], others["tsnr"], others["efc"]) == (
+            "15 < x ≤ 20", "0.2 ≤ x < 0.3", None, "none")
+
     def test_an_unrated_metric_says_so(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         rows = rows_of(dashboard) + [new_row("efc")]

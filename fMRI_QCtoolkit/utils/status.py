@@ -71,6 +71,19 @@ def rated_tiers(rules):
     return [tier for tier in ("good", "other", "bad") if tier in found]
 
 
+def describe_other(rules):
+    """The values rated other, such as '15 < x ≤ 25'; None if the rules rate nothing other."""
+    if "other" not in rated_tiers(rules):
+        return None
+    conditions = [negate_rule(rule) for rule in rules.values()]
+    lower = [c for c in conditions if c[0] in UPWARD]
+    upper = [c for c in conditions if c[0] in DOWNWARD]
+    if len(lower) == 1 and len(upper) == 1:
+        (low_op, low), (up_op, up) = lower[0], upper[0]
+        return f"{format_number(low)} {'<' if low_op == '>' else '≤'} x {_SYMBOLS[up_op]} {format_number(up)}"
+    return " and ".join(f"x {format_rule(c, symbols=True)}" for c in conditions)
+
+
 def overlap(good, bad):
     """A value that meets both the good and the bad rule, or None."""
     for value in _probes({"good": good, "bad": bad}):
