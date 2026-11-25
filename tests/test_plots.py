@@ -71,6 +71,23 @@ class TestCreateHeatmap:
         low, high = fig.layout.yaxis.range
         assert low > high
 
+    def test_each_cell_has_its_status_color_and_hover_text(self):
+        data = pd.DataFrame([
+            {'ID': '002', 'Variables': 'a', 'Status': 1, 'StatusStr': 'bad', 'session': '1', 'run': 2},
+            {'ID': '010', 'Variables': 'a', 'Status': 3, 'StatusStr': 'good', 'session': '1', 'run': 2},
+            {'ID': '002', 'Variables': 'b', 'Status': 2, 'StatusStr': 'other', 'session': '1', 'run': 2},
+        ])
+        cells = create_heatmap(data, {'a': 'Alpha'}, group_by='run').data[0]
+        assert list(zip(cells.x, cells.y)) == [(0, 0), (1, 0), (0, 1), (1, 1)]
+        assert list(cells.marker.color) == ['#F8786E', '#C5E0B3', '#FFD966', '#D3D3D3']
+        assert cells.text[1] == "Subject: 010<br>Session: 01<br>Run: 2<br>Variable: Alpha<br>Status: good"
+        assert cells.text[3] == "Subject: 010<br>Session: 01<br>Run: 2<br>Variable: b<br>Status: NA"
+
+    def test_each_group_is_drawn_on_its_own_axes(self):
+        fig = create_heatmap(self._grid(['001', '002'], ['01', '02']), {}, group_by=['session', 'run'])
+        assert [(t.xaxis, t.yaxis) for t in fig.data] == [('x', 'y'), ('x2', 'y2')]
+        assert (fig.layout.xaxis2.anchor, fig.layout.yaxis2.anchor) == ('y2', 'x2')
+
     def test_long_labels_widen_the_figure_not_shrink_the_cells(self):
         data = self._two_variables('a', 'b')
         short = create_heatmap(data, {}, group_by='session')

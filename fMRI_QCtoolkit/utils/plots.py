@@ -150,12 +150,13 @@ def create_heatmap(data, variable_labels, title="",
 
     max_subjects = 0
     max_vars = 0
+    traces = []
 
     # Process each group
     for i, group_subset in enumerate(group_data, start=1):
         if group_subset.empty:
             continue
-            
+
         # Create pivot tables for this group
         pivot_data_num = group_subset.pivot(index='Variables', columns='ID', values='Status').fillna(0)
         pivot_data_num = pivot_data_num.reindex([v for v in var_order if v in pivot_data_num.index])
@@ -180,53 +181,35 @@ def create_heatmap(data, variable_labels, title="",
         x_coords = list(range(n_subjects))
         y_coords = list(range(n_variables))
 
-        # Prepare hover text
-        first_rows = group_subset.drop_duplicates('ID').set_index('ID')
-        hovertext = []
-        for var_idx, var in enumerate(pivot_data_str.index):
-            row = []
-            for subj_idx, id_val in enumerate(pivot_data_str.columns):
-                status = pivot_data_str.loc[var, id_val]
-                var_label = variable_labels.get(var, var)
-                
-                # Add session/run info to hover if available
-                hover_parts = [f"Subject: {id_val}", f"Variable: {var_label}", f"Status: {status}"]
-                
-                # Get session/run from the subset data
-                if id_val in first_rows.index:
-                    if 'session' in first_rows.columns:
-                        session_val = first_rows.at[id_val, 'session']
-                        hover_parts.insert(1, f"Session: {format_session(session_val)}")
-                    if 'run' in first_rows.columns:
-                        run_val = first_rows.at[id_val, 'run']
-                        hover_parts.insert(2, f"Run: {int(run_val)}")
-                
-                row.append("<br>".join(hover_parts))
-            hovertext.append(row)
+        # Hover text: subject, session and run per column, then variable and status per cell
+        first_rows = group_subset.drop_duplicates('ID').set_index('ID').loc[sorted_ids]
+        subjects = [f"Subject: {id_val}" for id_val in sorted_ids]
+        if 'session' in first_rows.columns:
+            subjects = [f"{s}<br>Session: {format_session(v)}" for s, v in zip(subjects, first_rows['session'])]
+        if 'run' in first_rows.columns:
+            subjects = [f"{s}<br>Run: {int(v)}" for s, v in zip(subjects, first_rows['run'])]
+        var_labels = [variable_labels.get(var, var) for var in pivot_data_str.index]
+        statuses = pivot_data_str.to_numpy()
+        cell_hover = [f"{subject}<br>Variable: {label}<br>Status: {status}"
+                      for label, row in zip(var_labels, statuses) for subject, status in zip(subjects, row)]
 
         # Build square-marker grid (discrete colors, no interpolation)
         marker_size = max(6, cell_size - 4)
-        xs, ys, cell_colors, cell_hover = [], [], [], []
-        for var_idx in range(n_variables):
-            for subj_idx in range(n_subjects):
-                xs.append(subj_idx)
-                ys.append(var_idx)
-                status_num = int(pivot_data_num.iloc[var_idx, subj_idx])
-                cell_colors.append(status_colors.get(status_num, status_colors[0]))
-                cell_hover.append(hovertext[var_idx][subj_idx])
-
-        fig.add_trace(
-            go.Scatter(
-                x=xs, y=ys,
-                mode="markers",
-                marker=dict(symbol="square", size=marker_size,
-                            color=cell_colors, line=dict(width=0)),
-                text=cell_hover,
-                hovertemplate="%{text}<extra></extra>",
-                showlegend=False
-            ),
-            row=i, col=1
-        )
+        cell_colors = [status_colors.get(int(num), status_colors[0]) for num in pivot_data_num.to_numpy().ravel()]
+        traces.append(dict(
+            type="scatter",
+            x=np.tile(np.arange(n_subjects), n_variables).tolist(),
+            y=np.repeat(np.arange(n_variables), n_subjects).tolist(),
+            mode="markers",
+            marker=dict(symbol="square", size=marker_size,
+                        color=cell_colors, line=dict(width=0)),
+            text=cell_hover,
+            hovertemplate="%{text}<extra></extra>",
+            showlegend=False,
+            # make_subplots numbers the axes of a one-column grid by row
+            xaxis="x" if i == 1 else f"x{i}",
+            yaxis="y" if i == 1 else f"y{i}",
+        ))
 
         # Update axes
         fig.update_xaxes(
@@ -265,7 +248,8 @@ def create_heatmap(data, variable_labels, title="",
         plot_bgcolor='#ffffff'
     )
 
-    return fig
+    # Plotly would validate every cell's color and text one by one, which dominated the time on large tables
+    return go.Figure(data=traces, layout=fig.layout, _validate=False)
 
 def _lollipop_groups(data, group_by):
     """Split lollipop data into (title, subset) panels. Falls back to a single panel."""
