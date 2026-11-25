@@ -254,23 +254,33 @@ class TestTableOnlyColumns:
 
     def test_adding_it_as_a_metric_takes_it_out_of_the_table_only_list(self, tmp_path):
         tab = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path).settings
-        assert tab.edit_table(["efc", "modality"], "thr-add", "efc") == ["modality"]
+        assert tab.edit_table(["efc", "modality"], "thr-add", "efc", ["fd_mean", "efc"]) == ["modality"]
+
+    def test_select_all_and_clear(self, tmp_path):
+        tab = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path).settings
+        assert tab.edit_table([], "thr-table-all", None, ["fd_mean"]) == ["fd_perc", "efc", "modality"]
+        assert tab.edit_table(["efc"], "thr-table-clear", None, ["fd_mean"]) == []
 
     def test_discard_and_defaults(self, saved_to):
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs(),
                                 {"metrics": {"fd_mean": {"bad": "> 1"}}, "table_columns": ["efc"]})
         tab = dashboard.settings
-        assert tab.edit_table([], "thr-discard", None) == ["efc"]
-        assert tab.edit_table(["efc"], "thr-defaults", None) == []
+        assert tab.edit_table([], "thr-discard", None, ["fd_mean"]) == ["efc"]
+        assert tab.edit_table(["efc"], "thr-defaults", None, ["fd_mean"]) == []
 
-    def test_saving_writes_them_and_the_table_shows_them_after_the_metrics(self, saved_to):
+    def test_the_order_they_are_picked_in_is_not_a_change(self, saved_to):
+        dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs(),
+                                {"metrics": {"fd_mean": {"bad": "> 1"}}, "table_columns": ["efc", "modality"]})
+        assert dashboard.settings.preview(rows_of(dashboard), ["modality", "efc"])['unsaved'] == ""
+
+    def test_saving_writes_them_in_data_order_and_the_table_shows_them_after_the_metrics(self, saved_to):
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs(), {"metrics": {"fd_mean": {"bad": "> 1"}}})
 
         message, saved = dashboard.settings.save(rows_of(dashboard), 0, ["modality", "efc"])
 
         assert saved, message
-        assert json.loads(path.read_text(encoding="utf-8"))["table_columns"] == ["modality", "efc"]
-        assert dashboard.table_column_ids() == ["ID", "session", "run", "fd_mean", "modality", "efc", "Final"]
+        assert json.loads(path.read_text(encoding="utf-8"))["table_columns"] == ["efc", "modality"]
+        assert dashboard.table_column_ids() == ["ID", "session", "run", "fd_mean", "efc", "modality", "Final"]
         assert shown_ids(dashboard, *layout_values(dashboard)) == ["001", "002", "003", "004"]
 
     def test_the_downloaded_file_has_them(self, tmp_path):
@@ -355,6 +365,11 @@ class TestThroughDash:
         resp = dash_call(dashboard, "thr-rows.children", {("thr-add", "value"): "efc", ("thr-table", "value"): ["efc"]},
                          "thr-add.value")
         assert resp.get_json()["response"]["thr-table"]["value"] == []
+
+    def test_select_all_ticks_every_column_on_offer(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        resp = dash_call(dashboard, "thr-rows.children", {("thr-table-all", "n_clicks"): 1}, "thr-table-all.n_clicks")
+        assert resp.get_json()["response"] == {"thr-table": {"value": ["efc", "modality"]}}
 
     def test_picking_a_table_only_column_updates_the_preview(self, saved_to):
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())

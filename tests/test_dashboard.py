@@ -137,13 +137,13 @@ class TestTableDisplay:
         assert [c["id"] for c in shown["props"]["columns"]] == expected
         assert list(shown["props"]["data"][0]) == expected
 
-    def test_table_only_columns_follow_the_metrics_and_absent_ones_are_reported(self, tmp_path):
+    def test_table_only_columns_follow_the_metrics_in_data_order_and_absent_ones_are_reported(self, tmp_path):
         df = pd.DataFrame({"ID": ["001"], "Final": ["good"], "efc": [0.5], "snr": [3.0], "fd_mean": [0.1]})
         config = tmp_path / "config.json"
         config.write_text(json.dumps({"metrics": {"fd_mean": {}}, "table_columns": ["snr", "absent", "efc"]}),
                           encoding="utf-8")
         dashboard = make_dashboard(FMRIPrepDashboard, df, tmp_path, config=config)
-        assert dashboard.table_column_ids() == ["ID", "fd_mean", "snr", "efc", "Final"]
+        assert dashboard.table_column_ids() == ["ID", "fd_mean", "efc", "snr", "Final"]
         assert dashboard.unmatched == ["absent"]
         assert [m.column for m in dashboard.metrics] == ["fd_mean"]
 

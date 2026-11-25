@@ -84,10 +84,12 @@ class BaseDashboard:
         return {m.column: m.label for m in self.metrics}, self.RATING_LABELS
 
     def table_column_ids(self):
-        """The table's columns: the IDs, the config's metrics in config order, its table-only columns, the ratings."""
+        """The table's columns: the IDs, the config's metrics in config order, its table-only columns in data
+        order, then the ratings."""
         df = self.processor.get_data()
+        picked = set(self.config.table_columns)
         columns = ([c for c in ID_COLUMNS if c in df.columns] + [m.column for m in self.metrics]
-                   + [c for c in self.config.table_columns if c in df.columns]
+                   + [c for c in df.columns if c in picked]
                    + [g for g in self.processor.checkbox_groups if g in df.columns])
         return list(dict.fromkeys(columns))
 

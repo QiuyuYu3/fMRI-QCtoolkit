@@ -29,6 +29,12 @@ GRID = {'display': 'grid', 'gap': '6px', 'align-items': 'center',
 _BOX = {'width': '100%', 'box-sizing': 'border-box', 'font-size': '13px'}
 _NOTE_STYLE = {'font-size': '12px', 'color': '#666'}
 _TEXT_STYLE = {'font-size': '15px', 'color': '#555'}
+_CHECK_GRID = {'display': 'grid', 'grid-template-columns': 'repeat(auto-fill, minmax(220px, 1fr))',
+               'gap': '2px 16px', 'font-size': '13px'}
+_SMALL_BUTTON = {'padding': '3px 10px', 'margin-right': '6px', 'cursor': 'pointer', 'font-size': '13px',
+                 'border': '1px solid #6c757d', 'border-radius': '4px', 'background-color': 'white',
+                 'color': '#495057'}
+TABLE_BUTTONS = ('thr-table-all', 'thr-table-clear')
 _RANK = {'NA': 0, 'good': 1, 'other': 2, 'bad': 3}
 
 
@@ -131,6 +137,11 @@ class SettingsTab:
         skip = {*ID_COLUMNS, *self.dashboard.processor.checkbox_groups} | covered
         return [c for c in df.columns if c not in skip]
 
+    def in_data_order(self, table):
+        """The table-only columns in df_final.csv order; any not in the data keep their order at the end."""
+        columns, picked = self._columns(), set(table)
+        return [c for c in columns if c in picked] + [c for c in table if c not in columns]
+
     def _auto_step(self, row):
         try:
             rules = parse_entry(row['key'], row_entry(row)).rules
@@ -211,12 +222,16 @@ class SettingsTab:
             dcc.Dropdown(id='thr-add', options=self.addable_columns(keys), value=None,
                          placeholder="Add a metric from df_final.csv", style={'width': '340px', 'margin': '10px 0'}),
             html.Div([
-                html.P([html.B("Table only: "), "columns shown in the table after the metrics, with no slider and "
-                        "no heatmap row."], style={**_TEXT_STYLE, 'margin-bottom': '6px'}),
-                dcc.Dropdown(id='thr-table', options=self.table_options(keys), value=list(config.table_columns),
-                             multi=True, placeholder="Pick columns of df_final.csv"),
+                html.P([html.B("Table only: "), "columns shown in the table after the metrics, with no slider or "
+                        "heatmap row."], style={**_TEXT_STYLE, 'margin-bottom': '6px'}),
+                html.Div([html.Button("Select all", id='thr-table-all', n_clicks=0, style=_SMALL_BUTTON),
+                          html.Button("Clear", id='thr-table-clear', n_clicks=0, style=_SMALL_BUTTON)],
+                         style={'margin-bottom': '8px'}),
+                dcc.Checklist(id='thr-table', options=self.table_options(keys), value=list(config.table_columns),
+                              style=_CHECK_GRID, inputStyle={'margin-right': '6px'},
+                              labelStyle={'overflow-wrap': 'anywhere'}),
                 html.Div(id='thr-table-error', style={'color': '#C0392B', 'font-size': '12px'}),
-            ], style={'margin': '18px 0', 'max-width': '900px'}),
+            ], style={'margin': '18px 0'}),
             html.Div([
                 html.Button("Save", id='thr-save', n_clicks=0,
                             style={**button_style, 'background-color': ACCENT, 'color': 'white'}),
@@ -273,7 +288,7 @@ class SettingsTab:
         except ConfigError as e:
             table_error = str(e)
         changed = (bool(errors) or bool(table_error) or list(parsed.items()) != list(d.config.metrics.items())
-                   or tuple(table) != d.config.table_columns)
+                   or set(table) != set(d.config.table_columns))
         invalid = bool(errors) or bool(table_error) or not rows
         if rows:
             now = len(df) - int(d.status.eq('bad').any(axis=1).sum())
@@ -297,7 +312,7 @@ class SettingsTab:
 
     def config_file(self, rows, table=()):
         """(file name, text) of the form's settings as a config file; raises ConfigError if they are invalid."""
-        raw = form_raw(rows, table)
+        raw = form_raw(rows, self.in_data_order(table))
         parse_config(raw)
         d = self.dashboard
         name = d.save_path.name if d.save_path else f"{d.PIPELINE}_config.json"
@@ -325,8 +340,12 @@ class SettingsTab:
                 return rows
         raise PreventUpdate
 
-    def edit_table(self, table, trigger, added):
-        """The table-only columns after the same actions; a column added as a metric leaves them."""
+    def edit_table(self, table, trigger, added, keys):
+        """The table-only columns after a button or row action; a column added as a metric leaves them."""
+        if trigger == 'thr-table-all':
+            return self.table_options(keys)
+        if trigger == 'thr-table-clear':
+            return []
         if trigger == 'thr-add':
             return [c for c in table if c != added]
         if trigger == 'thr-discard':
@@ -347,7 +366,7 @@ class SettingsTab:
                         "page opened. Reload the page, then make your changes again."), False
             existed = d.save_path.exists()
             try:
-                config = save_config(d.save_path, form_raw(rows, table))
+                config = save_config(d.save_path, form_raw(rows, self.in_data_order(table)))
             except ConfigError as e:
                 return f"Nothing was saved: {e}", False
             except OSError as e:
@@ -371,16 +390,23 @@ class SettingsTab:
              Input({'type': 'thr-down', 'key': ALL}, 'n_clicks'),
              Input({'type': 'thr-delete', 'key': ALL}, 'n_clicks'),
              Input('thr-discard', 'n_clicks'),
-             Input('thr-defaults', 'n_clicks')],
+             Input('thr-defaults', 'n_clicks'),
+             Input('thr-table-all', 'n_clicks'),
+             Input('thr-table-clear', 'n_clicks')],
             field_states + [table_state],
             prevent_initial_call=True
         )
-        def edit_rows(added, _up, _down, _delete, _discard, _defaults, *args):
+        def edit_rows(added, _up, _down, _delete, _discard, _defaults, _all, _clear, *args):
             *fields, table = args
-            rows = form_rows(_keys(ctx.states_list[0]), *fields)
+            trigger, keys = ctx.triggered_id, _keys(ctx.states_list[0])
+            if trigger in TABLE_BUTTONS:
+                return no_update, no_update, self.edit_table(table or [], trigger, added, keys)
+            rows = form_rows(keys, *fields)
             clicked = ctx.triggered[0]['value'] if ctx.triggered else None
-            rows = self.edit(rows, ctx.triggered_id, clicked, added)
-            return [self.render_row(row) for row in rows], None, self.edit_table(table or [], ctx.triggered_id, added)
+            rows = self.edit(rows, trigger, clicked, added)
+            new_keys = [row['key'] for row in rows]
+            return ([self.render_row(row) for row in rows], None,
+                    self.edit_table(table or [], trigger, added, new_keys))
 
         @app.callback(
             [Output({'type': 'thr-counts', 'key': ALL}, 'children'),
