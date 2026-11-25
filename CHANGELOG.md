@@ -4,40 +4,32 @@
 
 
 ## [2.0.0] - 2026-11-25
+### Added
+- A **Settings** tab in the dashboard: choose the metrics shown and their order, edit labels and thresholds, and see how many runs each threshold would hide before saving. Saved changes apply right away, without restarting the dashboard.
+- **Table only** columns in the Settings tab, shown in the table without a filter.
+- Settings are saved as `afni_config.json` or `fmriprep_config.json` next to `df_final.csv` and used again next time; `--config FILE` uses another file. The terminal shows which file is used.
+- **Download config** in the Settings tab, and `fmriqc config afni|fmriprep --output FILE`, give a settings file to edit, share or reuse.
+
 ### Changed
-- **`fmriqc prep` writes only `df_final.csv`, at full precision.** The dashboard computes the lollipop chart from it when it loads, so `lollipop_chart_data.csv` is gone and values are no longer rounded to three decimals on disk.
-- **Thresholds live in the dashboard config.** Each metric is one line in `afni_config.json` or `fmriprep_config.json`, with an optional label and slider step and `other`/`bad` rules such as `">= 0.2"`. The heatmap colors and the default filters both read them, so changing a threshold changes both. Config files from 1.x no longer work; `fmriqc config` writes the new format.
-- **By default only runs rated bad are hidden.** Runs rated other are shown and colored yellow in the heatmap, so more runs are shown by default than in 1.0. Each rated metric has good / other / bad / NA tick boxes in place of "Include NA", and its slider starts at the full range.
-- Runs with a `flip_guess` other than 0 are hidden by default; 1.0 showed them.
-- Runs whose fraction of TRs censored for a stimulus class is exactly 0.2 are hidden by default; 1.0 showed them.
-- Ratings use the unrounded values, so a value within 0.0005 of a threshold can be rated differently than in 1.0 (a censor fraction of 0.1496 is now good, not other).
-- fMRIPrep's `tsnr` and `gcor` no longer have thresholds: they are not colored and not in the heatmap, but can still be filtered with their sliders. fMRIPrep runs are rated on `fd_perc` and `fd_mean` only, and a `gcor` above 0.15 no longer hides a run by default.
-- The sidebar lists the thresholds of the pipeline shown; the fMRIPrep dashboard used to show AFNI's.
-- Heatmap rows use the sidebar labels and follow the config order from the top. The AFNI heatmap of a task has a row for each fraction-of-TRs-censored column.
-- The table shows numbers with three decimals; its data and downloads keep full precision.
-- The Plots tab is drawn only while it is open, and its heatmaps are redrawn only when the filtered rows change, so a filter change on the Table tab no longer waits for the plots. The lollipop chart is drawn once, when the Plots tab first opens.
-- The heatmaps are drawn several times faster on large tables.
-- Heatmap cells sit 2 px apart again, as before 1.0, and the panels for different sessions or runs space their cells alike.
-- Select All and Clear only change the selection; they no longer refilter the table and redraw the plots.
-- `fmriqc prep` keeps every numeric metric in `df_final.csv`, so any of them can be added to the dashboard: for fMRIPrep, all of MRIQC's in `group_bold.tsv` instead of a fixed eleven (an MRIQC output without one of the eleven no longer stops it); for AFNI, every numeric field of `out.ss_review.*.json`, a field that holds a list (such as per-run values) giving one column per value.
-- The table shows the ID, session and run columns, the metrics in the sidebar in the same order, and the ratings; other columns are shown by adding them in the Settings tab. Downloads keep every column.
-- Reloading the dashboard keeps the tab that was open.
-- The dashboard's blue is muted, and with Dash 4 the sliders, tick boxes and tabs use it instead of Dash 4's purple.
+- **Thresholds are set in the settings file instead of the code.** Config files from 1.x no longer work; `fmriqc config` writes a new one.
+- **Only runs rated bad are hidden by default.** Runs rated other stay visible and are yellow in the heatmap; tick boxes under each metric choose which ratings to show.
+- A few runs are rated or hidden differently than in 1.0: values are no longer rounded before rating, runs with a `flip_guess` other than 0 are hidden, and a censored fraction of exactly 0.2 counts as bad.
+- fMRIPrep runs are rated on `fd_perc` and `fd_mean` only; `tsnr` and `gcor` no longer have thresholds.
+- `fmriqc prep` writes only `df_final.csv`, at full precision, with every numeric metric from MRIQC or the AFNI review file.
+- The table shows the IDs, the metrics chosen in the Settings tab and the ratings, with three decimals; downloads keep every column at full precision.
+- Heatmap rows use the sidebar labels and order.
+- The dashboard responds faster: plots are drawn only on the Plots tab, and heatmaps are faster on large tables.
+- Reloading the page keeps the open tab.
 
 ### Fixed
-- With Dash 4, the value boxes under each sidebar slider no longer cover the first tick box below them.
-- In the lollipop chart, a metric with the same value in every run (such as `TRs_total_raw` when all runs have the same length) is drawn at 0 instead of at its raw value, which flattened every other metric.
-
-### Added
-- A **Settings** tab in both dashboards. It chooses the metrics the dashboard shows and their order, edits their labels, rules and slider steps, and counts the runs each metric would rate good, other, bad and NA before anything is saved. Save writes the config file, keeps the previous version as `<name>.bak`, and reloads the page with the new settings, without restarting the dashboard. Download config saves the settings as a file on the computer running the browser.
-- The dashboard keeps its settings in `afni_config.json` or `fmriprep_config.json` beside `df_final.csv` and uses that file whenever it opens the same data. `--config FILE` names another file instead. Either file may not exist yet: the dashboard then starts from the package's default and creates it on the first save.
-- `fmriqc config afni|fmriprep --output FILE` writes the default config to edit. It refuses to overwrite an existing file unless `--force` is given.
-- The dashboard prints the config it uses when it starts, and lists the config metrics missing from the data.
+- The fMRIPrep dashboard's sidebar no longer lists AFNI's thresholds.
+- A metric with the same value in every run no longer flattens the other metrics in the lollipop chart.
+- With Dash 4, the boxes under each slider no longer cover the tick boxes below.
 
 ### Removed
-- The `--lollipop-file` option of both dashboard commands, and the `lollipop_file` argument of `from_saved_data`.
-- `assign_afni_status` and `assign_fmriprep_status`, replaced by `assign_status`.
-- The early standalone scripts in `examples/scripts` (`dash/`, the AFNI and fMRIPrep scripts in `data_prep/`, the two `*_dataprep_dash.py` scripts and `afni_QC_shinyR.R`), which the `fmriqc` commands replace.
+- `lollipop_chart_data.csv` and the dashboards' `--lollipop-file` option.
+- The old standalone scripts in `examples/scripts`, replaced by the `fmriqc` commands.
+- For Python users: `assign_afni_status` and `assign_fmriprep_status` (use `assign_status`), and the `lollipop_file` argument of `from_saved_data`.
 
 
 ## [1.0.0] - 2026-10-24
