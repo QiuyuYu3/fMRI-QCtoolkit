@@ -82,12 +82,18 @@ class TestPreview:
         assert cells[keys.index("tsnr")].children == "not in the data"
         assert errors == [None] * len(keys)
 
-    def test_each_row_shows_the_values_that_meet_neither_rule(self, tmp_path):
+    def test_each_rated_row_shows_the_values_each_level_covers(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
-        rows = rows_of(dashboard) + [{**new_row("efc"), "bad-op": ">=", "bad-value": 0.7}]
-        rests = dict(zip([r["key"] for r in rows], dashboard.settings.preview(rows)['rests']))
-        assert (rests["fd_perc"], rests["fd_mean"], rests["tsnr"], rests["efc"]) == (
-            "15 < x ≤ 20", "0.2 ≤ x < 0.3", "all", "x < 0.7")
+        rows = rows_of(dashboard) + [{**new_row("efc"), "bad-op": ">=", "bad-value": 0.7, "otherwise": "other"}]
+        ranges = dict(zip([r["key"] for r in rows], dashboard.settings.preview(rows)['ranges']))
+
+        def text(line):
+            return [[part if isinstance(part, str) else part.children for part in item.children]
+                    for item in line.children]
+
+        assert text(ranges["fd_perc"]) == [["good", "x ≤ 15"], ["other", "15 < x ≤ 20"], ["bad", "x > 20"]]
+        assert text(ranges["efc"]) == [["other", "x < 0.7"], ["bad", "x ≥ 0.7"]]
+        assert ranges["tsnr"] is None
 
     def test_otherwise_shows_in_gray_the_level_the_rules_give(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)

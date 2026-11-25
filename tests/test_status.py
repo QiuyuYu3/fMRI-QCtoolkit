@@ -5,7 +5,7 @@ import pytest
 from fMRI_QCtoolkit.dashboard.config import default_config_path, load_config
 from fMRI_QCtoolkit.utils.status import (
     assign_status,
-    describe_rest,
+    describe_levels,
     format_rule,
     get_status_colors,
     get_status_mapping,
@@ -86,19 +86,23 @@ class TestAssignStatus:
     def test_rated_tiers_are_the_statuses_the_rules_can_give(self, rules, tiers):
         assert rated_tiers(rules) == tiers
 
-    @pytest.mark.parametrize("rules,rest", [
-        ({"good": ("<=", 15.0), "bad": (">", 25.0)}, "15 < x ≤ 25"),
-        ({"good": ("<", 0.15), "bad": (">=", 0.2)}, "0.15 ≤ x < 0.2"),
-        ({"good": (">", 0.7), "bad": ("<=", 0.6)}, "0.6 < x ≤ 0.7"),
-        ({"good": (">", 150.0)}, "x ≤ 150"),
-        ({"bad": (">=", 0.2)}, "x < 0.2"),
-        ({"good": ("==", 1.0), "bad": ("==", 2.0)}, "x ≠ 1 and x ≠ 2"),
-        ({"good": ("<", 15.0), "bad": (">", 15.0)}, "x = 15"),
-        ({"good": ("<=", 20.0), "bad": (">", 20.0)}, None),
-        ({}, "all"),
+    @pytest.mark.parametrize("rules,otherwise,levels", [
+        ({"good": ("<=", 15.0), "bad": (">", 20.0)}, None,
+         {"good": "x ≤ 15", "other": "15 < x ≤ 20", "bad": "x > 20"}),
+        ({"good": ("<=", 15.0), "bad": (">", 20.0)}, "bad", {"good": "x ≤ 15", "bad": "x > 15"}),
+        ({"good": (">", 0.7), "bad": ("<=", 0.6)}, None,
+         {"good": "x > 0.7", "other": "0.6 < x ≤ 0.7", "bad": "x ≤ 0.6"}),
+        ({"good": (">", 150.0)}, None, {"good": "x > 150", "other": "x ≤ 150"}),
+        ({"bad": (">=", 0.2)}, None, {"good": "x < 0.2", "bad": "x ≥ 0.2"}),
+        ({"bad": ("!=", 0.0)}, None, {"good": "x = 0", "bad": "x ≠ 0"}),
+        ({"good": ("==", 135.0)}, "bad", {"good": "x = 135", "bad": "x ≠ 135"}),
+        ({"good": ("==", 1.0), "bad": ("==", 2.0)}, None, {"good": "x = 1", "other": "x ≠ 1 and x ≠ 2", "bad": "x = 2"}),
+        ({"good": ("<", 15.0), "bad": (">", 15.0)}, None, {"good": "x < 15", "other": "x = 15", "bad": "x > 15"}),
+        ({"good": ("<=", 20.0), "bad": (">", 20.0)}, None, {"good": "x ≤ 20", "bad": "x > 20"}),
+        ({}, "other", {"other": "all"}),
     ])
-    def test_describe_rest_gives_the_values_that_meet_neither_rule(self, rules, rest):
-        assert describe_rest(rules) == rest
+    def test_describe_levels_gives_the_values_each_level_covers(self, rules, otherwise, levels):
+        assert describe_levels(rules, otherwise) == levels
 
     def test_otherwise_sets_the_level_of_the_rest(self):
         assert assign_status([1, 135, 140], {"good": ("==", 135.0)}, "bad").tolist() == ["bad", "good", "bad"]

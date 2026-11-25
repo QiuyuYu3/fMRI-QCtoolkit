@@ -12,7 +12,7 @@ from dash.exceptions import PreventUpdate
 from .config import (ID_COLUMNS, ConfigError, Metric, backup_path, default_config_path, dump_config, load_config,
                      parse_config, parse_entry, parse_table_columns, resolve_metrics, save_config)
 from ..utils.filter_components_utils import ACCENT, slider_bounds
-from ..utils.status import (LEVELS, RULE_TIERS, assign_status, describe_rest, format_number, get_status_colors,
+from ..utils.status import (LEVELS, RULE_TIERS, assign_status, describe_levels, format_number, get_status_colors,
                             get_status_mapping, rated_tiers, rest_tier)
 
 SETTINGS_TAB = 'settings-tab'
@@ -25,11 +25,13 @@ TIER_COLORS = {tier: get_status_colors()[number] for tier, number in get_status_
 # Seconds of no typing before a box is sent, so the preview does not chase every keystroke
 TYPING_PAUSE_S = 0.5
 GRID = {'display': 'grid', 'gap': '6px', 'align-items': 'center',
-        'grid-template-columns': '116px minmax(140px, 1fr) 80px 68px 94px 80px 68px 124px 212px 90px',
+        'grid-template-columns': '116px minmax(140px, 260px) 80px 68px 94px 80px 68px 124px 212px 90px',
         'font-size': '13px'}
 _BOX = {'width': '100%', 'box-sizing': 'border-box', 'font-size': '13px'}
 _NOTE_STYLE = {'font-size': '12px', 'color': '#666'}
 _TEXT_STYLE = {'font-size': '15px', 'color': '#555'}
+_PANEL = {'background-color': '#f8f9fa', 'border': '1px solid #dee2e6', 'border-radius': '5px',
+          'padding': '4px 15px', 'margin-bottom': '12px'}
 _CHECK_GRID = {'display': 'grid', 'grid-template-columns': 'repeat(auto-fill, minmax(240px, 1fr))',
                'gap': '4px 16px', 'font-size': '15px'}
 _SMALL_BUTTON = {'padding': '3px 10px', 'margin-right': '6px', 'cursor': 'pointer', 'font-size': '14px',
@@ -119,6 +121,16 @@ def _count_chips(status, metric, n_columns=None):
     return html.Span(chips, style={'font-size': '12px', 'display': 'flex', 'flex-wrap': 'wrap', 'row-gap': '2px'})
 
 
+def _level_ranges(metric):
+    """The values each level covers, as a line of coloured level names and ranges."""
+    return html.Span([html.Span([html.Span(level, style={'background-color': TIER_COLORS[level], 'padding': '1px 6px',
+                                                         'border-radius': '3px', 'margin-right': '4px'}), text],
+                                style={'margin-right': '14px', 'white-space': 'nowrap'})
+                      for level, text in describe_levels(metric.rules, metric.otherwise).items()],
+                     style={'font-size': '12px', 'color': '#333', 'display': 'flex', 'flex-wrap': 'wrap',
+                            'row-gap': '2px'})
+
+
 def _message(text, ok=False):
     return html.Div(text, style={'color': '#1e7e34' if ok else '#C0392B', 'margin-top': '8px',
                                  'white-space': 'pre-wrap'})
@@ -187,17 +199,17 @@ class SettingsTab:
                 dcc.Input(id=ident('label'), type='text', value=row['label'], debounce=TYPING_PAUSE_S, style=_BOX),
                 operator('good'), number('good-value'),
                 # Empty follows the rules, shown in gray like the automatic step
-                html.Div([dcc.Dropdown(id=ident('otherwise'), options=LEVEL_OPTIONS, value=row['otherwise'],
-                                       placeholder=default_rest(row), clearable=False, searchable=False,
-                                       style={'font-size': '13px'}),
-                          html.Div(id=ident('rest'),
-                                   style={'font-size': '12px', 'color': '#555', 'margin-top': '2px'})]),
+                dcc.Dropdown(id=ident('otherwise'), options=LEVEL_OPTIONS, value=row['otherwise'],
+                             placeholder=default_rest(row), clearable=False, searchable=False,
+                             style={'font-size': '13px'}),
                 operator('bad'), number('bad-value'),
                 number('step', self._auto_step(row)),
                 html.Div(id=ident('counts')),
                 html.Div([button('up', '↑', 'Move up'), button('down', '↓', 'Move down'),
                           button('delete', '✕', 'Remove this metric')], style={'white-space': 'nowrap'}),
             ], style=GRID),
+            # Under the label, where the row's own inputs start
+            html.Div(id=ident('ranges'), style={'margin': '3px 0 0 122px'}),
             html.Div(id=ident('error'), style={'color': '#C0392B', 'font-size': '12px'}),
         ], style={'padding': '4px 0', 'border-bottom': '1px solid #e9ecef'})
 
@@ -221,19 +233,22 @@ class SettingsTab:
         rows = config_rows(config.metrics)
         keys = [r['key'] for r in rows]
         heading = [html.B("Metric"), html.B("Label"), html.B("Good", style={'grid-column': 'span 2'}),
-                   html.B("Otherwise", title="The level of a value that meets neither rule, with the range below; "
-                                             "gray is what the rules give"),
+                   html.B("Otherwise", title="The level of a value that meets neither rule; gray is what the "
+                                             "rules give"),
                    html.B("Bad", style={'grid-column': 'span 2'}),
                    html.B("Step", title="The slider's step; left empty, the one shown in gray"),
                    html.B("Runs with these thresholds"), html.Span()]
         button_style = {'border': 'none', 'padding': '8px 16px', 'border-radius': '4px', 'cursor': 'pointer',
                         'margin-right': '8px'}
         return html.Div([
-            html.P("The metrics listed here appear in the sidebar and the table, in this order; those with a "
-                   "rule are also rated in the heatmap.", style=_TEXT_STYLE),
-            html.P("A run is good if it meets the good rule, bad if it meets the bad rule, and gets the level "
-                   "under Otherwise if it meets neither. Leave an operator empty for no rule.", style=_TEXT_STYLE),
-            self._file_note(),
+            html.Div([
+                html.P("The metrics listed here appear in the sidebar and the table, in this order; those with a "
+                       "rule are also rated in the heatmap.", style=_TEXT_STYLE),
+                html.P("A run is good if it meets the good rule, bad if it meets the bad rule, and gets the level "
+                       "under Otherwise if it meets neither. Leave an operator empty for no rule. The line under "
+                       "each rated metric gives the values each level covers.", style=_TEXT_STYLE),
+                self._file_note(),
+            ], style=_PANEL),
             html.Div(id='thr-summary', style={'font-weight': 'bold', 'margin': '10px 0'}),
             html.Div(heading, style={**GRID, 'font-size': '13px', 'padding-bottom': '4px',
                                      'border-bottom': '2px solid #dee2e6'}),
@@ -288,8 +303,8 @@ class SettingsTab:
 
         hidden = np.zeros(len(df), dtype=bool)
         cells = []
-        rests = [None if row['key'] in errors else describe_rest(parsed[row['key']].rules) or "none"
-                 for row in rows]
+        ranges = [None if row['key'] in errors or not parsed[row['key']].rated else _level_ranges(parsed[row['key']])
+                  for row in rows]
         for row in rows:
             key, metrics = row['key'], by_entry.get(row['key'], [])
             if key in errors:
@@ -322,7 +337,7 @@ class SettingsTab:
             summary = "Add at least one metric."
         return {
             'counts': cells,
-            'rests': rests,
+            'ranges': ranges,
             'rest_defaults': [default_rest(row) for row in rows],
             'errors': [errors.get(row['key']) for row in rows],
             'summary': summary,
@@ -434,7 +449,7 @@ class SettingsTab:
 
         @app.callback(
             [Output({'type': 'thr-counts', 'key': ALL}, 'children'),
-             Output({'type': 'thr-rest', 'key': ALL}, 'children'),
+             Output({'type': 'thr-ranges', 'key': ALL}, 'children'),
              Output({'type': 'thr-otherwise', 'key': ALL}, 'placeholder'),
              Output({'type': 'thr-error', 'key': ALL}, 'children'),
              Output('thr-summary', 'children'),
@@ -449,7 +464,7 @@ class SettingsTab:
         def update_preview(*args):
             *fields, table = args
             shown = self.preview(form_rows(_keys(ctx.inputs_list[0]), *fields), table or [])
-            return [shown[k] for k in ('counts', 'rests', 'rest_defaults', 'errors', 'summary', 'save_off',
+            return [shown[k] for k in ('counts', 'ranges', 'rest_defaults', 'errors', 'summary', 'save_off',
                                        'download_off', 'unsaved', 'options', 'table_options', 'table_error')]
 
         @app.callback(

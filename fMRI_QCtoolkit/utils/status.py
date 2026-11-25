@@ -2,6 +2,7 @@
 Status assignment for quality control metrics
 """
 
+import math
 import operator
 import re
 
@@ -80,22 +81,64 @@ def rated_tiers(rules, otherwise=None):
     return [tier for tier in LEVELS if tier in found]
 
 
-def describe_rest(rules):
-    """The values that meet neither rule, such as '15 < x ≤ 25'; 'all' without rules, None if there are none."""
-    if not rules:
+def _segments(rules):
+    """The stretches of the number line at and between the thresholds, as (low, high, closed_low, closed_high)."""
+    cuts = sorted({value for _, value in rules.values()})
+    if not cuts:
+        return [(-math.inf, math.inf, False, False)]
+    segments = [(-math.inf, cuts[0], False, False)]
+    for a, b in zip(cuts, cuts[1:] + [math.inf]):
+        segments += [(a, a, True, True), (a, b, False, False)]
+    return segments
+
+
+def _representative(segment):
+    low, high = segment[:2]
+    if low == high:
+        return low
+    if math.isinf(low) and math.isinf(high):
+        return 0.0
+    return high - 1 if math.isinf(low) else low + 1 if math.isinf(high) else (low + high) / 2
+
+
+def _interval_text(low, high, closed_low, closed_high):
+    if low == high:
+        return f"x = {format_number(low)}"
+    if math.isinf(low) and math.isinf(high):
         return "all"
-    # Neither rule ever gives 'other', so it marks the values left over
-    if "other" not in set(assign_status(_probes(rules), rules, "other")):
-        return None
-    conditions = [negate_rule(rule) for rule in rules.values()]
-    lower = [c for c in conditions if c[0] in UPWARD]
-    upper = [c for c in conditions if c[0] in DOWNWARD]
-    if len(lower) == 1 and len(upper) == 1:
-        (low_op, low), (up_op, up) = lower[0], upper[0]
-        if low == up:
-            return f"x = {format_number(low)}"
-        return f"{format_number(low)} {'<' if low_op == '>' else '≤'} x {_SYMBOLS[up_op]} {format_number(up)}"
-    return " and ".join(f"x {format_rule(c, symbols=True)}" for c in conditions)
+    if math.isinf(low):
+        return f"x {'≤' if closed_high else '<'} {format_number(high)}"
+    if math.isinf(high):
+        return f"x {'≥' if closed_low else '>'} {format_number(low)}"
+    return (f"{format_number(low)} {'≤' if closed_low else '<'} x "
+            f"{'≤' if closed_high else '<'} {format_number(high)}")
+
+
+def _region_text(intervals):
+    """Text for a union of intervals, such as 'x ≤ 15' or 'x ≠ 0'."""
+    holes = [a[1] for a, b in zip(intervals, intervals[1:])
+             if a[1] == b[0] and not a[3] and not b[2]]
+    if (math.isinf(intervals[0][0]) and math.isinf(intervals[-1][1]) and len(holes) == len(intervals) - 1
+            and len(intervals) > 1):
+        return " and ".join(f"x ≠ {format_number(h)}" for h in holes)
+    return " or ".join(_interval_text(*interval) for interval in intervals)
+
+
+def describe_levels(rules, otherwise=None):
+    """{level: the values it covers}, such as {'good': 'x ≤ 15', 'other': '15 < x ≤ 20', 'bad': 'x > 20'}."""
+    segments = _segments(rules)
+    levels = assign_status([_representative(s) for s in segments], rules, otherwise).tolist()
+    merged = []
+    for segment, level in zip(segments, levels):
+        if merged and merged[-1][0] == level:
+            low, _, closed_low, _ = merged[-1][1]
+            merged[-1] = (level, (low, segment[1], closed_low, segment[3]))
+        else:
+            merged.append((level, segment))
+    regions = {}
+    for level, interval in merged:
+        regions.setdefault(level, []).append(interval)
+    return {level: _region_text(regions[level]) for level in LEVELS if level in regions}
 
 
 def overlap(good, bad):
