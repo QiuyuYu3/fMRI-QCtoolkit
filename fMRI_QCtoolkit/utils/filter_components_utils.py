@@ -5,6 +5,7 @@ Sidebar filter components for the dashboards
 import math
 from decimal import Decimal
 
+import dash
 from dash import dcc, html
 import pandas as pd
 
@@ -17,6 +18,14 @@ RATING_OPTIONS = [
     {'label': 'NA', 'value': 'NA'},
 ]
 _MARK_COLORS = {'good': '#3B7D23', 'bad': '#C0392B'}
+# Up from where the slider puts its marks: below the track before Dash 4, at it from Dash 4 on
+THRESHOLD_LIFT = '-24px' if int(dash.__version__.split('.')[0]) >= 4 else '-34px'
+_LIFTED = {'bottom': 'auto'}
+# Dash 4 only: the tick it draws above a mark's label goes under a lifted label, pointing down to the track;
+# and its wide gap after each inline tick box, which pushes NA onto a second line, gives way to labelStyle's
+SIDEBAR_CSS = ('.dash-slider-mark[style*="bottom: auto"]::before '
+               '{ bottom: auto; top: 100%; margin-bottom: 0; margin-top: 2px; } '
+               '.dash-options-list-option.dash-checklist-inline { margin-right: 0; }')
 # The dashboard's blue, muted so the controls do not outshine the data
 ACCENT = '#5289bd'
 # Component types of the sidebar's per-metric filters; the column names the instance
@@ -67,8 +76,10 @@ def mark_key(value):
 
 
 def _mark(value, color=None):
+    """A slider mark; a threshold (coloured) is lifted above the track, clear of the value boxes below it."""
     label = f"{value:g}"
-    return {'label': label, 'style': {'color': color}} if color else label
+    # bottom: auto, or Dash 4's own bottom: 0 keeps the mark below the track
+    return {'label': label, 'style': {'color': color, 'top': THRESHOLD_LIFT, **_LIFTED}} if color else label
 
 
 def create_metric_filter(metric, bounds):
@@ -78,8 +89,11 @@ def create_metric_filter(metric, bounds):
     for tier, (op, value) in metric.rules.items():
         if op in UPWARD | DOWNWARD and lo <= value <= hi:
             marks[mark_key(value)] = _mark(value, _MARK_COLORS[tier])
+    # Room above the track for the threshold labels
+    lifted = len(marks) > 2
     return html.Div([
-        html.Label(metric.label, style={'font-weight': 'bold'}),
+        html.Label(metric.label, style={'font-weight': 'bold', 'display': 'block',
+                                        'margin-bottom': '26px' if lifted else '0'}),
         dcc.RangeSlider(
             id={'type': RANGE, 'column': metric.column},
             min=lo,
@@ -95,7 +109,7 @@ def create_metric_filter(metric, bounds):
             value=default_statuses(metric),
             inline=True,
             inputStyle={'margin-right': '3px'},
-            labelStyle={'margin-right': '10px'},
+            labelStyle={'margin-right': '8px', 'white-space': 'nowrap'},
             # Clears the slider's value boxes, which hang below the track (taller from Dash 4 on)
             style={'margin-top': '25px', 'font-size': '12px'}
         )

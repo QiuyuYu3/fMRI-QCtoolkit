@@ -124,3 +124,10 @@ class TestMarkKeys:
         metric = Metric("fd_perc", "FD", {"good": ("<=", 15.0), "bad": (">", 20.0)}, entry="fd_perc", entry_label="FD")
         slider = by_id(create_metric_filter(metric, (5.3, 35.0, 0.1)), {"type": RANGE, "column": "fd_perc"})
         assert sorted(slider.marks) == ["15", "20", "35", "5.3"]
+
+    def test_threshold_labels_sit_above_the_track_and_the_ends_below(self):
+        metric = Metric("fd_perc", "FD", {"good": ("<=", 15.0), "bad": (">", 20.0)}, entry="fd_perc", entry_label="FD")
+        marks = by_id(create_metric_filter(metric, (5.3, 35.0, 0.1)), {"type": RANGE, "column": "fd_perc"}).marks
+        assert {key: marks[key]["style"]["color"] for key in ("15", "20")} == {"15": "#3B7D23", "20": "#C0392B"}
+        assert all(marks[key]["style"]["bottom"] == "auto" for key in ("15", "20"))
+        assert (marks["5.3"], marks["35"]) == ("5.3", "35")

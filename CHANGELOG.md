@@ -26,6 +26,7 @@
 - The fMRIPrep dashboard's sidebar no longer lists AFNI's thresholds.
 - A metric with the same value in every run no longer flattens the other metrics in the lollipop chart.
 - With Dash 4, the boxes under each slider no longer cover the tick boxes below.
+- Threshold numbers on the sliders sit above the track, so the value boxes no longer hide one near an end; with Dash 4, a metric's tick boxes fit on one line.
 
 ### Removed
 - `lollipop_chart_data.csv` and the dashboards' `--lollipop-file` option.

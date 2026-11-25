@@ -16,7 +16,7 @@ from dash.exceptions import PreventUpdate
 from .config import ID_COLUMNS, default_config_path, load_config, resolve_metrics
 from .settings import SETTINGS_TAB, SettingsTab
 from ..utils.access import AccessGate, url_host
-from ..utils.filter_components_utils import (ACCENT, RANGE, STATUS, create_metric_filter,
+from ..utils.filter_components_utils import (ACCENT, RANGE, SIDEBAR_CSS, STATUS, create_metric_filter,
                                              create_qualitative_dropdown, create_rules_summary, default_statuses,
                                              slider_bounds)
 from ..utils.plots import create_lollipop_plot, create_heatmap
@@ -25,7 +25,8 @@ from ..utils.status import assign_status, get_status_mapping
 HEATMAP_COLUMNS = ['ID', 'Variables', 'Value', 'Status', 'StatusStr', 'session', 'run']
 PLOTS_TAB = 'plots-tab'
 # Dash 4 draws its controls in purple; html:root outranks the :root rule it adds, older Dash ignores it
-ACCENT_STYLE = f"<style>html:root {{ --Dash-Fill-Interactive-Strong: {ACCENT}; }}</style>"
+ACCENT_STYLE = (f"<style>html:root {{ --Dash-Fill-Interactive-Strong: {ACCENT}; }} "
+                f"{SIDEBAR_CSS}</style>")
 SPINNER_DELAY_MS = 300
 
 
