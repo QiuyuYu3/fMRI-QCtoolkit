@@ -29,9 +29,9 @@ GRID = {'display': 'grid', 'gap': '6px', 'align-items': 'center',
 _BOX = {'width': '100%', 'box-sizing': 'border-box', 'font-size': '13px'}
 _NOTE_STYLE = {'font-size': '12px', 'color': '#666'}
 _TEXT_STYLE = {'font-size': '15px', 'color': '#555'}
-_CHECK_GRID = {'display': 'grid', 'grid-template-columns': 'repeat(auto-fill, minmax(220px, 1fr))',
-               'gap': '2px 16px', 'font-size': '13px'}
-_SMALL_BUTTON = {'padding': '3px 10px', 'margin-right': '6px', 'cursor': 'pointer', 'font-size': '13px',
+_CHECK_GRID = {'display': 'grid', 'grid-template-columns': 'repeat(auto-fill, minmax(240px, 1fr))',
+               'gap': '4px 16px', 'font-size': '15px'}
+_SMALL_BUTTON = {'padding': '3px 10px', 'margin-right': '6px', 'cursor': 'pointer', 'font-size': '14px',
                  'border': '1px solid #6c757d', 'border-radius': '4px', 'background-color': 'white',
                  'color': '#495057'}
 TABLE_BUTTONS = ('thr-table-all', 'thr-table-clear')
@@ -226,7 +226,8 @@ class SettingsTab:
                          placeholder="Add a metric from df_final.csv", style={'width': '340px', 'margin': '10px 0'}),
             html.Div([
                 html.P([html.B("Table only: "), "columns shown in the table after the metrics, with no slider or "
-                        "heatmap row."], style={**_TEXT_STYLE, 'margin-bottom': '6px'}),
+                        "heatmap row."],
+                       style={**_TEXT_STYLE, 'font-size': '16px', 'color': '#333', 'margin-bottom': '8px'}),
                 html.Div([html.Button("Select all", id='thr-table-all', n_clicks=0, style=_SMALL_BUTTON),
                           html.Button("Clear", id='thr-table-clear', n_clicks=0, style=_SMALL_BUTTON)],
                          style={'margin-bottom': '8px'}),
