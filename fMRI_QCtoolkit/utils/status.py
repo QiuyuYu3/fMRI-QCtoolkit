@@ -1,104 +1,44 @@
 """
-Status assignment utilities for quality control metrics
+Status assignment for quality control metrics
 """
+
+import operator
+import re
 
 import pandas as pd
 
-def assign_afni_status(value, variable_name):
-    """
-    Assign status for AFNI pipeline variables.
-    """
-    if pd.isna(value):
-        return "NA"
-    
-    variable_name = str(variable_name)
-    
-    if variable_name == "DF_frac":
-        if value > 0.7:
-            return "good"
-        elif value > 0.6:
-            return "other"
-        else:
-            return "bad"
-    elif variable_name == "cens_frac":
-        if value >= 0.2:
-            return "bad"
-        elif value >= 0.15:
-            return "other"
-        else:
-            return "good"
-    elif variable_name == "cens_mot":
-        if value >= 0.15:
-            return "bad"
-        elif value >= 0.1:
-            return "other"
-        else:
-            return "good"
-    elif variable_name == "cens_displace":
-        if value >= 8:
-            return "bad"
-        elif value >= 6:
-            return "other"
-        else:
-            return "good"
-    elif variable_name == "GCOR":
-        if value >= 0.2:
-            return "bad"
-        elif value >= 0.15:
-            return "other"
-        else:
-            return "good"
-    elif variable_name == "flip_guess":
-        if value == 0:
-            return "good"
-        else:
-            return "bad"
-    elif variable_name == "TSNR":
-        if value <= 150:
-            return "other"
-        else:
-            return "good"
-    else:
-        return "other"
+_OPERATORS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt,
+              "==": operator.eq, "!=": operator.ne}
+_SYMBOLS = {">=": "≥", "<=": "≤", "!=": "≠", "==": "=", ">": ">", "<": "<"}
+_RULE = re.compile(r"\s*(>=|<=|==|!=|>|<)\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\s*")
+UPWARD = {">", ">="}
+DOWNWARD = {"<", "<="}
 
 
-def assign_fmriprep_status(value, variable_name):
-    """
-    Assign status for fMRIPrep pipeline variables.
-    """
-    if pd.isna(value):
-        return "NA"
-    
-    variable_name = str(variable_name)
-    
-    if variable_name == "fd_perc":
-        if value > 20:
-            return "bad"
-        elif value > 15:
-            return "other"
-        else:
-            return "good"
-    elif variable_name == "fd_mean":
-        if value >= 0.3:
-            return "bad"
-        elif value >= 0.2:
-            return "other"
-        else:
-            return "good"
-    elif variable_name == "gcor":
-        if value >= 0.2:
-            return "bad"
-        elif value > 0.15:
-            return "other"
-        else:
-            return "good"
-    elif variable_name == "tsnr":
-        if value <= 150:
-            return "other"
-        else:
-            return "good"
-    else:
-        return "other"
+def parse_rule(text):
+    """'>= 0.2' -> ('>=', 0.2); anything else raises ValueError."""
+    match = _RULE.fullmatch(text) if isinstance(text, str) else None
+    if match is None:
+        raise ValueError(f"{text!r} is not a rule; write an operator (>, >=, <, <=, ==, !=) "
+                         f"followed by a number, such as '>= 0.2'")
+    return match.group(1), float(match.group(2))
+
+
+def format_rule(rule, symbols=False):
+    op, value = rule
+    return f"{_SYMBOLS[op] if symbols else op} {value:g}"
+
+
+def assign_status(values, rules):
+    """'bad' where a value meets rules['bad'], else 'other' where it meets rules['other'], else 'good'; missing is 'NA'."""
+    values = pd.to_numeric(pd.Series(values), errors="coerce").astype(float)
+    status = pd.Series("good", index=values.index, dtype=object)
+    for tier in ("other", "bad"):
+        if tier in rules:
+            op, threshold = rules[tier]
+            status[_OPERATORS[op](values, threshold).to_numpy()] = tier
+    status[values.isna().to_numpy()] = "NA"
+    return status
 
 
 def get_status_mapping():

@@ -50,6 +50,9 @@ def create_heatmap(data, variable_labels, title="",
 
     status_colors = get_status_colors()
     num_to_status = {num: status for status, num in get_status_mapping().items()}
+    # Rows keep the order the variables arrive in, listed top to bottom
+    var_order = list(dict.fromkeys(data['Variables']))
+    label_px = max(50, 7 * max(len(str(variable_labels.get(v, v))) for v in var_order))
 
     # Add default session if not present
     if 'session' not in data.columns:
@@ -155,14 +158,15 @@ def create_heatmap(data, variable_labels, title="",
             
         # Create pivot tables for this group
         pivot_data_num = group_subset.pivot(index='Variables', columns='ID', values='Status').fillna(0)
-        
+        pivot_data_num = pivot_data_num.reindex([v for v in var_order if v in pivot_data_num.index])
+
         # Sort by ID
         sorted_ids = sorted(pivot_data_num.columns, key=_id_sort_key)
         pivot_data_num = pivot_data_num[sorted_ids]
 
         if 'StatusStr' in group_subset.columns:
             pivot_data_str = group_subset.pivot(index='Variables', columns='ID', values='StatusStr').fillna('NA')
-            pivot_data_str = pivot_data_str[sorted_ids]
+            pivot_data_str = pivot_data_str.reindex(pivot_data_num.index)[sorted_ids]
         else:
             pivot_data_str = pivot_data_num.map(lambda x: num_to_status[x])
 
@@ -244,19 +248,19 @@ def create_heatmap(data, variable_labels, title="",
             showline=False,
             showgrid=False,
             zeroline=False,
-            range=[-0.5, n_variables - 0.5],
+            range=[n_variables - 0.5, -0.5],
             row=i, col=1
         )
 
-    # Calculate figure dimensions
-    fig_width = cell_size * max_subjects + 200
+    # Calculate figure dimensions; the left margin grows with the longest label
+    fig_width = cell_size * max_subjects + 150 + label_px
     fig_height = (cell_size * max_vars + 100) * n_groups
 
     fig.update_layout(
         title=title,
         height=fig_height,
         width=fig_width,
-        margin=dict(t=50, b=50, l=50, r=50),
+        margin=dict(t=50, b=50, l=label_px, r=50),
         font=dict(size=10, color='#444'),
         plot_bgcolor='#ffffff'
     )

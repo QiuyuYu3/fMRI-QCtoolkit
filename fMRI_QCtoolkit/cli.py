@@ -1,10 +1,13 @@
 import os
+import shutil
 import typer
 from pathlib import Path
+from typing import Optional
 import subprocess
 
 from .data.fmriprep_pipeline import FMRIPrepPipeline
 from .data.afni_pipeline import AFNIPipeline
+from .dashboard.config import ConfigError, default_config_path
 from .dashboard.fmriprep_app import FMRIPrepDashboard
 from .dashboard.afni_app import AFNIDashboard
 from .dashboard.fmriprep_rating_app import FMRIPrepRatingApp
@@ -17,10 +20,14 @@ app = typer.Typer(help="MRI Quality Control Dashboard")
 prep_app = typer.Typer(help="Data preparation")
 dashboard_app = typer.Typer(help="Dashboard visualization")
 rating_app = typer.Typer(help="Quality rating interface")
+config_app = typer.Typer(help="Write the default dashboard config (thresholds and filters) to edit")
 
 app.add_typer(prep_app, name="prep")
 app.add_typer(dashboard_app, name="dashboard")
 app.add_typer(rating_app, name="rating")
+app.add_typer(config_app, name="config")
+
+CONFIG_HELP = "Dashboard config JSON with your thresholds; get the default with 'fmriqc config {}'"
 
 # -------------------
 # Helper functions
@@ -50,9 +57,19 @@ def ensure_output_dir(path: Path):
         typer.echo(f"Cannot create output directory {path}: {e}", err=True)
         raise typer.Exit(code=1)
 
-def launch_dashboard(pipeline_cls, dashboard_cls, data_file: Path, task: str, host: str, debug: bool):
+def launch_dashboard(pipeline_cls, dashboard_cls, data_file: Path, task: str, host: str, debug: bool,
+                     config: Optional[Path] = None):
     validate_file_exists(data_file, "Data file")
+    if config is not None:
+        validate_file_exists(config, "Config file")
     check_bind_host(host, debug)
+
+    pipeline = pipeline_cls.from_saved_data(data_file=data_file, task=task)
+    try:
+        dashboard = dashboard_cls(pipeline, task=task, config_path=config)
+    except ConfigError as e:
+        typer.echo(f"Config error: {e}", err=True)
+        raise typer.Exit(code=1)
 
     # Auto-detect available port
     try:
@@ -62,9 +79,19 @@ def launch_dashboard(pipeline_cls, dashboard_cls, data_file: Path, task: str, ho
         typer.echo(f"Port allocation failed: {e}", err=True)
         raise typer.Exit(code=1)
 
-    pipeline = pipeline_cls.from_saved_data(data_file=data_file, task=task)
-    dashboard = dashboard_cls(pipeline, task=task)
     dashboard.run(host=host, port=port, debug=debug)
+
+def export_config(pipeline: str, output: Path, force: bool):
+    if output.is_dir():
+        typer.echo(f"{output} is a directory; give a file name such as {output / f'{pipeline}_config.json'}", err=True)
+        raise typer.Exit(code=1)
+    if output.exists() and not force:
+        typer.echo(f"{output} already exists; choose another name, or pass --force to overwrite it.", err=True)
+        raise typer.Exit(code=1)
+    validate_dir_exists(output.parent, "Output directory")
+    shutil.copyfile(default_config_path(pipeline), output)
+    typer.echo(f"Wrote the default {pipeline} config to {output}")
+    typer.echo(f"After editing it, start the dashboard with:\n fmriqc dashboard {pipeline} --data-file df_final.csv --task TASK --config {output}")
 
 # ----------------------------
 # Preparation Commands
@@ -128,20 +155,40 @@ def prep_fmriprep(
 def dashboard_afni(
     data_file: Path = typer.Option(..., help="df_final.csv written by 'fmriqc prep afni'"),
     task: str = typer.Option(..., help="Task name"),
+    config: Optional[Path] = typer.Option(None, help=CONFIG_HELP.format("afni")),
     host: str = typer.Option("127.0.0.1", help="Host address"),
     debug: bool = typer.Option(False, help="Run in debug mode")
 ):
-    launch_dashboard(AFNIPipeline, AFNIDashboard, data_file, task, host, debug)
+    launch_dashboard(AFNIPipeline, AFNIDashboard, data_file, task, host, debug, config)
 
 
 @dashboard_app.command("fmriprep")
 def dashboard_fmriprep(
     data_file: Path = typer.Option(..., help="df_final.csv written by 'fmriqc prep fmriprep'"),
     task: str = typer.Option(..., help="Task name"),
+    config: Optional[Path] = typer.Option(None, help=CONFIG_HELP.format("fmriprep")),
     host: str = typer.Option("127.0.0.1", help="Host address"),
     debug: bool = typer.Option(False, help="Run in debug mode")
 ):
-    launch_dashboard(FMRIPrepPipeline, FMRIPrepDashboard, data_file, task, host, debug)
+    launch_dashboard(FMRIPrepPipeline, FMRIPrepDashboard, data_file, task, host, debug, config)
+
+# ----------------------------
+# Config Commands
+# ----------------------------
+@config_app.command("afni")
+def config_afni(
+    output: Path = typer.Option(..., help="File to write, e.g. afni_config.json"),
+    force: bool = typer.Option(False, help="Overwrite the file if it already exists"),
+):
+    export_config("afni", output, force)
+
+
+@config_app.command("fmriprep")
+def config_fmriprep(
+    output: Path = typer.Option(..., help="File to write, e.g. fmriprep_config.json"),
+    force: bool = typer.Option(False, help="Overwrite the file if it already exists"),
+):
+    export_config("fmriprep", output, force)
 
 # ----------------------------
 # Rating Commands

@@ -60,6 +60,24 @@ class TestCreateHeatmap:
         fig = create_heatmap(data, {}, group_by='session')
         assert 'Status: good' in fig.data[0].text[0]
 
+    @staticmethod
+    def _two_variables(first, second):
+        return pd.DataFrame([{'ID': '001', 'Variables': v, 'Status': 3, 'StatusStr': 'good',
+                              'session': '01', 'run': 1} for v in (first, second)])
+
+    def test_variables_are_listed_top_down_in_the_order_given(self):
+        fig = create_heatmap(self._two_variables('zeta', 'alpha'), {'zeta': 'Zeta'}, group_by='session')
+        assert list(fig.layout.yaxis.ticktext) == ['Zeta', 'alpha']
+        low, high = fig.layout.yaxis.range
+        assert low > high
+
+    def test_long_labels_widen_the_figure_not_shrink_the_cells(self):
+        data = self._two_variables('a', 'b')
+        short = create_heatmap(data, {}, group_by='session')
+        long = create_heatmap(data, {'a': 'Max Censored Displacement'}, group_by='session')
+        assert long.layout.width - long.layout.margin.l == short.layout.width - short.layout.margin.l
+        assert long.layout.margin.l > short.layout.margin.l
+
 
 class TestCreateLollipopPlot:
     

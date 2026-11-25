@@ -7,8 +7,8 @@ from .plots import (
     create_lollipop_plot
 )
 from .status import (
-    assign_afni_status,
-    assign_fmriprep_status,
+    assign_status,
+    parse_rule,
     get_status_mapping,
     get_status_colors
 )
@@ -16,8 +16,8 @@ from .status import (
 __all__ = [
     'create_heatmap',
     'create_lollipop_plot',
-    'assign_afni_status',
-    'assign_fmriprep_status',
+    'assign_status',
+    'parse_rule',
     'get_status_mapping',
     'get_status_colors'
 ]
