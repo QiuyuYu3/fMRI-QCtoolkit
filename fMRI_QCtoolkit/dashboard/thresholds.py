@@ -213,7 +213,7 @@ class ThresholdsTab:
             html.Div(id='thr-message'),
             dcc.Store(id='thr-saved'),
             html.Div(id='thr-reloading', style={'display': 'none'}),
-        ], style={'padding': '15px', 'overflow-x': 'auto'})
+        ], style={'padding': '15px'})
 
     def preview(self, rows):
         """Per-row counts and errors, the summary line, whether Save is off, the unsaved note, and the add options."""
