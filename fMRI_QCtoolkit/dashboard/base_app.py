@@ -23,6 +23,8 @@ from ..utils.status import assign_status, get_status_mapping
 
 HEATMAP_COLUMNS = ['ID', 'Variables', 'Value', 'Status', 'StatusStr', 'session', 'run']
 PLOTS_TAB = 'plots-tab'
+# Dash 4 draws its controls in purple; html:root outranks the :root rule it adds, older Dash ignores it
+ACCENT_STYLE = "<style>html:root { --Dash-Fill-Interactive-Strong: #007bff; }</style>"
 SPINNER_DELAY_MS = 300
 
 
@@ -50,6 +52,7 @@ class BaseDashboard:
         self.apply_config(load_config(self.config_path))
         self.thresholds = ThresholdsTab(self)
         self.app = dash.Dash(__name__)
+        self.app.index_string = self.app.index_string.replace("{%css%}", "{%css%}" + ACCENT_STYLE)
         self.gate = AccessGate(self.app.server, token)
         # A function, so every page load builds the sidebar from the thresholds in force
         self.app.layout = self.build_layout

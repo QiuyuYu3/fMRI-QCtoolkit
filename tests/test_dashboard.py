@@ -96,6 +96,15 @@ class TestSidebarText:
                                                 "Average FD: other ≥ 0.2, bad ≥ 0.3"]
 
 
+class TestPageStyle:
+
+    def test_dash_4_controls_take_the_blue_of_the_buttons(self, tmp_path):
+        dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
+        client = dashboard.app.server.test_client()
+        page = client.get(f"/?token={dashboard.gate.token}", follow_redirects=True).get_data(as_text=True)
+        assert "html:root { --Dash-Fill-Interactive-Strong: #007bff; }" in page
+
+
 class TestTableDisplay:
 
     def test_numbers_are_shown_with_three_decimals_but_ids_are_not(self):
