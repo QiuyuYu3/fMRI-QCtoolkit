@@ -25,7 +25,7 @@ TIER_COLORS = {tier: get_status_colors()[number] for tier, number in get_status_
 # Seconds of no typing before a box is sent, so the preview does not chase every keystroke
 TYPING_PAUSE_S = 0.5
 GRID = {'display': 'grid', 'gap': '6px', 'align-items': 'center',
-        'grid-template-columns': '116px minmax(140px, 260px) 80px 68px 94px 80px 68px 124px 212px 90px',
+        'grid-template-columns': '116px minmax(140px, 260px) 80px 68px 94px 80px 68px 124px minmax(212px, 1fr) 90px',
         'font-size': '13px'}
 _BOX = {'width': '100%', 'box-sizing': 'border-box', 'font-size': '13px'}
 _NOTE_STYLE = {'font-size': '12px', 'color': '#666'}
@@ -109,26 +109,20 @@ def _note(text):
 
 
 def _count_chips(status, metric, n_columns=None):
+    """Per level, a coloured chip with its number of runs, followed by the values the level covers."""
     counts = status.value_counts()
-    tiers = rated_tiers(metric.rules, metric.otherwise) + ['NA']
-    chips = [html.Span(f"{tier} {int(counts.get(tier, 0))}",
-                       style={'background-color': TIER_COLORS[tier], 'padding': '1px 6px',
-                              'border-radius': '3px', 'margin-right': '4px', 'white-space': 'nowrap'})
-             for tier in tiers]
+    ranges = describe_levels(metric.rules, metric.otherwise)
+    items = [html.Span([html.Span(f"{tier} {int(counts.get(tier, 0))}",
+                                  style={'background-color': TIER_COLORS[tier], 'padding': '1px 6px',
+                                         'border-radius': '3px', 'margin-right': '4px'}),
+                        *([ranges[tier]] if tier in ranges else [])],
+                       style={'margin-right': '12px', 'white-space': 'nowrap'})
+             for tier in rated_tiers(metric.rules, metric.otherwise) + ['NA']]
     if n_columns is not None:
-        chips.append(_note(f"worst of {n_columns} columns"))
+        items.append(_note(f"worst of {n_columns} columns"))
     # Wraps rather than running under the row's buttons on a narrow screen
-    return html.Span(chips, style={'font-size': '12px', 'display': 'flex', 'flex-wrap': 'wrap', 'row-gap': '2px'})
-
-
-def _level_ranges(metric):
-    """The values each level covers, as a line of coloured level names and ranges."""
-    return html.Span([html.Span([html.Span(level, style={'background-color': TIER_COLORS[level], 'padding': '1px 6px',
-                                                         'border-radius': '3px', 'margin-right': '4px'}), text],
-                                style={'margin-right': '14px', 'white-space': 'nowrap'})
-                      for level, text in describe_levels(metric.rules, metric.otherwise).items()],
-                     style={'font-size': '12px', 'color': '#333', 'display': 'flex', 'flex-wrap': 'wrap',
-                            'row-gap': '2px'})
+    return html.Span(items, style={'font-size': '12px', 'color': '#333', 'display': 'flex', 'flex-wrap': 'wrap',
+                                   'row-gap': '2px'})
 
 
 def _message(text, ok=False):
@@ -208,8 +202,6 @@ class SettingsTab:
                 html.Div([button('up', '↑', 'Move up'), button('down', '↓', 'Move down'),
                           button('delete', '✕', 'Remove this metric')], style={'white-space': 'nowrap'}),
             ], style=GRID),
-            # Under the label, where the row's own inputs start
-            html.Div(id=ident('ranges'), style={'margin': '3px 0 0 122px'}),
             html.Div(id=ident('error'), style={'color': '#C0392B', 'font-size': '12px'}),
         ], style={'padding': '4px 0', 'border-bottom': '1px solid #e9ecef'})
 
@@ -237,7 +229,7 @@ class SettingsTab:
                                              "rules give"),
                    html.B("Bad", style={'grid-column': 'span 2'}),
                    html.B("Step", title="The slider's step; left empty, the one shown in gray"),
-                   html.B("Runs with these thresholds"), html.Span()]
+                   html.B("Runs and values per level"), html.Span()]
         button_style = {'border': 'none', 'padding': '8px 16px', 'border-radius': '4px', 'cursor': 'pointer',
                         'margin-right': '8px'}
         return html.Div([
@@ -245,8 +237,8 @@ class SettingsTab:
                 html.P("The metrics listed here appear in the sidebar and the table, in this order; those with a "
                        "rule are also rated in the heatmap.", style=_TEXT_STYLE),
                 html.P("A run is good if it meets the good rule, bad if it meets the bad rule, and gets the level "
-                       "under Otherwise if it meets neither. Leave an operator empty for no rule. The line under "
-                       "each rated metric gives the values each level covers.", style=_TEXT_STYLE),
+                       "under Otherwise if it meets neither. Leave an operator empty for no rule. The last column "
+                       "gives each level's number of runs and the values it covers.", style=_TEXT_STYLE),
                 self._file_note(),
             ], style=_PANEL),
             html.Div(id='thr-summary', style={'font-weight': 'bold', 'margin': '10px 0'}),
@@ -303,8 +295,6 @@ class SettingsTab:
 
         hidden = np.zeros(len(df), dtype=bool)
         cells = []
-        ranges = [None if row['key'] in errors or not parsed[row['key']].rated else _level_ranges(parsed[row['key']])
-                  for row in rows]
         for row in rows:
             key, metrics = row['key'], by_entry.get(row['key'], [])
             if key in errors:
@@ -337,7 +327,6 @@ class SettingsTab:
             summary = "Add at least one metric."
         return {
             'counts': cells,
-            'ranges': ranges,
             'rest_defaults': [default_rest(row) for row in rows],
             'errors': [errors.get(row['key']) for row in rows],
             'summary': summary,
@@ -449,7 +438,6 @@ class SettingsTab:
 
         @app.callback(
             [Output({'type': 'thr-counts', 'key': ALL}, 'children'),
-             Output({'type': 'thr-ranges', 'key': ALL}, 'children'),
              Output({'type': 'thr-otherwise', 'key': ALL}, 'placeholder'),
              Output({'type': 'thr-error', 'key': ALL}, 'children'),
              Output('thr-summary', 'children'),
@@ -464,7 +452,7 @@ class SettingsTab:
         def update_preview(*args):
             *fields, table = args
             shown = self.preview(form_rows(_keys(ctx.inputs_list[0]), *fields), table or [])
-            return [shown[k] for k in ('counts', 'ranges', 'rest_defaults', 'errors', 'summary', 'save_off',
+            return [shown[k] for k in ('counts', 'rest_defaults', 'errors', 'summary', 'save_off',
                                        'download_off', 'unsaved', 'options', 'table_options', 'table_error')]
 
         @app.callback(

@@ -34,7 +34,11 @@ def row(rows, key):
 
 
 def chip_texts(cell):
-    return [c.children for c in cell.children]
+    return [c.children if isinstance(c.children, str) else c.children[0].children for c in cell.children]
+
+
+def range_texts(cell):
+    return [c.children[1] for c in cell.children if isinstance(c.children, list) and len(c.children) > 1]
 
 
 @pytest.fixture
@@ -82,18 +86,14 @@ class TestPreview:
         assert cells[keys.index("tsnr")].children == "not in the data"
         assert errors == [None] * len(keys)
 
-    def test_each_rated_row_shows_the_values_each_level_covers(self, tmp_path):
+    def test_each_level_shows_its_runs_and_the_values_it_covers(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         rows = rows_of(dashboard) + [{**new_row("efc"), "bad-op": ">=", "bad-value": 0.7, "otherwise": "other"}]
-        ranges = dict(zip([r["key"] for r in rows], dashboard.settings.preview(rows)['ranges']))
-
-        def text(line):
-            return [[part if isinstance(part, str) else part.children for part in item.children]
-                    for item in line.children]
-
-        assert text(ranges["fd_perc"]) == [["good", "x ≤ 15"], ["other", "15 < x ≤ 20"], ["bad", "x > 20"]]
-        assert text(ranges["efc"]) == [["other", "x < 0.7"], ["bad", "x ≥ 0.7"]]
-        assert ranges["tsnr"] is None
+        cells = dict(zip([r["key"] for r in rows], dashboard.settings.preview(rows)['counts']))
+        assert chip_texts(cells["fd_perc"]) == ["good 1", "other 1", "bad 1", "NA 1"]
+        assert range_texts(cells["fd_perc"]) == ["x ≤ 15", "15 < x ≤ 20", "x > 20"]
+        assert (chip_texts(cells["efc"]), range_texts(cells["efc"])) == (
+            ["other 2", "bad 2", "NA 0"], ["x < 0.7", "x ≥ 0.7"])
 
     def test_otherwise_shows_in_gray_the_level_the_rules_give(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
