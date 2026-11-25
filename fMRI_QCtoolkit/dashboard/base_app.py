@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from dash import ctx, dcc, html, no_update, Input, Output, State, dash_table
 from dash.dash_table.Format import Format, Scheme, Trim
+from dash.exceptions import PreventUpdate
 
 from .config import default_config_path, load_config, resolve_metrics
 from ..utils.access import AccessGate, url_host
@@ -19,6 +20,8 @@ from ..utils.plots import create_lollipop_plot, create_heatmap
 from ..utils.status import assign_status, get_status_mapping
 
 HEATMAP_COLUMNS = ['ID', 'Variables', 'Value', 'Status', 'StatusStr', 'session', 'run']
+PLOTS_TAB = 'plots-tab'
+SPINNER_DELAY_MS = 300
 
 
 class BaseDashboard:
@@ -70,6 +73,9 @@ class BaseDashboard:
         self.app.layout = html.Div([
             # Positions in the full table of the rows that pass the filters
             dcc.Store(id='filtered-rows'),
+            # What the Plots tab currently shows, so it is not redrawn for nothing
+            dcc.Store(id='heatmap-rows'),
+            dcc.Store(id='lollipop-drawn'),
 
             html.Div([
                 # Sidebar
@@ -187,23 +193,23 @@ class BaseDashboard:
                         ]),
 
                         # Plots tab
-                        dcc.Tab(label='Plots', value='plots-tab', children=[
+                        dcc.Tab(label='Plots', value=PLOTS_TAB, children=[
                             html.Div([
                                 # Heatmap section
                                 html.Div([
                                     html.H4("Quality Control Heatmaps"),
                                     html.Div([
                                         html.H5("Quantitative Metrics"),
-                                        html.Div(
+                                        self._loading(html.Div(
                                             dcc.Graph(id='quantitative-heatmap'),
                                             style={'overflowX': 'auto', 'width': '100%'}
-                                        ),
+                                        )),
 
                                         html.H5("Qualitative Ratings"),
-                                        html.Div(
+                                        self._loading(html.Div(
                                             dcc.Graph(id='qualitative-heatmap'),
                                             style={'overflowX': 'auto', 'width': '100%'}
-                                        )
+                                        ))
                                     ])
                                 ], style={
                                     'background-color': '#f8f9fa',
@@ -216,7 +222,7 @@ class BaseDashboard:
                                 # Lollipop chart section
                                 html.Div([
                                     html.H4("Standardized Metrics Overview"),
-                                    dcc.Graph(id='lollipop-chart')
+                                    self._loading(dcc.Graph(id='lollipop-chart'))
                                 ], style={
                                     'background-color': '#f8f9fa',
                                     'padding': '15px',
@@ -231,20 +237,44 @@ class BaseDashboard:
             ])
         ])
 
+    @staticmethod
+    def _loading(child):
+        """Spinner over a plot while it is redrawn; it waits a moment so quick replies do not flash it."""
+        # Not shown on mount, since every switch to the Plots tab mounts the plots again
+        return dcc.Loading(child, delay_show=SPINNER_DELAY_MS, show_initially=False)
+
     def setup_callbacks(self):
         """Setup dashboard callbacks."""
-        self._setup_lollipop_callback()
-        self._setup_main_data_callback()
+        self._setup_table_callback()
+        self._setup_plot_callbacks()
         self._setup_common_callbacks()
 
-    def _setup_lollipop_callback(self):
-        """Setup lollipop chart initialization callback."""
+    def _setup_plot_callbacks(self):
+        """Draw the plots only while the Plots tab is open; its figures persist while it is hidden."""
         @self.app.callback(
-            Output('lollipop-chart', 'figure'),
-            [Input('lollipop-chart', 'id')]
+            [
+                Output('quantitative-heatmap', 'figure'),
+                Output('qualitative-heatmap', 'figure'),
+                Output('heatmap-rows', 'data')
+            ],
+            [Input('filtered-rows', 'data'), Input('main-tabs', 'value')],
+            [State('heatmap-rows', 'data')]
         )
-        def initialize_lollipop_chart(chart_id):
-            return create_lollipop_plot(self.processor.get_lollipop_data(), group_by=self.GROUP_BY)
+        def update_heatmaps(positions, tab, drawn_positions):
+            if tab != PLOTS_TAB or positions is None or positions == drawn_positions:
+                raise PreventUpdate
+            return *self.heatmap_figures(self.processor.get_data().iloc[positions]), positions
+
+        @self.app.callback(
+            [Output('lollipop-chart', 'figure'), Output('lollipop-drawn', 'data')],
+            [Input('main-tabs', 'value')],
+            [State('lollipop-drawn', 'data')]
+        )
+        def draw_lollipop(tab, drawn):
+            # It shows every run whatever the filters, so one drawing per page is enough
+            if tab != PLOTS_TAB or drawn:
+                raise PreventUpdate
+            return create_lollipop_plot(self.processor.get_lollipop_data(), group_by=self.GROUP_BY), True
 
     def filtered_positions(self, ranges, statuses, ratings):
         """Positions in the full table of the rows that pass every filter."""
@@ -276,15 +306,13 @@ class BaseDashboard:
             passed &= values <= hi
         return passed | np.isnan(values)
 
-    def _setup_main_data_callback(self):
+    def _setup_table_callback(self):
         groups = self.processor.checkbox_groups
         n_metrics = len(self.metrics)
 
         @self.app.callback(
             [
                 Output('datatable', 'data'),
-                Output('quantitative-heatmap', 'figure'),
-                Output('qualitative-heatmap', 'figure'),
                 Output('filtered-rows', 'data'),
                 Output('datatable', 'selected_rows')
             ],
@@ -297,21 +325,19 @@ class BaseDashboard:
                 State('filtered-rows', 'data')
             ]
         )
-        def update_all_data(*args):
+        def update_table(*args):
             prev_selected_rows, prev_positions = args[-2], args[-1]
             # The buttons change the selection only; the filtered rows stay as they are
             if ctx.triggered_id == 'select-all-button':
-                return no_update, no_update, no_update, no_update, list(range(len(prev_positions or [])))
+                return no_update, no_update, list(range(len(prev_positions or [])))
             if ctx.triggered_id == 'clear-selection-button':
-                return no_update, no_update, no_update, no_update, []
+                return no_update, no_update, []
 
             ranges, statuses = args[:n_metrics], args[n_metrics:2 * n_metrics]
             ratings = args[2 * n_metrics:2 * n_metrics + len(groups)]
             positions = self.filtered_positions(ranges, statuses, ratings)
-            df = self.processor.get_data().iloc[positions]
-            quant_fig, qual_fig = self.heatmap_figures(df)
-            return (df.to_dict('records'), quant_fig, qual_fig, positions,
-                    self._carry_selection(prev_positions, prev_selected_rows, positions))
+            records = self.processor.get_data().iloc[positions].to_dict('records')
+            return records, positions, self._carry_selection(prev_positions, prev_selected_rows, positions)
 
     @staticmethod
     def _carry_selection(prev_positions, prev_selected_rows, positions):

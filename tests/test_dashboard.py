@@ -165,6 +165,44 @@ class TestTableDisplay:
         assert "format" not in columns["ID"]
 
 
+class TestPlotsAreDrawnOnDemand:
+
+    @staticmethod
+    def heatmaps(dashboard, positions, tab, drawn=None):
+        return dash_call(dashboard, "quantitative-heatmap.figure",
+                         {("filtered-rows", "data"): positions, ("main-tabs", "value"): tab,
+                          ("heatmap-rows", "data"): drawn}, "filtered-rows.data")
+
+    @staticmethod
+    def lollipop(dashboard, tab, drawn=None):
+        return dash_call(dashboard, "lollipop-chart.figure",
+                         {("main-tabs", "value"): tab, ("lollipop-drawn", "data"): drawn}, "main-tabs.value")
+
+    def test_nothing_is_drawn_on_the_table_tab(self, tmp_path):
+        dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
+        assert self.heatmaps(dashboard, [0, 2], "table-tab").status_code == 204
+        assert self.lollipop(dashboard, "table-tab").status_code == 204
+
+    def test_heatmaps_show_the_filtered_rows_when_the_plots_tab_opens(self, tmp_path):
+        dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
+        response = self.heatmaps(dashboard, [0, 2], "plots-tab").get_json()["response"]
+        assert response["heatmap-rows"]["data"] == [0, 2]
+        assert response["quantitative-heatmap"]["figure"]["layout"]["xaxis"]["ticktext"] == ["001", "003"]
+        assert "qualitative-heatmap" in response
+
+    def test_heatmaps_are_redrawn_only_when_the_rows_change(self, tmp_path):
+        dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
+        assert self.heatmaps(dashboard, [0, 2], "plots-tab", drawn=[0, 2]).status_code == 204
+        assert self.heatmaps(dashboard, [0, 2], "plots-tab", drawn=[0, 1, 2]).status_code == 200
+
+    def test_the_lollipop_is_drawn_once(self, tmp_path):
+        dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
+        response = self.lollipop(dashboard, "plots-tab").get_json()["response"]
+        assert response["lollipop-drawn"]["data"] is True
+        assert response["lollipop-chart"]["figure"]["data"]
+        assert self.lollipop(dashboard, "plots-tab", drawn=True).status_code == 204
+
+
 @pytest.fixture
 def fmriprep_dashboard(tmp_path):
     def build(df):
@@ -312,6 +350,11 @@ class TestSelectedRows:
                          {("filtered-rows", "data"): [0, 2], ("datatable", "selected_rows"): [1],
                           (button, "n_clicks"): 1}, f"{button}.n_clicks")
         assert resp.get_json()["response"] == {"datatable": {"selected_rows": expected}}
+
+    def test_a_filter_change_sends_the_table_but_no_plots(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
+        resp = dash_call(dashboard, "datatable.data", {}, "fd_mean_slider.value")
+        assert set(resp.get_json()["response"]) == {"datatable", "filtered-rows"}
 
     def test_a_filter_change_stores_positions_and_keeps_the_selected_run(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
