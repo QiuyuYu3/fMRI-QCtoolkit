@@ -19,6 +19,9 @@
 - The heatmaps are drawn several times faster on large tables.
 - Select All and Clear only change the selection; they no longer refilter the table and redraw the plots.
 
+### Fixed
+- With Dash 4, the value boxes under each sidebar slider no longer cover the first tick box below them.
+
 ### Added
 - `--config FILE` for both dashboard commands, to use your own thresholds.
 - `fmriqc config afni|fmriprep --output FILE` writes the default config to edit. It refuses to overwrite an existing file unless `--force` is given.
