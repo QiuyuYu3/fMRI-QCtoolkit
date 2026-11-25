@@ -312,7 +312,8 @@ class SettingsTab:
             except ConfigError as e:
                 return f"Nothing was saved: {e}", False
             except OSError as e:
-                return f"Could not write {d.save_path}: {e}", False
+                return (f"Could not write {d.save_path}: {e}. Start the dashboard with --config FILE in a "
+                        f"folder you can write to, or use Download config."), False
             d.apply_config(config)
             d.config_path = d.save_path
             d.config_version += 1

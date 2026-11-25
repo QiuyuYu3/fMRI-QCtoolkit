@@ -178,6 +178,18 @@ class TestSaving:
         assert shown_ids(dashboard, *layout_values(dashboard)) == ["001", "002"]
         assert dashboard.table_column_ids()[-2:] == ["efc", "Final"]
 
+    def test_a_folder_that_cannot_be_written_points_to_config_and_download(self, saved_to, monkeypatch):
+        dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())
+
+        def refuse(*args):
+            raise PermissionError(13, "Permission denied")
+
+        monkeypatch.setattr("fMRI_QCtoolkit.dashboard.settings.save_config", refuse)
+        message, saved = dashboard.settings.save(rows_of(dashboard), version=0)
+        assert not saved
+        assert all(part in message for part in ("Permission denied", "--config FILE", "Download config"))
+        assert dashboard.config_version == 0
+
     def test_the_previous_file_is_kept_as_bak(self, saved_to):
         original = {"metrics": {"fd_mean": {"bad": "> 1"}}}
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs(), original)

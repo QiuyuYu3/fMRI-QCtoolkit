@@ -7,7 +7,7 @@ import subprocess
 
 from .data.fmriprep_pipeline import FMRIPrepPipeline
 from .data.afni_pipeline import AFNIPipeline
-from .dashboard.config import ConfigError, default_config_path
+from .dashboard.config import ConfigError, config_beside, default_config_path
 from .dashboard.fmriprep_app import FMRIPrepDashboard
 from .dashboard.afni_app import AFNIDashboard
 from .dashboard.fmriprep_rating_app import FMRIPrepRatingApp
@@ -27,8 +27,9 @@ app.add_typer(dashboard_app, name="dashboard")
 app.add_typer(rating_app, name="rating")
 app.add_typer(config_app, name="config")
 
-CONFIG_HELP = ("Dashboard config JSON with your thresholds; the Settings tab saves to it, "
-               "and creates it from the default if it does not exist")
+CONFIG_HELP = ("Dashboard config JSON with your thresholds; the Settings tab saves to it, and creates it from "
+               "the default if it does not exist. Default: afni_config.json or fmriprep_config.json in the "
+               "folder of --data-file")
 
 # -------------------
 # Helper functions
@@ -61,12 +62,13 @@ def ensure_output_dir(path: Path):
 def launch_dashboard(pipeline_cls, dashboard_cls, data_file: Path, task: str, host: str, debug: bool,
                      config: Optional[Path] = None):
     validate_file_exists(data_file, "Data file")
-    if config is not None:
-        # A new file is fine: the dashboard starts from the default and creates it on the first save
-        if config.is_dir():
-            typer.echo(f"Config file is a directory: {config}; give a file name such as {config / 'config.json'}", err=True)
-            raise typer.Exit(code=1)
-        validate_dir_exists(config.parent, "Config file's directory")
+    if config is None:
+        config = config_beside(data_file, dashboard_cls.PIPELINE)
+    # A new file is fine: the dashboard starts from the default and creates it on the first save
+    if config.is_dir():
+        typer.echo(f"Config file is a directory: {config}; give a file name such as {config / 'config.json'}", err=True)
+        raise typer.Exit(code=1)
+    validate_dir_exists(config.parent, "Config file's directory")
     check_bind_host(host, debug)
 
     pipeline = pipeline_cls.from_saved_data(data_file=data_file, task=task)

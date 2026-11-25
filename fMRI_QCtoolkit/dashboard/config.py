@@ -35,6 +35,11 @@ def default_config_path(pipeline):
     return Path(__file__).with_name(CONFIG_FILES[pipeline])
 
 
+def config_beside(data_file, pipeline):
+    """The config a dashboard uses without --config: the pipeline's config file name in the data file's folder."""
+    return Path(data_file).parent / CONFIG_FILES[pipeline]
+
+
 def load_config(path):
     """Read and check a dashboard config; returns {config key: Metric}."""
     path = Path(path)

@@ -180,7 +180,7 @@ By default, runs rated bad on any metric are hidden, while runs rated other stay
 - `fmriqc dashboard afni`: Indicate which rating program.
 - `--data-file`: Input the merged dataframe (`df_final.csv`).
 - `--task`: Specify the task name to be used when downloading data.
-- `--config`: Optional. The file that holds your settings; the Settings tab saves to it and creates it if it does not exist. See [Thresholds and filters](#thresholds-and-filters).
+- `--config`: Optional. The file that holds your settings; the Settings tab saves to it and creates it if it does not exist. Without it, the dashboard uses `afni_config.json` in the folder of `--data-file`. See [Thresholds and filters](#thresholds-and-filters).
 
 **Example Synatx:**
 ```bash
@@ -193,7 +193,7 @@ fmriqc dashboard afni --data-file /PATH/Output_dir/df_final.csv --task kidvid
 - `fmriqc dashboard fmriprep`: Indicate which rating program.
 - `--data-file`: Input the merged dataframe (`df_final.csv`).
 - `--task`: Specify the task name to be used when downloading data and filtering task in the merged dataframe.
-- `--config`: Optional. The file that holds your settings; the Settings tab saves to it and creates it if it does not exist. See [Thresholds and filters](#thresholds-and-filters).
+- `--config`: Optional. The file that holds your settings; the Settings tab saves to it and creates it if it does not exist. Without it, the dashboard uses `fmriprep_config.json` in the folder of `--data-file`. See [Thresholds and filters](#thresholds-and-filters).
 
 **Example Synatx:**
 ```bash
@@ -203,17 +203,17 @@ fmriqc dashboard fmriprep --data-file examples/example_data/fmriprep/df_final.cs
 ### Thresholds and filters
 Each dashboard reads a config file that lists the metrics in the sidebar and the thresholds that rate them. The ratings color the quantitative heatmap and set the default filters. The package ships a default for each pipeline ([AFNI](https://github.com/QiuyuYu3/fMRI-QCtoolkit/blob/main/fMRI_QCtoolkit/dashboard/afni_config.json), [fMRIPrep](https://github.com/QiuyuYu3/fMRI-QCtoolkit/blob/main/fMRI_QCtoolkit/dashboard/fmriprep_config.json)).
 
-To use your own thresholds, start the dashboard with `--config` and a file name, then change them in the **Settings** tab:
+To use your own thresholds, change them in the **Settings** tab and press **Save**. They are saved to `afni_config.json` or `fmriprep_config.json` in the folder of `df_final.csv`, and the dashboard uses that file the next time it opens the same data. To keep the settings somewhere else, for example one file for several datasets, start the dashboard with `--config` and a file name; it then reads and saves that file instead:
 
 ```bash
 fmriqc dashboard fmriprep --data-file examples/example_data/fmriprep/df_final.csv --task rest --config my_fmriprep_config.json
 ```
 
-- If the file does not exist yet, the dashboard starts from the default and creates the file when you first save. Pass the same `--config` next time to keep your thresholds.
+- If the file does not exist yet, the dashboard starts from the package's default and creates the file when you first save.
 - Each row of the tab is one metric: its label, the `other` and `bad` rules (an operator and a number), and the slider step. Beside each row, the tab counts the runs that the thresholds in the form rate good, other, bad and NA, and above the rows it says how many runs would be shown when the dashboard opens.
 - The rows are the metrics the dashboard shows, in the sidebar and the table, in this order; those with a rule are also rated in the heatmap. The list under the rows adds a metric (it offers the numeric columns of `df_final.csv` not in the form yet), ✕ removes one, and the arrows change the order.
 - **Save** checks the thresholds, writes the file, and reloads the page with them. The file it replaces is kept beside it as `<name>.bak`. **Discard changes** goes back to the saved thresholds, and **Use defaults** fills in the package's defaults without saving them.
-- **Download config** saves the settings in the form as a file on the computer running the browser, for example to start with next time, to share, or to keep with a study. It works without `--config` too: the tab then cannot save, so download the file and pass it with `--config` next time.
+- **Download config** saves the settings in the form as a file on the computer running the browser, for example to start with next time, to share, or to keep with a study. If Save cannot write to the folder of `df_final.csv`, download the file and pass it with `--config` next time.
 
 ![dashboard_settings](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/dashboard_settings.png)
 
@@ -223,7 +223,7 @@ The config is a JSON file that can also be edited by hand. `fmriqc config` write
 fmriqc config fmriprep --output my_fmriprep_config.json
 ```
 
-`fmriqc config` does not overwrite an existing file unless you add `--force`, so edited thresholds are not replaced by the defaults by accident. When the dashboard starts, it prints the path of the config it uses.
+`fmriqc config` does not overwrite an existing file unless you add `--force`, so edited thresholds are not replaced by the defaults by accident. When the dashboard starts, it prints the path of the config file it reads and saves: the `--config` file if given, otherwise the one beside `df_final.csv`, with a note when that file does not exist yet and the package's default is used.
 
 Each metric is one entry, keyed by its column in `df_final.csv`:
 

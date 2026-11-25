@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -22,14 +23,16 @@ def launched(monkeypatch):
     return calls
 
 
-def test_dashboard_fmriprep_launches(launched):
-    result = runner.invoke(cli.app, ["dashboard", "fmriprep", "--data-file", str(EXAMPLES / "df_final.csv"),
-                                     "--task", "rest"])
+def test_dashboard_fmriprep_launches(launched, tmp_path):
+    data_file = tmp_path / "df_final.csv"
+    shutil.copyfile(EXAMPLES / "df_final.csv", data_file)
+    result = runner.invoke(cli.app, ["dashboard", "fmriprep", "--data-file", str(data_file), "--task", "rest"])
     assert result.exit_code == 0, result.output
     assert [(type(d), kwargs) for d, kwargs in launched] == [
         (FMRIPrepDashboard, {"host": "127.0.0.1", "port": 5123, "debug": False})]
+    # Without --config, Save writes beside the data file
     assert launched[0][0].config_path == default_config_path("fmriprep")
-    assert launched[0][0].save_path is None
+    assert launched[0][0].save_path == tmp_path / "fmriprep_config.json"
 
 
 def test_dashboard_afni_launches(launched, tmp_path, sample_afni_data):
@@ -117,6 +120,47 @@ class TestDashboardConfigOption:
         result = self.run_fmriprep(tmp_path)
         assert result.exit_code == 1
         assert "is a directory" in result.output
+        assert launched == []
+
+
+class TestConfigBesideTheData:
+
+    @staticmethod
+    def data_with_config(folder, pipeline_config):
+        shutil.copyfile(EXAMPLES / "df_final.csv", folder / "df_final.csv")
+        path = folder / "fmriprep_config.json"
+        path.write_text(json.dumps(pipeline_config))
+        return folder / "df_final.csv", path
+
+    def test_it_is_used_without_config(self, launched, tmp_path):
+        data_file, beside = self.data_with_config(tmp_path, {"metrics": {"fd_mean": {"bad": ">= 0.5"}}})
+
+        result = runner.invoke(cli.app, ["dashboard", "fmriprep", "--data-file", str(data_file), "--task", "rest"])
+
+        assert result.exit_code == 0, result.output
+        dashboard = launched[0][0]
+        assert dashboard.config_path == dashboard.save_path == beside
+        assert [(m.column, m.rules) for m in dashboard.metrics] == [("fd_mean", {"bad": (">=", 0.5)})]
+
+    def test_config_takes_precedence(self, launched, tmp_path):
+        data_file, _ = self.data_with_config(tmp_path, {"metrics": {"fd_mean": {"bad": ">= 0.5"}}})
+        mine = tmp_path / "mine.json"
+        mine.write_text(json.dumps({"metrics": {"fd_perc": {"bad": "> 30"}}}))
+
+        result = runner.invoke(cli.app, ["dashboard", "fmriprep", "--data-file", str(data_file), "--task", "rest",
+                                         "--config", str(mine)])
+
+        assert result.exit_code == 0, result.output
+        assert launched[0][0].config_path == launched[0][0].save_path == mine
+        assert [m.column for m in launched[0][0].metrics] == ["fd_perc"]
+
+    def test_a_broken_one_stops_before_launch_and_names_the_file(self, launched, tmp_path):
+        data_file, beside = self.data_with_config(tmp_path, {"metrics": {"fd_mean": {"bad": "=> 0.5"}}})
+
+        result = runner.invoke(cli.app, ["dashboard", "fmriprep", "--data-file", str(data_file), "--task", "rest"])
+
+        assert result.exit_code == 1
+        assert str(beside) in result.output
         assert launched == []
 
 

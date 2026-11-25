@@ -29,8 +29,8 @@
 - In the lollipop chart, a metric with the same value in every run (such as `TRs_total_raw` when all runs have the same length) is drawn at 0 instead of at its raw value, which flattened every other metric.
 
 ### Added
-- A **Settings** tab in both dashboards. It chooses the metrics the dashboard shows and their order, edits their labels, rules and slider steps, and counts the runs each metric would rate good, other, bad and NA before anything is saved. Save writes the `--config` file, keeps the previous version as `<name>.bak`, and reloads the page with the new settings, without restarting the dashboard. Download config saves the settings as a file, also when the dashboard was started without `--config`.
-- `--config FILE` for both dashboard commands, to use your own thresholds. The file may not exist yet: the dashboard then starts from the default and creates it on the first save.
+- A **Settings** tab in both dashboards. It chooses the metrics the dashboard shows and their order, edits their labels, rules and slider steps, and counts the runs each metric would rate good, other, bad and NA before anything is saved. Save writes the config file, keeps the previous version as `<name>.bak`, and reloads the page with the new settings, without restarting the dashboard. Download config saves the settings as a file on the computer running the browser.
+- The dashboard keeps its settings in `afni_config.json` or `fmriprep_config.json` beside `df_final.csv` and uses that file whenever it opens the same data. `--config FILE` names another file instead. Either file may not exist yet: the dashboard then starts from the package's default and creates it on the first save.
 - `fmriqc config afni|fmriprep --output FILE` writes the default config to edit. It refuses to overwrite an existing file unless `--force` is given.
 - The dashboard prints the config it uses when it starts, and lists the config metrics missing from the data.
 
