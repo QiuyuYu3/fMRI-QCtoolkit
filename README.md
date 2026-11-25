@@ -127,7 +127,7 @@ fmriqc rating fmriprep --input-dir /PATH/fMRIPrep_derivatives --output-dir /PATH
 By extracting information from qualitative rating files, `fmriqc prep` then writes `df_final.csv`, the table the dashboard reads.
 
 ### AFNI
-After finishing preprocessing and rating, both quantitative and qualitative rating information are saved in `QC_{subj}/extra_info/out.ss_review.{subj}.json`. 
+After finishing preprocessing and rating, both quantitative and qualitative rating information are saved in `QC_{subj}/extra_info/out.ss_review.{subj}.json`. `df_final.csv` keeps every numeric field of this file (a field that holds a list, such as per-run values, gets one column per value), so any of them can be added to the dashboard later.
 
 **Input Arguments:**
 - `fmriqc prep afni`: Indicate which rating program.

@@ -10,6 +10,13 @@ import re
 from pathlib import Path
 from .base import BaseDataProcessor
 
+def _all_numbers(values):
+    """Whether every value given reads as a number; out.ss_review JSON writes numbers as text."""
+    present = values.dropna().astype(str).str.strip()
+    present = present[present != ""]
+    return not present.empty and pd.to_numeric(present, errors="coerce").notna().all()
+
+
 class AFNIPipeline(BaseDataProcessor):
     """Data processor for AFNI pipeline with flexible file discovery."""
 
@@ -208,16 +215,12 @@ class AFNIPipeline(BaseDataProcessor):
         # Set variables based on available columns
         self._set_variables()
         
-        # Select final columns
-        available_cols = [
-            col for col in (
-                self.core_cols + 
-                [col for col in df.columns if col.startswith("frac_TRs_cens_")] + 
-                self.checkbox_groups
-            ) 
-            if col in df.columns
-        ]
-        df = df[available_cols]
+        # The named metrics, then every other numeric field so any can be added to the dashboard, then the ratings
+        named = [col for col in self.core_cols + [c for c in df.columns if c.startswith("frac_TRs_cens_")]
+                 if col in df.columns]
+        ratings = [col for col in self.checkbox_groups if col in df.columns]
+        others = [col for col in df.columns if col not in named and col not in ratings and _all_numbers(df[col])]
+        df = df[named + others + ratings]
         
         # Clean ID column - remove prefix if it exists
         df["ID"] = df["ID"].str.removeprefix(self.prefix or "")

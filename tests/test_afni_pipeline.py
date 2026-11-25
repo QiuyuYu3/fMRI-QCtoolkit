@@ -120,6 +120,25 @@ class TestCleanData:
         else:
             assert pipeline.df_raw['flip_guess'].iloc[0] == 0
     
+    def test_every_numeric_field_is_kept(self, temp_dir, sample_json_data):
+        # AFNI writes numbers as text
+        data = {**sample_json_data, "anat/EPI mask Dice coef": "0.91", "max motion displacement": "1.4",
+                "blur estimates (FWHM)": ["5.1", "5.3", "4.9", "5.1"], "AFNI version": "AFNI_24.3.06",
+                "slice timing pattern": "alt+z", "vorig rating": "good"}
+        qc_dir = temp_dir / "rest_output/QC_sub-001/extra_info"
+        qc_dir.mkdir(parents=True)
+        (qc_dir / "out.ss_review.sub-001.json").write_text(json.dumps(data))
+
+        pipeline = AFNIPipeline(temp_dir, "rest", "sub-", temp_dir / "output")
+        pipeline._load_raw_data()
+        pipeline._clean_data()
+
+        columns = list(pipeline.df_final.columns)
+        assert {"anat/EPI_mask_Dice_coef", "max_motion_displacement",
+                "blur_estimates_FWHM_1", "blur_estimates_FWHM_4", "flip_guess"} <= set(columns)
+        assert not {"AFNI_version", "slice_timing_pattern"} & set(columns)
+        assert columns[0] == "ID" and columns[-1] == "vorig_rating"
+
     def test_removes_prefix_from_id(self, mock_afni_directory):
         """Remove prefix from ID"""
         pipeline = AFNIPipeline(
