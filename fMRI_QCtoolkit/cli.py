@@ -15,7 +15,10 @@ from .utils.access import is_loopback
 from .utils.port_utils import find_free_port
 from .utils.subject_utils import parse_subjects_input,validate_fmriprep_subjects,validate_afni_subjects
 
-app = typer.Typer(help="MRI Quality Control Dashboard")
+app = typer.Typer(help="Rate AFNI and fMRIPrep QC reports and review them in a dashboard", add_completion=False)
+AFNI_TASK_HELP = "Task name as it appears in the folder path, e.g. rest or ses-01/rest"
+PREFIX_HELP = "Text before the ID in folder names, e.g. sub-"
+DASHBOARD_TASK_HELP = "Task name, used in the names of downloaded files"
 
 prep_app = typer.Typer(help="Data preparation")
 dashboard_app = typer.Typer(help="Dashboard visualization")
@@ -107,8 +110,8 @@ def export_config(pipeline: str, output: Path, force: bool):
 def prep_afni(
     input_dir: Path = typer.Option(..., help="Input directory"),
     output_dir: Path = typer.Option(..., help="Output directory"),
-    task: str = typer.Option(..., help="Task name. The program will automatically detect paths containing this field within the input directory."),
-    prefix: str = typer.Option(..., help="Subject prefix, eg: sub-90=sub-(prefix)+90(ID)")
+    task: str = typer.Option(..., help=AFNI_TASK_HELP),
+    prefix: str = typer.Option(..., help=PREFIX_HELP)
 ):
     validate_dir_exists(input_dir, "Input directory")
     ensure_output_dir(output_dir)
@@ -135,7 +138,7 @@ def prep_afni(
 def prep_fmriprep(
     bold_file: Path = typer.Option(..., help="Path to group_bold.tsv"),
     rating_dir: Path = typer.Option(..., help="Directory with rating CSVs"),
-    task: str = typer.Option(..., help="Task name, will be used to filter group.tsv"),
+    task: str = typer.Option(..., help="Task name as in the file names (task-rest gives rest)"),
     output_dir: Path = typer.Option(..., help="Output directory")
 ):
     validate_file_exists(bold_file, "BOLD file")
@@ -165,7 +168,7 @@ def prep_fmriprep(
 @dashboard_app.command("afni")
 def dashboard_afni(
     data_file: Path = typer.Option(..., help="df_final.csv written by 'fmriqc prep afni'"),
-    task: str = typer.Option(..., help="Task name"),
+    task: str = typer.Option(..., help=DASHBOARD_TASK_HELP),
     config: Optional[Path] = typer.Option(None, help=CONFIG_HELP),
     host: str = typer.Option("127.0.0.1", help="Host address"),
     debug: bool = typer.Option(False, help="Run in debug mode")
@@ -176,7 +179,7 @@ def dashboard_afni(
 @dashboard_app.command("fmriprep")
 def dashboard_fmriprep(
     data_file: Path = typer.Option(..., help="df_final.csv written by 'fmriqc prep fmriprep'"),
-    task: str = typer.Option(..., help="Task name"),
+    task: str = typer.Option(..., help=DASHBOARD_TASK_HELP),
     config: Optional[Path] = typer.Option(None, help=CONFIG_HELP),
     host: str = typer.Option("127.0.0.1", help="Host address"),
     debug: bool = typer.Option(False, help="Run in debug mode")
@@ -255,8 +258,8 @@ def rating_fmriprep(
 def rating_afni(
     input_dir: Path = typer.Option(..., help="AFNI derivatives' root directory"),
     subjects: str = typer.Option(..., help="Subjects to rate (comma/space separated or path to text file)"),
-    task: str = typer.Option(..., help="Task name. The program will automatically detect paths containing this field within the input directory."),
-    prefix: str = typer.Option(..., help="Prefix for AFNI subjects, e.g., 'sub-'"),
+    task: str = typer.Option(..., help=AFNI_TASK_HELP),
+    prefix: str = typer.Option(..., help=PREFIX_HELP),
     afni_path: str = typer.Option("", help="Path to AFNI binaries (added to $PATH if given; otherwise open_apqc.py must already be on $PATH)"),
 ):
     validate_dir_exists(input_dir, "Input directory")

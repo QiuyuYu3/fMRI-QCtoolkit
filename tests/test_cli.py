@@ -70,6 +70,13 @@ def test_file_given_as_input_dir_is_refused(tmp_path):
     assert "not a directory" in result.output
 
 
+def test_help_has_no_completion_options():
+    result = runner.invoke(cli.app, ["--help"])
+    assert result.exit_code == 0
+    assert "Rate AFNI and fMRIPrep QC reports" in result.output
+    assert "completion" not in result.output
+
+
 def run_prep_fmriprep(rating_dir, output_dir):
     return runner.invoke(cli.app, ["prep", "fmriprep", "--bold-file", str(EXAMPLES / "group_bold.tsv"),
                                    "--rating-dir", str(rating_dir), "--task", "rest", "--output-dir", str(output_dir)])
