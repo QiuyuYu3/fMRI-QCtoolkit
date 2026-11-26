@@ -48,7 +48,8 @@ def dash_call(dashboard, output, values, changed, comps=None):
     `values` and `changed` name a component by its id as stringify_id writes it; a pattern id ({"key": ALL})
     covers every matching component of `comps`, by default the layout's.
     """
-    key, spec = next((k, s) for k, s in dashboard.app.callback_map.items() if output in k)
+    # A second writer of an output carries an @ suffix there, so the plain name finds the first writer
+    key, spec = next((k, s) for k, s in dashboard.app.callback_map.items() if output in k.strip(".").split("..."))
     comps = {stringify_id(c.id): c for c in (comps if comps is not None else layout_components(dashboard))}
 
     def instances(ident):

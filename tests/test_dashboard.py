@@ -162,9 +162,12 @@ class TestTableDisplay:
         expected = ["ID", "session", "run", "fd_mean", "fd_perc", "Final"]
 
         assert [c["field"] for c in dashboard._table_columns()] == expected
-        table = dash_call(dashboard, "datatable.rowData", {}, FD_MEAN_RANGE).get_json()["response"]["datatable"]
+        response = dash_call(dashboard, "datatable.rowData", {}, FD_MEAN_RANGE).get_json()["response"]
+        table = response["datatable"]
         assert [list(record) for record in table["rowData"]] == [expected + ["_row"]]
-        shown = dash_call(dashboard, "selected-rows-display.children", {("datatable", "selectedRows"): table["rowData"]},
+        shown = dash_call(dashboard, "selected-rows-display.children",
+                          {("datatable", "selectedRows"): table["rowData"],
+                           ("filtered-rows", "data"): response["filtered-rows"]["data"]},
                           "datatable.selectedRows").get_json()["response"]["selected-rows-display"]["children"]
         assert [c["field"] for c in shown["props"]["columnDefs"]] == expected
         assert list(shown["props"]["rowData"][0]) == expected
@@ -356,7 +359,8 @@ class TestSelectedRows:
     def test_download_keeps_full_precision(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
         resp = dash_call(dashboard, "download-dataframe-csv.data",
-                         {("download-button", "n_clicks"): 1, ("datatable", "selectedRows"): dashboard.table_records([0])},
+                         {("download-button", "n_clicks"): 1, ("datatable", "selectedRows"): dashboard.table_records([0]),
+                          ("filtered-rows", "data"): [0, 1, 2]},
                          "download-button.n_clicks")
         csv = resp.get_json()["response"]["download-dataframe-csv"]["data"]["content"]
         rows = read_csv_exact(io.StringIO(csv), dtype={"ID": str})

@@ -58,7 +58,7 @@ class TestFormEntries:
 
     def test_rows_read_back_as_the_config(self):
         config = load_config(default_config_path("afni"))
-        assert form_raw(config_rows(config.metrics)) == json.loads(default_config_path("afni").read_text(encoding="utf-8"))
+        assert dump_config(form_raw(config_rows(config.metrics))) == default_config_path("afni").read_text(encoding="utf-8")
 
     def test_an_empty_label_falls_back_to_the_column_name(self):
         assert row_entry({**new_row("efc"), "label": "  "}) == {}
@@ -241,7 +241,7 @@ class TestSaving:
         message, saved = dashboard.settings.save(rows, version=0)
 
         assert saved, message
-        assert json.loads(path.read_text(encoding="utf-8")) == form_raw(rows)
+        assert path.read_text(encoding="utf-8") == dump_config(form_raw(rows))
         assert not path.with_name("thresholds.json.bak").exists()
         assert dashboard.config_version == 1
         assert dashboard.status["efc"].tolist() == ["good", "good", "bad", "bad"]
@@ -440,7 +440,7 @@ class TestThroughDash:
     def test_the_download_button_sends_the_form(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         resp = dash_call(dashboard, "thr-download.data",
-                         {("thr-download-button", "n_clicks"): 1, (sid("thr-bad-value", "fd_perc"), "value"): 30},
+                         {("thr-download-button", "n_clicks"): 1, (sid("thr-bad-value", "fd_perc"), "value"): "30"},
                          "thr-download-button.n_clicks")
         sent = resp.get_json()["response"]["thr-download"]["data"]
         assert sent["filename"] == "fmriprep_config.json"
@@ -449,7 +449,7 @@ class TestThroughDash:
     def test_the_download_button_says_why_an_invalid_form_gives_no_file(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         resp = dash_call(dashboard, "thr-download.data",
-                         {("thr-download-button", "n_clicks"): 1, (sid("thr-bad-value", "fd_mean"), "value"): 0.1},
+                         {("thr-download-button", "n_clicks"): 1, (sid("thr-bad-value", "fd_mean"), "value"): "0.1"},
                          "thr-download-button.n_clicks")
         response = resp.get_json()["response"]
         assert "thr-download" not in response
@@ -458,7 +458,7 @@ class TestThroughDash:
     def test_the_save_button_writes_the_form_to_the_config_path(self, saved_to):
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
         resp = dash_call(dashboard, "thr-saved.data",
-                         {("thr-save", "n_clicks"): 1, (sid("thr-bad-value", "fd_perc"), "value"): 30},
+                         {("thr-save", "n_clicks"): 1, (sid("thr-bad-value", "fd_perc"), "value"): "30"},
                          "thr-save.n_clicks")
         assert resp.status_code == 200
         assert resp.get_json()["response"]["thr-saved"]["data"] == 1
@@ -496,7 +496,7 @@ class TestThroughDash:
         resp = dash_call(dashboard, "thr-summary.children", {("thr-table", "value"): ["efc"]}, "thr-table.value")
         response = resp.get_json()["response"]
         assert response["thr-table"]["options"] == ["efc", "task"]
-        assert response["thr-save"]["disabled"] is False
+        assert response["thr-save"]["style"] == SAVE_STYLE
         assert response["thr-unsaved"]["children"] == "Unsaved changes"
 
     def test_the_save_button_writes_the_table_only_columns(self, saved_to):

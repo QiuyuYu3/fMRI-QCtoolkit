@@ -39,11 +39,17 @@ class Metric:
         return bool(self.rules) or self.otherwise is not None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Config:
     """{config key: Metric}, and the columns the table shows after the metrics, without a filter or rating."""
     metrics: dict
     table_columns: tuple = ()
+
+    def __eq__(self, other):
+        # Metric order counts: it is the order of the sidebar and the table
+        if not isinstance(other, Config):
+            return NotImplemented
+        return (list(self.metrics.items()), self.table_columns) == (list(other.metrics.items()), other.table_columns)
 
 
 def same_settings(a, b):

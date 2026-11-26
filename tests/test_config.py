@@ -10,6 +10,7 @@ from fMRI_QCtoolkit.dashboard.config import (
     load_config,
     parse_config,
     resolve_metrics,
+    same_settings,
     save_config,
 )
 
@@ -114,6 +115,19 @@ class TestResolveMetrics:
         config = parse_config({"metrics": {"cens_frac": {"label": "A"}, "cens_*": {}}}).metrics
         resolved = resolve_metrics(config, ["cens_frac", "cens_mot"])
         assert [(m.column, m.label) for m in resolved] == [("cens_frac", "A"), ("cens_mot", "cens_mot")]
+
+
+class TestComparingConfigs:
+
+    def test_metric_order_makes_a_different_config(self):
+        first = parse_config({"metrics": {"a": {}, "b": {}}})
+        second = parse_config({"metrics": {"b": {}, "a": {}}})
+        assert first != second and not same_settings(first, second)
+
+    def test_table_only_columns_in_another_order_set_the_same(self):
+        first = parse_config({"metrics": {"a": {}}, "table_columns": ["x", "y"]})
+        second = parse_config({"metrics": {"a": {}}, "table_columns": ["y", "x"]})
+        assert first != second and same_settings(first, second)
 
 
 class TestWritingConfigs:
