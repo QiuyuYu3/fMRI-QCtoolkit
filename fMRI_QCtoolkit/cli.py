@@ -139,9 +139,12 @@ def prep_fmriprep(
     bold_file: Path = typer.Option(..., help="Path to group_bold.tsv"),
     rating_dir: Path = typer.Option(..., help="Directory with rating CSVs"),
     task: str = typer.Option(..., help="Task name as in the file names (task-rest gives rest)"),
-    output_dir: Path = typer.Option(..., help="Output directory")
+    output_dir: Path = typer.Option(..., help="Output directory"),
+    t1w_file: Optional[Path] = typer.Option(None, help="Path to group_T1w.tsv, to add the anatomical metrics"),
 ):
     validate_file_exists(bold_file, "BOLD file")
+    if t1w_file:
+        validate_file_exists(t1w_file, "T1w file")
     validate_dir_exists(rating_dir, "Rating directory")
     ensure_output_dir(output_dir)
 
@@ -151,6 +154,7 @@ def prep_fmriprep(
         rating_dir=rating_dir,
         task=task,
         output_dir=output_dir,
+        t1w_file=t1w_file,
     )
     try:
         pipeline.process()

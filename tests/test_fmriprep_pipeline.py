@@ -449,3 +449,62 @@ class TestMergeMismatchIsReported:
         pipeline._clean_data()
 
         assert '_merge' not in pipeline.df_final.columns
+
+
+class TestT1wMetrics:
+    """group_T1w.tsv adds the anatomical IQMs to every run of the participant (and session) they belong to."""
+
+    @staticmethod
+    def _env(temp_dir, bold_names, t1w_rows):
+        bold = pd.DataFrame({'bids_name': bold_names, 'fd_mean': 0.1, 'efc': 0.4})
+        bold_file = temp_dir / "group_bold.tsv"
+        bold.to_csv(bold_file, sep='\t', index=False)
+        rating_dir = temp_dir / "ratings"
+        rating_dir.mkdir(exist_ok=True)
+        (rating_dir / "sub-01_ses-01_rest.csv").write_text("ID,Final_1_r\n01,good\n")
+        t1w_file = temp_dir / "group_T1w.tsv"
+        pd.DataFrame(t1w_rows, columns=['bids_name', 'cjv', 'efc']).to_csv(t1w_file, sep='\t', index=False)
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "out", t1w_file=t1w_file)
+        pipeline._load_raw_data()
+        pipeline._clean_data()
+        return pipeline.df_final.set_index(['ID', 'session', 'run'])
+
+    def test_a_session_less_t1w_reaches_every_session(self, temp_dir):
+        df = self._env(temp_dir, ['sub-01_ses-01_task-rest_run-1_bold', 'sub-01_ses-02_task-rest_run-2_bold'],
+                       [['sub-01_T1w', 0.4, 0.5]])
+        assert df['t1w_cjv'].tolist() == [0.4, 0.4]
+        assert df['efc'].tolist() == [0.4, 0.4] and df['t1w_efc'].tolist() == [0.5, 0.5]
+
+    def test_each_session_gets_its_own_t1w(self, temp_dir):
+        df = self._env(temp_dir, ['sub-01_ses-01_task-rest_run-1_bold', 'sub-01_ses-02_task-rest_run-1_bold',
+                                  'sub-02_ses-01_task-rest_run-1_bold'],
+                       [['sub-01_ses-01_T1w', 0.4, 0.5], ['sub-01_ses-02_T1w', 0.6, 0.7], ['sub-02_T1w', 0.8, 0.9]])
+        assert df.loc[('01', '01', 1), 't1w_cjv'] == 0.4
+        assert df.loc[('01', '02', 1), 't1w_cjv'] == 0.6
+        assert df.loc[('02', '01', 1), 't1w_cjv'] == 0.8
+
+    def test_several_t1w_in_one_session_are_left_empty(self, temp_dir, capsys):
+        df = self._env(temp_dir, ['sub-01_ses-01_task-rest_run-1_bold', 'sub-02_ses-01_task-rest_run-1_bold'],
+                       [['sub-01_ses-01_run-1_T1w', 0.4, 0.5], ['sub-01_ses-01_run-2_T1w', 0.6, 0.7],
+                        ['sub-02_ses-01_T1w', 0.8, 0.9]])
+        assert pd.isna(df.loc[('01', '01', 1), 't1w_cjv'])
+        assert df.loc[('02', '01', 1), 't1w_cjv'] == 0.8
+        assert "sub-01 session 01 has 2 T1w images" in capsys.readouterr().out
+
+    def test_without_the_option_nothing_changes(self, temp_dir, random_bold_data):
+        bold_file, rating_dir = setup_fmriprep_env(temp_dir, random_bold_data)
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "out")
+        pipeline._load_bold_data()
+        assert pipeline.t1w_data is None
+
+    def test_cli_rejects_a_missing_t1w_file(self, temp_dir):
+        from typer.testing import CliRunner
+        from fMRI_QCtoolkit.cli import app
+        bold_file = temp_dir / "group_bold.tsv"
+        bold_file.write_text("bids_name\tfd_mean\nsub-01_task-rest_bold\t0.1\n")
+        (temp_dir / "ratings").mkdir()
+        result = CliRunner().invoke(app, ["prep", "fmriprep", "--bold-file", str(bold_file), "--rating-dir",
+                                          str(temp_dir / "ratings"), "--task", "rest", "--output-dir",
+                                          str(temp_dir / "out"), "--t1w-file", str(temp_dir / "nope.tsv")])
+        assert result.exit_code == 1
+        assert "T1w file not found" in result.output

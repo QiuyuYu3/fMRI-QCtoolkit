@@ -19,15 +19,17 @@ RATING_FILE = re.compile(r'sub-[A-Za-z0-9]+(?:_ses-[A-Za-z0-9]+)?_([A-Za-z0-9]+)
 class FMRIPrepPipeline(BaseDataProcessor):
     """Data processor for fMRIPrep pipeline."""
     
-    def __init__(self, bold_file, rating_dir, task, output_dir):
+    def __init__(self, bold_file, rating_dir, task, output_dir, t1w_file=None):
         super().__init__(task, output_dir)
         self.bold_file = Path(bold_file)
-        self.rating_dir = Path(rating_dir) 
+        self.rating_dir = Path(rating_dir)
+        self.t1w_file = Path(t1w_file) if t1w_file else None
         self.task = task
-        
+
         # Data containers
         self.bold_data = None
         self.rating_data = None
+        self.t1w_data = None
         self._set_variables()
 
     
@@ -190,10 +192,43 @@ class FMRIPrepPipeline(BaseDataProcessor):
         found = f"; it has ratings for: {', '.join(tasks)}" if tasks else ""
         return f"No rating files for task {self.task} in {self.rating_dir}{found}"
 
+    def _load_t1w_data(self):
+        """Anatomical IQMs from group_T1w.tsv, prefixed t1w_, one row per participant and session (None: no session)."""
+        if not self.t1w_file.exists():
+            raise FileNotFoundError(f"T1w file not found: {self.t1w_file}")
+        t1w = pd.read_csv(self.t1w_file, sep='\t')
+        iqms = [c for c in t1w.columns if pd.api.types.is_numeric_dtype(t1w[c])]
+        data = t1w[iqms].add_prefix('t1w_')
+        data.insert(0, 'ID', t1w['bids_name'].str.extract(r'sub-([A-Za-z0-9]+)')[0])
+        data.insert(1, 'session', t1w['bids_name'].str.extract(r'ses-([A-Za-z0-9]+)')[0])
+
+        # Several images for one participant and session: no way to tell which one the runs used
+        keys = data[['ID', 'session']].fillna({'session': ''})
+        repeated = keys.duplicated(keep=False)
+        for (participant, session), names in t1w.loc[repeated, 'bids_name'].groupby([keys['ID'], keys['session']]):
+            where = f"sub-{participant}" + (f" session {session}" if session else "")
+            print(f"Warning: {where} has {len(names)} T1w images ({', '.join(names)}); its t1w_ columns are left empty.")
+        self.t1w_data = data[~repeated]
+        print(f"Loaded T1w data for {len(self.t1w_data)} images")
+
+    def _merge_t1w(self, df):
+        """A session's own T1w where there is one, else the participant's session-less T1w."""
+        t1w_columns = [c for c in self.t1w_data.columns if c not in ('ID', 'session')]
+        per_session = self.t1w_data[self.t1w_data['session'].notna()]
+        per_participant = self.t1w_data[self.t1w_data['session'].isna()].drop(columns='session')
+        own = df[['ID', 'session']].merge(per_session, on=['ID', 'session'], how='left')
+        shared = df[['ID']].merge(per_participant, on='ID', how='left')
+        values = own[t1w_columns].combine_first(shared[t1w_columns])[t1w_columns]
+        matched = int(values.notna().any(axis=1).sum())
+        print(f"T1w metrics added to {matched} of {len(df)} runs")
+        return pd.concat([df.reset_index(drop=True), values], axis=1)
+
     def _load_raw_data(self):
         """Load both BOLD and rating data."""
         self._load_bold_data()
         self._load_rating_data()
+        if self.t1w_file:
+            self._load_t1w_data()
     
     def _clean_data(self):
         """Clean and merge fMRIPrep data."""
@@ -229,6 +264,9 @@ class FMRIPrepPipeline(BaseDataProcessor):
             for key in merge_keys:
                 print(f"  {key}: rating={sorted(self.rating_data[key].unique())[:8]} "
                       f"vs BOLD={sorted(self.bold_data[key].unique())[:8]}")
+
+        if self.t1w_data is not None:
+            merged_data = self._merge_t1w(merged_data)
 
         self.df_final = merged_data
         print(f"Final merged dataset: {len(merged_data)} records")

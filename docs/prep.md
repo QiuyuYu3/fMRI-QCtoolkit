@@ -53,7 +53,8 @@ fmriqc prep fmriprep \
     --bold-file /PATH/mriqc/group_bold.tsv \
     --rating-dir /PATH/ratings \
     --task rest \
-    --output-dir /PATH/QC
+    --output-dir /PATH/QC \
+    --t1w-file /PATH/mriqc/group_T1w.tsv
 ```
 
 `--bold-file`
@@ -67,6 +68,9 @@ fmriqc prep fmriprep \
 
 `--output-dir`
 : The folder for `df_final.csv`. It is created if needed.
+
+`--t1w-file`
+: Optional. MRIQC's group table of anatomical metrics, `group_T1w.tsv`. Its metrics are added to each run of the same participant and session, named with a `t1w_` prefix (`t1w_cjv`, `t1w_snr_total`, ...). A T1w image without a session counts for all of the participant's sessions. If a session has several T1w images, its `t1w_` columns are left empty.
 
 The command takes the rows of `group_bold.tsv` for `--task`, reads the participant, session and run from each row's `bids_name` (session 1 or run 1 when the name has none), and keeps every numeric metric that MRIQC computed; MRIQC's documentation describes them in [Image quality metrics](https://mriqc.readthedocs.io/en/latest/iqms/bold.html). It then reads the rating files `sub-<ID>_ses-<session>_<task>.csv` in `--rating-dir` and matches them to the metrics by participant, session and run.
 
