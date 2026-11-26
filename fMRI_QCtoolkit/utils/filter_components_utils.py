@@ -89,8 +89,8 @@ def create_metric_filter(metric, bounds):
     for tier, (op, value) in metric.rules.items():
         if op in UPWARD | DOWNWARD and lo <= value <= hi:
             marks[mark_key(value)] = _mark(value, _MARK_COLORS[tier])
-    # Room above the track for the threshold labels
-    lifted = len(marks) > 2
+    # Room above the track for the threshold labels, also when a threshold is an end of the slider
+    lifted = any(isinstance(mark, dict) for mark in marks.values())
     return html.Div([
         html.Label(metric.label, style={'font-weight': 'bold', 'display': 'block',
                                         'margin-bottom': '26px' if lifted else '0'}),

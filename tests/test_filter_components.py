@@ -79,6 +79,16 @@ class TestMetricFilter:
         assert slider.marks["0.2"]["label"] == "0.2"
         assert by_id(component, {"type": STATUS, "column": "cens_frac"}).value == ["good", "other", "NA"]
 
+    @pytest.mark.parametrize("metric, bounds, room", [
+        (CENS_FRAC, (0.0, 0.3, 0.01), "26px"),
+        (TSNR, (150.0, 300.0, 1), "26px"),
+        (FLIP, (0.0, 1.0, 1), "0"),
+        (DVARS, (0.0, 1.0, 0.01), "0"),
+    ])
+    def test_the_label_leaves_room_for_threshold_labels(self, metric, bounds, room):
+        label = next(c for c in create_metric_filter(metric, bounds)._traverse() if type(c).__name__ == "Label")
+        assert label.style["margin-bottom"] == room
+
 
 class TestRulesSummary:
 
