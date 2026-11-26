@@ -2,15 +2,16 @@
 Base dashboard class for MRI QC applications
 """
 
+import json
 import logging
 import threading
 from pathlib import Path
 
 import dash
+import dash_ag_grid as dag
 import numpy as np
 import pandas as pd
-from dash import ALL, ctx, dcc, html, no_update, Input, Output, State, dash_table
-from dash.dash_table.Format import Format, Scheme, Trim
+from dash import ALL, ctx, dcc, html, no_update, Input, Output, State
 from dash.exceptions import PreventUpdate
 
 from .config import ID_COLUMNS, default_config_path, load_config, resolve_metrics
@@ -27,9 +28,18 @@ PLOTS_TAB = 'plots-tab'
 # Dash 4 draws its controls in purple; html:root outranks the :root rule it adds, older Dash ignores it
 # Dash 4's tab box clips what is wider than it; older Dash lets a narrow window scroll sideways to it instead
 TAB_OVERFLOW_CSS = ".tab-parent { overflow: visible; }"
+# AG Grid keeps room for a "no rows" message, which Selected Rows never shows
+SELECTED_ROWS_CSS = "#selected-rows-table .ag-center-cols-viewport { min-height: 0; }"
 ACCENT_STYLE = (f"<style>html:root {{ --Dash-Fill-Interactive-Strong: {ACCENT}; }} "
-                f"{SIDEBAR_CSS} {TAB_OVERFLOW_CSS} {SETTINGS_CSS}</style>")
+                f"{SIDEBAR_CSS} {TAB_OVERFLOW_CSS} {SETTINGS_CSS} {SELECTED_ROWS_CSS}</style>")
 SPINNER_DELAY_MS = 300
+# Each table row carries its position in the full table, which the grid uses as the row's id
+ROW_ID = '_row'
+# Display only: the table data and downloads keep full precision
+NUMBER_FORMAT = {"function": "params.value == null ? '' : d3.format('.3~f')(params.value)"}
+ROW_HEIGHT = 32
+HEADER_HEIGHT = 36
+SELECTED_MAX_HEIGHT = 300
 
 
 class BaseDashboard:
@@ -39,8 +49,6 @@ class BaseDashboard:
     RATING_LABELS = {}
     GROUP_BY = None
     STATUS_TO_NUM = get_status_mapping()
-    # Display only: the table data and downloads keep full precision
-    TABLE_NUMBER_FORMAT = Format(precision=3, scheme=Scheme.fixed, trim=Trim.yes)
 
     def __init__(self, data_processor, task=None, token=None, config_path=None):
         self.processor = data_processor
@@ -99,11 +107,29 @@ class BaseDashboard:
 
     def _table_columns(self):
         df = self.processor.get_data()
-        return [
-            {"name": c, "id": c, "type": "numeric", "format": self.TABLE_NUMBER_FORMAT}
-            if pd.api.types.is_numeric_dtype(df[c]) else {"name": c, "id": c}
-            for c in self.table_column_ids()
-        ]
+        return [{"field": c, "headerName": c,
+                 **({"valueFormatter": NUMBER_FORMAT} if pd.api.types.is_numeric_dtype(df[c]) else {}),
+                 **({"pinned": "left"} if c in ID_COLUMNS else {})}
+                for c in self.table_column_ids()]
+
+    def table_records(self, positions):
+        rows = self.processor.get_data().iloc[positions][self.table_column_ids()]
+        return rows.assign(**{ROW_ID: [str(p) for p in positions]}).to_dict('records')
+
+    def _grid(self, font_size, header_color, options, **props):
+        """An AG Grid with the table's columns, styled like the rest of the page."""
+        theme = json.dumps({'fontSize': font_size, 'headerBackgroundColor': header_color,
+                            'headerFontWeight': 'bold', 'accentColor': ACCENT})
+        return dag.AgGrid(
+            columnDefs=self._table_columns(),
+            columnSize='autoSize',
+            # Values are shown as they are, without the grid guessing a type per column
+            defaultColDef={'cellDataType': False, 'suppressMovable': True},
+            dashGridOptions={'theme': {'function': f'themeQuartz.withParams({theme})'},
+                             'rowHeight': ROW_HEIGHT, 'headerHeight': HEADER_HEIGHT,
+                             # Column names may contain dots
+                             'suppressFieldDotNotation': True, **options},
+            **props)
 
     def build_layout(self):
         return html.Div([
@@ -143,62 +169,16 @@ class BaseDashboard:
                         # Table tab
                         dcc.Tab(label='Table', value='table-tab', children=[
                             html.Div([
-                                # Page size selector
-                                html.Div([
-                                    html.Label("Rows per page: ", style={'margin-right': '10px', 'font-weight': 'bold'}),
-                                    dcc.Dropdown(
-                                        id='page-size-dropdown',
-                                        options=[
-                                            {'label': '10', 'value': 10},
-                                            {'label': '25', 'value': 25},
-                                            {'label': '50', 'value': 50},
-                                            {'label': '100', 'value': 100},
-                                            {'label': 'All', 'value': 99999}
-                                        ],
-                                        value=10,
-                                        style={'width': '100px', 'display': 'inline-block'}
-                                    )
-                                ], style={'margin-bottom': '10px', 'display': 'flex', 'align-items': 'center'}),
-
-                                # Selection toolbar
-                                html.Div([
-                                    html.Button("Select All (filtered)",
-                                              id="select-all-button",
-                                              n_clicks=0,
-                                              style={
-                                                  'background-color': '#6c757d',
-                                                  'color': 'white',
-                                                  'border': 'none',
-                                                  'padding': '6px 12px',
-                                                  'border-radius': '4px',
-                                                  'cursor': 'pointer',
-                                                  'margin-right': '8px'
-                                              }),
-                                    html.Button("Clear",
-                                              id="clear-selection-button",
-                                              n_clicks=0,
-                                              style={
-                                                  'background-color': '#6c757d',
-                                                  'color': 'white',
-                                                  'border': 'none',
-                                                  'padding': '6px 12px',
-                                                  'border-radius': '4px',
-                                                  'cursor': 'pointer'
-                                              })
-                                ], style={'margin-bottom': '10px'}),
-
-                                # Data table
-                                dash_table.DataTable(
-                                    id='datatable',
-                                    columns=self._table_columns(),
-                                    page_size=10,
-                                    sort_action='native',
-                                    style_table={'height': 'auto', 'overflowY': 'auto', 'overflowX': 'auto'},
-                                    style_cell={'textAlign': 'left', 'fontSize': '12px', 'padding': '8px'},
-                                    style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
-                                    row_selectable='multi',
-                                    selected_rows=[]
-                                ),
+                                # The header checkbox selects every row that passes the filters, on all pages
+                                self._grid(12, '#f8f9fa', {
+                                    'rowSelection': {'mode': 'multiRow'},
+                                    'selectionColumnDef': {'pinned': 'left'},
+                                    'pagination': True,
+                                    'paginationPageSize': 10,
+                                    'paginationPageSizeSelector': [10, 25, 50, 100],
+                                    'domLayout': 'autoHeight',
+                                }, id='datatable', rowData=[], getRowId=f'params.data.{ROW_ID}',
+                                    style={'height': None, 'margin-top': '10px'}),
 
                                 # Selected rows display
                                 html.Div([
@@ -369,47 +349,30 @@ class BaseDashboard:
     def _setup_table_callback(self):
         groups = self.processor.checkbox_groups
 
+        # The grid keeps the selection of the rows that are still shown, since their row ids stay the same
         @self.app.callback(
-            [
-                Output('datatable', 'data'),
-                Output('filtered-rows', 'data'),
-                Output('datatable', 'selected_rows')
-            ],
+            [Output('datatable', 'rowData'), Output('filtered-rows', 'data')],
             [Input({'type': RANGE, 'column': ALL}, 'value'), Input({'type': STATUS, 'column': ALL}, 'value')]
             + [Input(f'{g}_dropdown', 'value') for g in groups]
-            + [Input('select-all-button', 'n_clicks'), Input('clear-selection-button', 'n_clicks')],
-            [
-                State('datatable', 'selected_rows'),
-                State('filtered-rows', 'data')
-            ]
         )
         def update_table(*args):
-            prev_selected_rows, prev_positions = args[-2], args[-1]
-            # The buttons change the selection only; the filtered rows stay as they are
-            if ctx.triggered_id == 'select-all-button':
-                return no_update, no_update, list(range(len(prev_positions or [])))
-            if ctx.triggered_id == 'clear-selection-button':
-                return no_update, no_update, []
-
             ranges, statuses = ({item['id']['column']: item.get('value') for item in items}
                                 for items in ctx.inputs_list[:2])
-            positions = self.filtered_positions(ranges, statuses, args[2:2 + len(groups)])
-            records = self.processor.get_data().iloc[positions][self.table_column_ids()].to_dict('records')
-            return records, positions, self._carry_selection(prev_positions, prev_selected_rows, positions)
+            positions = self.filtered_positions(ranges, statuses, args[2:])
+            return self.table_records(positions), positions
 
-    @staticmethod
-    def _carry_selection(prev_positions, prev_selected_rows, positions):
-        """Indices in the new table of the rows that were selected in the previous one."""
-        if not prev_positions or not prev_selected_rows:
-            return []
-        selected = {prev_positions[i] for i in prev_selected_rows if i < len(prev_positions)}
-        return [i for i, position in enumerate(positions) if position in selected]
+    def selected_data(self, selected_rows):
+        """Full-precision rows behind the table's selection, in the order of the full table."""
+        positions = sorted(int(row[ROW_ID]) for row in selected_rows or [])
+        return self.processor.get_data().iloc[positions]
 
-    def selected_data(self, positions, selected_rows):
-        """Full-precision rows behind the table's selection; `selected_rows` index the filtered table."""
-        positions = positions or []
-        picked = [positions[i] for i in selected_rows or [] if i < len(positions)]
-        return self.processor.get_data().iloc[picked]
+    def selected_grid(self, selected):
+        """Selected Rows grows with its rows up to SELECTED_MAX_HEIGHT, then scrolls."""
+        fits = HEADER_HEIGHT + ROW_HEIGHT * len(selected) <= SELECTED_MAX_HEIGHT
+        return self._grid(11, '#e9ecef', {'domLayout': 'autoHeight'} if fits else {},
+                          id='selected-rows-table',
+                          rowData=selected[self.table_column_ids()].to_dict('records'),
+                          style={'height': None} if fits else {'height': f'{SELECTED_MAX_HEIGHT}px'})
 
     def heatmap_figures(self, df):
         quant_labels, qual_labels = self.get_variable_labels()
@@ -465,44 +428,27 @@ class BaseDashboard:
         # Callback for selected rows display
         @self.app.callback(
             Output('selected-rows-display', 'children'),
-            [Input('datatable', 'selected_rows'),
-            Input('filtered-rows', 'data')]
+            [Input('datatable', 'selectedRows')]
         )
-        def display_selected_rows(selected_rows, positions):
-            selected = self.selected_data(positions, selected_rows)
+        def display_selected_rows(selected_rows):
+            selected = self.selected_data(selected_rows)
             if selected.empty:
                 return html.Div("No row selected.", style={'padding': '10px', 'text-align': 'center'})
-
-            return dash_table.DataTable(
-                data=selected[self.table_column_ids()].to_dict('records'),
-                columns=self._table_columns(),
-                style_table={'maxHeight': '300px', 'overflowY': 'auto', 'overflowX': 'auto'},
-                style_cell={'textAlign': 'left', 'fontSize': '11px', 'padding': '6px'},
-                style_header={'backgroundColor': '#e9ecef', 'fontWeight': 'bold'},
-                page_size=50
-            )
+            return self.selected_grid(selected)
 
         # Callback for download
         @self.app.callback(
             Output("download-dataframe-csv", "data"),
             [Input("download-button", "n_clicks")],
-            [State('datatable', 'selected_rows'),
-            State('filtered-rows', 'data')]
+            [State('datatable', 'selectedRows')]
         )
-        def download_selected_data(n_clicks, selected_rows, positions):
+        def download_selected_data(n_clicks, selected_rows):
             if not n_clicks:
                 return no_update
-            selected = self.selected_data(positions, selected_rows)
+            selected = self.selected_data(selected_rows)
             if selected.empty:
                 selected = pd.DataFrame({"Message": ["No row selected."]})
             return dcc.send_data_frame(selected.to_csv, f"{self.task}_MRI_QC_subj.csv", index=False)
-
-        @self.app.callback(
-            Output('datatable', 'page_size'),
-            [Input('page-size-dropdown', 'value')]
-        )
-        def update_page_size(page_size):
-            return page_size
 
     def config_source(self):
         if self.save_path is None:

@@ -130,11 +130,16 @@ class TestTableDisplay:
 
     def test_numbers_are_shown_with_three_decimals_but_ids_are_not(self):
         pipeline = FMRIPrepPipeline.from_saved_data(EXAMPLES / "df_final.csv", task="rest")
-        columns = {c["id"]: c for c in FMRIPrepDashboard(pipeline, task="rest")._table_columns()}
+        columns = {c["field"]: c for c in FMRIPrepDashboard(pipeline, task="rest")._table_columns()}
 
-        assert columns["fd_mean"]["format"].to_plotly_json()["specifier"] == ".3~f"
-        assert columns["run"]["type"] == "numeric"
-        assert "format" not in columns["ID"]
+        assert "d3.format('.3~f')" in columns["fd_mean"]["valueFormatter"]["function"]
+        assert "valueFormatter" in columns["run"]
+        assert "valueFormatter" not in columns["ID"]
+
+    def test_the_id_columns_stay_on_the_left(self):
+        pipeline = FMRIPrepPipeline.from_saved_data(EXAMPLES / "df_final.csv", task="rest")
+        columns = FMRIPrepDashboard(pipeline, task="rest")._table_columns()
+        assert [c["field"] for c in columns if c.get("pinned") == "left"] == ["ID", "session", "run"]
 
     def test_the_table_has_the_ids_then_the_config_metrics_in_order_then_the_ratings(self, tmp_path):
         df = pd.DataFrame({"ID": ["001", "002"], "session": ["01"] * 2, "run": [1, 1], "Final": ["good"] * 2,
@@ -146,20 +151,13 @@ class TestTableDisplay:
         dashboard = make_dashboard(FMRIPrepDashboard, df, tmp_path, config=config)
         expected = ["ID", "session", "run", "fd_mean", "fd_perc", "Final"]
 
-        columns = dashboard._table_columns()
-        assert [c["id"] for c in columns] == expected
-        # Nothing hideable, so the table has no Toggle Columns button
-        assert not any("hideable" in c for c in columns)
-        table = dash_call(dashboard, "datatable.data", {}, FD_MEAN_RANGE).get_json()["response"]["datatable"]
-        assert [list(record) for record in table["data"]] == [expected]
-        shown = dash_call(dashboard, "selected-rows-display.children",
-                          {("datatable", "selected_rows"): [0], ("filtered-rows", "data"): [0]},
-                          "datatable.selected_rows").get_json()["response"]["selected-rows-display"]["children"]
-        assert [c["id"] for c in shown["props"]["columns"]] == expected
-        assert list(shown["props"]["data"][0]) == expected
-        # A few selected rows take only the room they need
-        assert shown["props"]["style_table"]["maxHeight"] == "300px"
-        assert "height" not in shown["props"]["style_table"]
+        assert [c["field"] for c in dashboard._table_columns()] == expected
+        table = dash_call(dashboard, "datatable.rowData", {}, FD_MEAN_RANGE).get_json()["response"]["datatable"]
+        assert [list(record) for record in table["rowData"]] == [expected + ["_row"]]
+        shown = dash_call(dashboard, "selected-rows-display.children", {("datatable", "selectedRows"): table["rowData"]},
+                          "datatable.selectedRows").get_json()["response"]["selected-rows-display"]["children"]
+        assert [c["field"] for c in shown["props"]["columnDefs"]] == expected
+        assert list(shown["props"]["rowData"][0]) == expected
 
     def test_table_only_columns_follow_the_metrics_in_data_order_and_absent_ones_are_reported(self, tmp_path):
         df = pd.DataFrame({"ID": ["001"], "Final": ["good"], "efc": [0.5], "snr": [3.0], "fd_mean": [0.1]})
@@ -308,67 +306,59 @@ class TestQualitativeHeatmapRows:
         assert dashboard.qualitative_heatmap_rows(dashboard.processor.get_data()).empty
 
 
-class TestCarrySelection:
-    """Selections are indices into the filtered table; the store keeps each row's position in the full table."""
-
-    def test_follows_rows_when_the_filter_removes_others(self):
-        assert BaseDashboard._carry_selection([0, 1, 2, 3], [1, 2], [1, 2, 3]) == [0, 1]
-
-    def test_rows_filtered_out_are_dropped(self):
-        assert BaseDashboard._carry_selection([0, 1, 2, 3], [0], [3]) == []
-
-    def test_rows_that_come_back_stay_unselected(self):
-        assert BaseDashboard._carry_selection([1, 2], [0], [0, 1, 2]) == [1]
-
-    def test_indices_past_the_previous_table_are_ignored(self):
-        assert BaseDashboard._carry_selection([5], [0, 3], [5]) == [0]
-
-    def test_nothing_selected(self):
-        assert BaseDashboard._carry_selection(None, [], [0, 1]) == []
-
-
 def precise_runs():
     return pd.DataFrame({"ID": ["001", "002", "003"], "session": ["01"] * 3, "run": [1, 1, 1],
                          "fd_perc": [1.0, 2.0, 3.0], "fd_mean": [0.123456789012345, 0.2, 0.25]})
 
 
 class TestSelectedRows:
+    """The grid keeps the selection across filter changes itself, since each row's id is its position."""
 
-    def test_selection_reads_the_loaded_table_at_full_precision(self, tmp_path):
+    def test_each_row_carries_its_position_in_the_full_table(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
-        rows = dashboard.selected_data([0, 2], [1, 0])
-        assert rows["ID"].tolist() == ["003", "001"]
-        assert rows["fd_mean"].tolist() == [0.25, 0.123456789012345]
+        assert [r["_row"] for r in dashboard.table_records([0, 2])] == ["0", "2"]
+        grid = next(c for c in dashboard.build_layout()._traverse() if getattr(c, "id", None) == "datatable")
+        assert grid.getRowId == "params.data._row"
+
+    def test_selection_reads_the_loaded_table_at_full_precision_in_table_order(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
+        rows = dashboard.selected_data(dashboard.table_records([2, 0]))
+        assert rows["ID"].tolist() == ["001", "003"]
+        assert rows["fd_mean"].tolist() == [0.123456789012345, 0.25]
 
     def test_download_keeps_full_precision(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
         resp = dash_call(dashboard, "download-dataframe-csv.data",
-                         {("download-button", "n_clicks"): 1, ("datatable", "selected_rows"): [0],
-                          ("filtered-rows", "data"): [0, 2]}, "download-button.n_clicks")
+                         {("download-button", "n_clicks"): 1, ("datatable", "selectedRows"): dashboard.table_records([0])},
+                         "download-button.n_clicks")
         csv = resp.get_json()["response"]["download-dataframe-csv"]["data"]["content"]
         rows = read_csv_exact(io.StringIO(csv), dtype={"ID": str})
         assert rows["ID"].tolist() == ["001"]
         assert rows["fd_mean"].tolist() == [0.123456789012345]
 
-    @pytest.mark.parametrize("button, expected", [("select-all-button", [0, 1]), ("clear-selection-button", [])])
-    def test_buttons_change_the_selection_without_resending_the_table(self, tmp_path, button, expected):
+    def test_download_with_nothing_selected_says_so(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
-        resp = dash_call(dashboard, "datatable.data",
-                         {("filtered-rows", "data"): [0, 2], ("datatable", "selected_rows"): [1],
-                          (button, "n_clicks"): 1}, f"{button}.n_clicks")
-        assert resp.get_json()["response"] == {"datatable": {"selected_rows": expected}}
+        resp = dash_call(dashboard, "download-dataframe-csv.data", {("download-button", "n_clicks"): 1},
+                         "download-button.n_clicks")
+        assert "No row selected." in resp.get_json()["response"]["download-dataframe-csv"]["data"]["content"]
 
     def test_a_filter_change_sends_the_table_but_no_plots(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
-        resp = dash_call(dashboard, "datatable.data", {}, FD_MEAN_RANGE)
+        resp = dash_call(dashboard, "datatable.rowData", {}, FD_MEAN_RANGE)
         assert set(resp.get_json()["response"]) == {"datatable", "filtered-rows"}
 
-    def test_a_filter_change_stores_positions_and_keeps_the_selected_run(self, tmp_path):
+    def test_a_filter_change_stores_the_positions(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
-        resp = dash_call(dashboard, "datatable.data",
-                         {("filtered-rows", "data"): [1, 2], ("datatable", "selected_rows"): [1]},
-                         FD_MEAN_RANGE)
-        response = resp.get_json()["response"]
+        response = dash_call(dashboard, "datatable.rowData", {}, FD_MEAN_RANGE).get_json()["response"]
         assert response["filtered-rows"]["data"] == [0, 1, 2]
-        assert [r["ID"] for r in response["datatable"]["data"]] == ["001", "002", "003"]
-        assert response["datatable"]["selected_rows"] == [2]
+        assert [(r["ID"], r["_row"]) for r in response["datatable"]["rowData"]] == [("001", "0"), ("002", "1"),
+                                                                                    ("003", "2")]
+
+    def test_a_few_selected_rows_take_only_the_room_they_need_and_many_scroll(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, pd.concat([precise_runs()] * 10, ignore_index=True), tmp_path)
+        df = dashboard.processor.get_data()
+        few = dashboard.selected_grid(df.iloc[:3])
+        assert few.dashGridOptions["domLayout"] == "autoHeight"
+        many = dashboard.selected_grid(df)
+        assert "domLayout" not in many.dashGridOptions
+        assert many.style == {"height": "300px"}

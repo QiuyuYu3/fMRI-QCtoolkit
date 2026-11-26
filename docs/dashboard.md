@@ -45,9 +45,9 @@ At the bottom, a list for each section of the report keeps only the runs with th
 
 ![The Table tab with two rows selected](images/table.png)
 
-The table shows the runs that pass the filters. Click a column name to sort by it, and use **Rows per page** to see more rows at once.
+The table shows the runs that pass the filters. Click a column name to sort by it, drag its edge to widen it, and use **Page Size** below the table to see more rows at once.
 
-Tick the box at the start of a row to select it, or use **Select All (filtered)** and **Clear**. The selected rows appear under **Selected Rows**, and **Download Selected Data** saves them as `<task>_MRI_QC_subj.csv`, with every column of `df_final.csv`.
+Tick the box at the start of a row to select it. The box in the header selects every row that passes the filters, and clears them when ticked again. The selected rows appear under **Selected Rows**, and **Download Selected Data** saves them as `<task>_MRI_QC_subj.csv`, with every column of `df_final.csv`.
 
 ## Plots
 

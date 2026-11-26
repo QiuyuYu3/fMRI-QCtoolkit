@@ -441,11 +441,9 @@ class TestThroughDash:
         rows = rows_of(dashboard) + [{**new_row("efc"), "bad-op": ">=", "bad-value": 0.7}]
         dashboard.settings.save(rows, version=0)
 
-        resp = dash_call(dashboard, "datatable.data", {}, "select-all-button.n_clicks", comps=old_page)
-        assert resp.status_code == 200
-        table = dash_call(dashboard, "datatable.data", {}, stringify_id({"type": "metric-range", "column": "fd_mean"})
+        table = dash_call(dashboard, "datatable.rowData", {}, stringify_id({"type": "metric-range", "column": "fd_mean"})
                           + ".value", comps=old_page).get_json()["response"]
-        assert [r["ID"] for r in table["datatable"]["data"]] == ["001", "002"]
+        assert [r["ID"] for r in table["datatable"]["rowData"]] == ["001", "002"]
 
         banner = dash_call(dashboard, "stale-banner.children", {}, "main-tabs.value", comps=old_page)
         assert "Reload the page" in json.dumps(banner.get_json()["response"])

@@ -19,6 +19,8 @@
 - fMRIPrep runs are rated on `fd_perc` and `fd_mean` only; `tsnr` and `gcor` no longer have thresholds.
 - `fmriqc prep` writes only `df_final.csv`, at full precision, with every numeric metric from MRIQC or the AFNI review file.
 - The table shows the IDs, the metrics chosen in the Settings tab and the ratings, with three decimals; downloads keep every column at full precision.
+- Table columns can be widened by dragging, and the ID, session and run columns stay in view when scrolling sideways.
+- The box in the table header selects or clears every row that passes the filters, replacing **Select All (filtered)** and **Clear**; rows per page are set below the table.
 - Heatmap rows use the sidebar labels and order.
 - The dashboard responds faster: plots are drawn only on the Plots tab, and heatmaps are faster on large tables.
 - Reloading the page keeps the open tab.
