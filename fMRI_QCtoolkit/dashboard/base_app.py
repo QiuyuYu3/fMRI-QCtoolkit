@@ -6,6 +6,7 @@ import json
 import logging
 import threading
 from pathlib import Path
+from typing import NamedTuple
 
 import dash
 import dash_ag_grid as dag
@@ -14,7 +15,7 @@ import pandas as pd
 from dash import ALL, ctx, dcc, html, no_update, Input, Output, State
 from dash.exceptions import PreventUpdate
 
-from .config import ID_COLUMNS, default_config_path, load_config, resolve_metrics
+from .config import ID_COLUMNS, Config, default_config_path, load_config, resolve_metrics
 from .settings import SETTINGS_CSS, SETTINGS_TAB, SettingsTab
 from ..utils.access import AccessGate, url_host
 from ..utils.filter_components_utils import (ACCENT, RANGE, SIDEBAR_CSS, STATUS, create_metric_filter,
@@ -41,6 +42,16 @@ ROW_HEIGHT = 32
 HEADER_HEIGHT = 36
 
 
+class ConfigState(NamedTuple):
+    """What apply_config derives from a config, replaced whole so that no request sees half of a save."""
+    config: Config
+    metrics: list
+    values: dict
+    status: pd.DataFrame
+    bounds: dict
+    unmatched: list
+
+
 class BaseDashboard:
     """Base class for QC dashboards; subclasses set PIPELINE, RATING_LABELS and GROUP_BY."""
 
@@ -48,6 +59,13 @@ class BaseDashboard:
     RATING_LABELS = {}
     GROUP_BY = None
     STATUS_TO_NUM = get_status_mapping()
+    # The state in force; a method that reads several parts of it takes self.state once
+    config = property(lambda self: self.state.config)
+    metrics = property(lambda self: self.state.metrics)
+    values = property(lambda self: self.state.values)
+    status = property(lambda self: self.state.status)
+    bounds = property(lambda self: self.state.bounds)
+    unmatched = property(lambda self: self.state.unmatched)
 
     def __init__(self, data_processor, task=None, token=None, config_path=None):
         self.processor = data_processor
@@ -75,7 +93,7 @@ class BaseDashboard:
         return self._numeric[column]
 
     def apply_config(self, config):
-        """Rate every run with `config`; all of it is computed before any of it replaces the old state."""
+        """Rate every run with `config` and swap the result in as one object."""
         df = self.processor.get_data()
         metrics = resolve_metrics(config.metrics, list(df.columns))
         values = {m.column: self.numeric(m.column) for m in metrics}
@@ -84,11 +102,11 @@ class BaseDashboard:
         bounds = {m.column: slider_bounds(values[m.column], m) for m in metrics}
         unmatched = [key for key in [*config.metrics, *config.table_columns]
                      if '*' not in key and key not in df.columns]
-        self.config, self.metrics, self.values, self.status, self.bounds, self.unmatched = (
-            config, metrics, values, status, bounds, unmatched)
+        self.state = ConfigState(config, metrics, values, status, bounds, unmatched)
 
     def get_filter_components(self):
-        components = [create_metric_filter(m, self.bounds[m.column]) for m in self.metrics]
+        state = self.state
+        components = [create_metric_filter(m, state.bounds[m.column]) for m in state.metrics]
         return components + [create_qualitative_dropdown(g) for g in self.processor.checkbox_groups]
 
     def get_variable_labels(self):
@@ -98,8 +116,9 @@ class BaseDashboard:
         """The table's columns: the IDs, the config's metrics in config order, its table-only columns in data
         order, then the ratings."""
         df = self.processor.get_data()
-        picked = set(self.config.table_columns)
-        columns = ([c for c in ID_COLUMNS if c in df.columns] + [m.column for m in self.metrics]
+        state = self.state
+        picked = set(state.config.table_columns)
+        columns = ([c for c in ID_COLUMNS if c in df.columns] + [m.column for m in state.metrics]
                    + [c for c in df.columns if c in picked]
                    + [g for g in self.processor.checkbox_groups if g in df.columns])
         return list(dict.fromkeys(columns))
@@ -314,13 +333,14 @@ class BaseDashboard:
     def filtered_positions(self, ranges, statuses, ratings):
         """Positions in the full table of the rows that pass every filter; `ranges` and `statuses` are keyed by column."""
         df = self.processor.get_data()
+        state = self.state
         keep = np.ones(len(df), dtype=bool)
-        for metric in self.metrics:
+        for metric in state.metrics:
             # A page built before a save may lack a metric; it then gets the default filter
             selected = statuses.get(metric.column, default_statuses(metric))
             allowed = set(selected or []) | (set() if metric.rated else {'good'})
-            keep &= self.status[metric.column].isin(allowed).to_numpy()
-            keep &= self._in_range(metric.column, ranges.get(metric.column))
+            keep &= state.status[metric.column].isin(allowed).to_numpy()
+            keep &= self._in_range(state, metric.column, ranges.get(metric.column))
         for group, selected in zip(self.processor.checkbox_groups, ratings):
             if group in df.columns:
                 selected = selected or []
@@ -330,13 +350,14 @@ class BaseDashboard:
                 keep &= passed.to_numpy()
         return np.flatnonzero(keep).tolist()
 
-    def _in_range(self, column, value_range):
+    @staticmethod
+    def _in_range(state, column, value_range):
         """A handle left at the end of its slider sets no bound; missing values are left to the status filter."""
-        values = self.values[column].to_numpy(dtype=float)
+        values = state.values[column].to_numpy(dtype=float)
         passed = np.ones(len(values), dtype=bool)
         if not isinstance(value_range, (list, tuple)) or len(value_range) != 2:
             return passed
-        (lo, hi), (slider_min, slider_max, _) = value_range, self.bounds[column]
+        (lo, hi), (slider_min, slider_max, _) = value_range, state.bounds[column]
         if lo > slider_min:
             passed &= values >= lo
         if hi < slider_max:
@@ -386,15 +407,16 @@ class BaseDashboard:
 
     def quantitative_heatmap_rows(self, df):
         """Long table for the quantitative heatmap: one row per run and thresholded metric."""
-        metrics = [m for m in self.metrics if m.rated]
+        state = self.state
+        metrics = [m for m in state.metrics if m.rated]
         if df.empty or not metrics:
             return pd.DataFrame(columns=HEATMAP_COLUMNS)
         index = self._heatmap_index(df)
         long = pd.concat([pd.DataFrame({
             'ID': df['ID'].astype(str),
             'Variables': m.column,
-            'Value': self.values[m.column].loc[df.index],
-            'StatusStr': self.status.loc[df.index, m.column],
+            'Value': state.values[m.column].loc[df.index],
+            'StatusStr': state.status.loc[df.index, m.column],
             **index,
         }) for m in metrics], ignore_index=True)
         long['Status'] = long['StatusStr'].map(self.STATUS_TO_NUM).astype(int)

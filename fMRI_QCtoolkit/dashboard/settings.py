@@ -318,11 +318,12 @@ class SettingsTab:
             parse_table_columns(list(table), keys)
         except ConfigError as e:
             table_error = str(e)
-        changed = (bool(errors) or bool(table_error) or list(parsed.items()) != list(d.config.metrics.items())
-                   or set(table) != set(d.config.table_columns))
+        state = d.state
+        changed = (bool(errors) or bool(table_error) or list(parsed.items()) != list(state.config.metrics.items())
+                   or set(table) != set(state.config.table_columns))
         invalid = bool(errors) or bool(table_error) or not rows
         if rows:
-            now = len(df) - int(d.status.eq('bad').any(axis=1).sum())
+            now = len(df) - int(state.status.eq('bad').any(axis=1).sum())
             summary = f"Runs shown when the dashboard opens: {len(df) - int(hidden.sum())} of {len(df)} (now {now})."
             if errors:
                 summary += " Rows with errors are left out."
