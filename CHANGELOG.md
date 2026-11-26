@@ -31,6 +31,8 @@
 - A metric with the same value in every run no longer flattens the other metrics in the lollipop chart.
 - With Dash 4, the boxes under each slider no longer cover the tick boxes below.
 - Threshold numbers on the sliders sit above the track, so the value boxes no longer hide one near an end; with Dash 4, a metric's tick boxes fit on one line.
+- The two threshold numbers on a slider no longer overlap when they are close.
+- Heatmap panel titles sit at the left, so they stay in view on wide heatmaps.
 - The Selected Rows table is only as tall as the rows in it, and shows them all without scrolling.
 - `fmriqc prep fmriprep` reports missing or unreadable rating files in one line, as `fmriqc prep afni` does, instead of a long error message.
 - `fmriqc prep fmriprep` stops when a task has no rating files, instead of using the ratings of another task.

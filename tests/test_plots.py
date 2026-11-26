@@ -55,6 +55,10 @@ class TestCreateHeatmap:
         titles = [a.text for a in fig.layout.annotations]
         assert titles == ['Session post - Run 1', 'Session pre - Run 1']
 
+    def test_panel_titles_sit_at_the_left_edge(self):
+        fig = create_heatmap(self._grid([f'{i:03d}' for i in range(200)], ['01', '02']), {}, group_by='session')
+        assert [(a.x, a.xanchor) for a in fig.layout.annotations] == [(0, 'left'), (0, 'left')]
+
     def test_without_status_strings(self):
         data = self._grid(['001', '002'], ['01'], with_status_str=False)
         fig = create_heatmap(data, {}, group_by='session')

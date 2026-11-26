@@ -25,7 +25,11 @@ _LIFTED = {'bottom': 'auto'}
 # and its wide gap after each inline tick box, which pushes NA onto a second line, gives way to labelStyle's
 SIDEBAR_CSS = ('.dash-slider-mark[style*="bottom: auto"]::before '
                '{ bottom: auto; top: 100%; margin-bottom: 0; margin-top: 2px; } '
+               '.dash-slider-mark[style*="translateX(-100%)"]::before { left: 100%; } '
+               '.dash-slider-mark[style*="translateX(0%)"]::before { left: 0; } '
                '.dash-options-list-option.dash-checklist-inline { margin-right: 0; }')
+# With two thresholds, the lower label ends at its tick and the higher one starts at its tick, so they never overlap
+_OUTWARD = ('translateX(-100%)', 'translateX(0%)')
 # The dashboard's blue, muted so the controls do not outshine the data
 ACCENT = '#5289bd'
 # Component types of the sidebar's per-metric filters; the column names the instance
@@ -75,20 +79,26 @@ def mark_key(value):
     return f"{mantissa.removesuffix('.0')}e{int(exponent):+d}"
 
 
-def _mark(value, color=None):
+def _mark(value, color=None, transform=None):
     """A slider mark; a threshold (coloured) is lifted above the track, clear of the value boxes below it."""
     label = f"{value:g}"
+    if not color:
+        return label
     # bottom: auto, or Dash 4's own bottom: 0 keeps the mark below the track
-    return {'label': label, 'style': {'color': color, 'top': THRESHOLD_LIFT, **_LIFTED}} if color else label
+    style = {'color': color, 'top': THRESHOLD_LIFT, **_LIFTED}
+    return {'label': label, 'style': {**style, 'transform': transform} if transform else style}
 
 
 def create_metric_filter(metric, bounds):
     """Range slider plus a status checklist; 'bad' is unticked by default."""
     lo, hi, step = bounds
     marks = {mark_key(lo): _mark(lo), mark_key(hi): _mark(hi)}
-    for tier, (op, value) in metric.rules.items():
-        if op in UPWARD | DOWNWARD and lo <= value <= hi:
-            marks[mark_key(value)] = _mark(value, _MARK_COLORS[tier])
+    thresholds = sorted(((value, tier) for tier, (op, value) in metric.rules.items()
+                         if op in UPWARD | DOWNWARD and lo <= value <= hi), key=lambda item: item[0])
+    distinct = len({value for value, _ in thresholds}) == 2
+    transforms = _OUTWARD if distinct else (None,) * len(thresholds)
+    for (value, tier), transform in zip(thresholds, transforms):
+        marks[mark_key(value)] = _mark(value, _MARK_COLORS[tier], transform)
     # Room above the track for the threshold labels, also when a threshold is an end of the slider
     lifted = any(isinstance(mark, dict) for mark in marks.values())
     return html.Div([

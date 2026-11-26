@@ -143,3 +143,21 @@ class TestMarkKeys:
         assert {key: marks[key]["style"]["color"] for key in ("15", "20")} == {"15": "#3B7D23", "20": "#C0392B"}
         assert all(marks[key]["style"]["bottom"] == "auto" for key in ("15", "20"))
         assert (marks["5.3"], marks["35"]) == ("5.3", "35")
+
+    @pytest.mark.parametrize("rules, expected", [
+        ({"good": (">", 150.0), "bad": ("<", 100.0)}, {"100": "translateX(-100%)", "150": "translateX(0%)"}),
+        ({"good": ("<", 0.2), "bad": (">=", 0.3)}, {"0.2": "translateX(-100%)", "0.3": "translateX(0%)"}),
+    ])
+    def test_two_threshold_labels_point_away_from_each_other(self, rules, expected):
+        metric = Metric("m", "M", rules, entry="m", entry_label="M")
+        marks = by_id(create_metric_filter(metric, (0.0, 300.0, 0.1)), {"type": RANGE, "column": "m"}).marks
+        assert {key: marks[key]["style"]["transform"] for key in expected} == expected
+
+    @pytest.mark.parametrize("rules", [
+        {"good": (">", 150.0)},
+        {"good": ("<", 0.2), "bad": (">=", 0.2)},
+    ])
+    def test_a_single_threshold_label_stays_centred(self, rules):
+        metric = Metric("m", "M", rules, entry="m", entry_label="M")
+        marks = by_id(create_metric_filter(metric, (0.0, 300.0, 0.1)), {"type": RANGE, "column": "m"}).marks
+        assert [mark for mark in marks.values() if isinstance(mark, dict) and "transform" in mark["style"]] == []

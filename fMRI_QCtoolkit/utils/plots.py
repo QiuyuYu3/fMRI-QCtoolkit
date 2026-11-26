@@ -149,6 +149,8 @@ def create_heatmap(data, variable_labels, title="",
         vertical_spacing=panel_gap / plot_height if n_groups > 1 else 0,
         subplot_titles=group_labels
     )
+    # At the panel's left edge, so a figure wider than its scroll box still shows the titles
+    fig.update_annotations(x=0, xanchor='left')
 
     max_subjects = 0
     traces = []
