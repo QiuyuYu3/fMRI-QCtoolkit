@@ -213,10 +213,10 @@ class TestIntegrationWithExampleData:
         assert {"ID", "run"}.issubset(df.columns)
         assert {"ID", "Variable", "Value"}.issubset(lol.columns)
 
-    def test_process_end_to_end(self, fmriprep_examples: Path, examples_root: Path, tmp_path: Path):
+    def test_process_end_to_end(self, fmriprep_examples: Path, tmp_path: Path):
         """Test complete processing pipeline"""
         bold_file = fmriprep_examples / "group_bold.tsv"
-        rating_dir = examples_root / "random_data" / "fmriprep_rating"
+        rating_dir = fmriprep_examples / "ratings"
 
         assert bold_file.exists(), "Missing group_bold.tsv"
         assert rating_dir.exists(), "Missing rating directory"
@@ -240,6 +240,9 @@ class TestIntegrationWithExampleData:
         assert not df.empty and not lol.empty
         assert {"ID", "run"}.issubset(df.columns)
         assert {"ID", "Variable", "Value"}.issubset(lol.columns)
+        # Every run of the example has both its MRIQC metrics and its ratings
+        assert len(df) == 15
+        assert df["Final"].notna().all() and df["gcor"].notna().all()
 
 class TestNonNumericSessionLabels:
     """BIDS session labels need not be numeric (ses-pre, ses-V1)."""

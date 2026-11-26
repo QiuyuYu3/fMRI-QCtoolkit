@@ -27,11 +27,6 @@ def fmriprep_examples(examples_root: Path) -> Path:
     return examples_root / "fmriprep"
 
 
-@pytest.fixture(scope="session")
-def afni_examples(examples_root: Path) -> Path:
-    return examples_root / "afni"
-
-
 @pytest.fixture()
 def temp_dir(tmp_path: Path) -> Path:
     return tmp_path
