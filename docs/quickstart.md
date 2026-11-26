@@ -40,10 +40,11 @@ The terminal prints a link such as `http://127.0.0.1:5003/?token=...`. Open it i
 
 Runs rated bad on any metric are hidden when the dashboard opens. The [Dashboard](dashboard.md) page explains the filters, the table and the plots, and [Settings tab](settings.md) explains how to change the thresholds.
 
-## Try the dashboard on example data
+## Try it on example data
 
-From a clone of the repository (see [Installation](installation.md#from-the-repository)), open the dashboard on the example table:
+From a clone of the repository (see [Installation](installation.md#from-the-repository)), steps 2 and 3 run on a small made-up fMRIPrep dataset of five participants with three runs each:
 
 ```bash
-fmriqc dashboard fmriprep --data-file examples/example_data/fmriprep/df_final.csv --task rest
+fmriqc prep fmriprep --bold-file examples/example_data/fmriprep/group_bold.tsv --rating-dir examples/example_data/fmriprep/ratings --task rest --output-dir example_QC
+fmriqc dashboard fmriprep --data-file example_QC/df_final.csv --task rest
 ```

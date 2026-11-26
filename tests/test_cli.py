@@ -2,6 +2,7 @@ import json
 import shutil
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from typer.testing import CliRunner
 
@@ -67,6 +68,29 @@ def test_file_given_as_input_dir_is_refused(tmp_path):
                                      "--task", "rest", "--prefix", "sub-"])
     assert result.exit_code == 1
     assert "not a directory" in result.output
+
+
+def run_prep_fmriprep(rating_dir, output_dir):
+    return runner.invoke(cli.app, ["prep", "fmriprep", "--bold-file", str(EXAMPLES / "group_bold.tsv"),
+                                   "--rating-dir", str(rating_dir), "--task", "rest", "--output-dir", str(output_dir)])
+
+
+def test_prep_fmriprep_runs_on_the_example_data(tmp_path):
+    result = run_prep_fmriprep(EXAMPLES / "ratings", tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "15 matched" in result.output
+    df = pd.read_csv(tmp_path / "df_final.csv")
+    assert len(df) == 15 and df["fd_perc"].notna().sum() == 13
+    assert df["Final"].value_counts().to_dict() == {"good": 5, "other": 5, "bad": 5}
+
+
+def test_prep_fmriprep_reports_missing_ratings_in_one_line(tmp_path):
+    empty = tmp_path / "ratings"
+    empty.mkdir()
+    result = run_prep_fmriprep(empty, tmp_path / "out")
+    assert result.exit_code == 1
+    assert "Error: No CSV files found" in result.output
+    assert "Traceback" not in result.output
 
 
 class TestDashboardConfigOption:

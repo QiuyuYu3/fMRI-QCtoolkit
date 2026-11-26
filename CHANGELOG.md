@@ -29,6 +29,8 @@
 - With Dash 4, the boxes under each slider no longer cover the tick boxes below.
 - Threshold numbers on the sliders sit above the track, so the value boxes no longer hide one near an end; with Dash 4, a metric's tick boxes fit on one line.
 - The Selected Rows table is only as tall as the rows in it.
+- `fmriqc prep fmriprep` reports missing or unreadable rating files in one line, as `fmriqc prep afni` does, instead of a long error message.
+- The fMRIPrep example data include ratings, so `fmriqc prep fmriprep` can be tried on it.
 
 ### Removed
 - `lollipop_chart_data.csv` and the dashboards' `--lollipop-file` option.
