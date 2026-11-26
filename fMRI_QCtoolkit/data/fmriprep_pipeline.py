@@ -1,8 +1,8 @@
 """
 Process data in fMRIPrep Pipeline.
-Input argument: task (modality), bold_file (group_bold.tsv), rating_dir, and output_dir.
+Input argument: task, bold_file (group_bold.tsv), rating_dir, and output_dir.
 
-ID, session, run, and modality are extracted from the 'bids_name' column in group_bold.tsv.
+ID, session, run, and task are extracted from the 'bids_name' column in group_bold.tsv.
 `COMMON_MODULES` are modules that are rated once per session instead of per run. Same in the frontend.
 """
 
@@ -12,6 +12,9 @@ import re
 from pathlib import Path
 from collections import defaultdict
 from .base import BaseDataProcessor
+
+# sub-<ID>[_ses-<session>]_<task>[_<entity>-<value>...].csv, as the rating page writes them
+RATING_FILE = re.compile(r'sub-[A-Za-z0-9]+(?:_ses-[A-Za-z0-9]+)?_([A-Za-z0-9]+)(?:_[a-z]+-[A-Za-z0-9]+)*\.csv$')
 
 class FMRIPrepPipeline(BaseDataProcessor):
     """Data processor for fMRIPrep pipeline."""
@@ -56,13 +59,13 @@ class FMRIPrepPipeline(BaseDataProcessor):
         bold['ID'] = bold['bids_name'].str.extract(r'sub-([A-Za-z0-9]+)')[0]
         bold['run'] = bold['bids_name'].str.extract(r'run-(\d+)')[0].astype(float).fillna(1).astype(int)
         bold['session'] = bold['bids_name'].str.extract(r'ses-([A-Za-z0-9]+)')[0].fillna('1')
-        bold['modality'] = bold['bids_name'].str.extract(r'task-([a-zA-Z0-9]+)')
+        bold['task'] = bold['bids_name'].str.extract(r'task-([a-zA-Z0-9]+)')[0]
 
         # Filter for specified task
-        bold_filtered = bold.query(f"modality == '{self.task}'")
+        bold_filtered = bold[bold['task'] == self.task]
 
         # Every numeric IQM, so any of them can be added to the dashboard without preparing the data again
-        labels = ['ID', 'session', 'run', 'modality']
+        labels = ['ID', 'session', 'run', 'task']
         iqms = [c for c in bold.columns if c not in labels and pd.api.types.is_numeric_dtype(bold[c])]
         bold_clean = bold_filtered[labels + iqms]
         
@@ -87,14 +90,9 @@ class FMRIPrepPipeline(BaseDataProcessor):
             print(f"WARNING: skipping {len(split_files)} rating file(s) split by an entity "
                   f"the dashboard cannot represent, e.g. {Path(split_files[0]).name}")
 
-        # If still not found, fall back to generic sub-*.csv files
+        # Never fall back to other files: they would be another task's ratings, matched on the same runs
         if not csv_files:
-            print(f"No task-specific files found, trying generic pattern...")
-            csv_files = glob.glob(str(self.rating_dir / "sub-*.csv"))
-            csv_files = [f for f in csv_files if not re.search(r'sub-\d+_\w+\.csv$', f)]
-        
-        if not csv_files:
-            raise FileNotFoundError(f"No CSV files found in {self.rating_dir} for task {self.task}")
+            raise FileNotFoundError(self._no_ratings_message())
         
         print(f"Found {len(csv_files)} subject CSV files")
         
@@ -113,9 +111,7 @@ class FMRIPrepPipeline(BaseDataProcessor):
             else:
                 # If no session in filename, default to 1
                 df['session'] = '1'
-            
-            # df['modality'] = self.task
-            
+
             all_ratings.append(df)
         
         fmriprep_raw = pd.concat(all_ratings, ignore_index=True)
@@ -152,7 +148,6 @@ class FMRIPrepPipeline(BaseDataProcessor):
                         key = (row['ID'], row['session'], run)
                         runs_data[key]['ID'] = row['ID']
                         runs_data[key]['session'] = row['session']
-                        # runs_data[key]['modality'] = row['modality'] need to drop modality in group.tsv
                         runs_data[key]['run'] = run
                         runs_data[key][step] = value
             
@@ -190,6 +185,11 @@ class FMRIPrepPipeline(BaseDataProcessor):
         else:
             print("No 'Final' column found in rating data")
     
+    def _no_ratings_message(self):
+        tasks = sorted({m.group(1) for f in self.rating_dir.glob("sub-*.csv") if (m := RATING_FILE.match(f.name))})
+        found = f"; it has ratings for: {', '.join(tasks)}" if tasks else ""
+        return f"No rating files for task {self.task} in {self.rating_dir}{found}"
+
     def _load_raw_data(self):
         """Load both BOLD and rating data."""
         self._load_bold_data()

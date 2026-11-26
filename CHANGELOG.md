@@ -18,6 +18,7 @@
 - A few runs are rated or hidden differently than in 1.0: values are no longer rounded before rating, runs with a `flip_guess` other than 0 are hidden, and a censored fraction of exactly 0.2 counts as bad.
 - fMRIPrep runs are rated on `fd_perc` and `fd_mean` only; `tsnr` and `gcor` no longer have thresholds.
 - `fmriqc prep` writes only `df_final.csv`, at full precision, with every numeric metric from MRIQC or the AFNI review file.
+- The task column that `fmriqc prep fmriprep` writes is named `task` instead of `modality`.
 - The table shows the IDs, the metrics chosen in the Settings tab and the ratings, with three decimals; downloads keep every column at full precision.
 - Table columns can be widened by dragging, and the ID, session and run columns stay in view when scrolling sideways.
 - The box in the table header selects or clears every row that passes the filters, replacing **Select All (filtered)** and **Clear**; rows per page are set below the table.
@@ -32,6 +33,7 @@
 - Threshold numbers on the sliders sit above the track, so the value boxes no longer hide one near an end; with Dash 4, a metric's tick boxes fit on one line.
 - The Selected Rows table is only as tall as the rows in it, and shows them all without scrolling.
 - `fmriqc prep fmriprep` reports missing or unreadable rating files in one line, as `fmriqc prep afni` does, instead of a long error message.
+- `fmriqc prep fmriprep` stops when a task has no rating files, instead of using the ratings of another task.
 - The fMRIPrep example data include ratings, so `fmriqc prep fmriprep` can be tried on it.
 
 ### Removed

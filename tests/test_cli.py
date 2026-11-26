@@ -96,7 +96,7 @@ def test_prep_fmriprep_reports_missing_ratings_in_one_line(tmp_path):
     empty.mkdir()
     result = run_prep_fmriprep(empty, tmp_path / "out")
     assert result.exit_code == 1
-    assert "Error: No CSV files found" in result.output
+    assert "Error: No rating files for task rest" in result.output
     assert "Traceback" not in result.output
 
 

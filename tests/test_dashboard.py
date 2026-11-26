@@ -144,7 +144,7 @@ class TestTableDisplay:
     def test_the_table_has_the_ids_then_the_config_metrics_in_order_then_the_ratings(self, tmp_path):
         df = pd.DataFrame({"ID": ["001", "002"], "session": ["01"] * 2, "run": [1, 1], "Final": ["good"] * 2,
                            "efc": [0.5, 0.6], "fd_perc": [5.0, 25.0], "fd_mean": [0.1, 0.1],
-                           "modality": ["rest"] * 2})
+                           "task": ["rest"] * 2})
         config = tmp_path / "config.json"
         config.write_text(json.dumps({"metrics": {"fd_mean": {"label": "Average FD"}, "fd_perc": {"bad": "> 20"}}}),
                           encoding="utf-8")

@@ -86,7 +86,7 @@ class TestLoadBoldData:
         pipeline._load_bold_data()
         
         # Verify required columns
-        required_cols = ['ID', 'run', 'session', 'modality']
+        required_cols = ['ID', 'run', 'session', 'task']
         assert all(col in pipeline.bold_data.columns for col in required_cols)
         
         # Verify data types
@@ -109,7 +109,7 @@ class TestLoadBoldData:
         pipeline._load_bold_data()
         
         assert len(pipeline.bold_data) == 2
-        assert all(pipeline.bold_data['modality'] == 'rest')
+        assert all(pipeline.bold_data['task'] == 'rest')
 
 
 class TestLoadRatingData:
@@ -136,6 +136,21 @@ class TestLoadRatingData:
         
         assert pipeline.rating_data is not None
         assert len(pipeline.rating_data) > 0
+
+    def test_another_tasks_ratings_are_never_used(self, temp_dir, random_bold_data, random_rating_data):
+        bold_file, rating_dir = setup_fmriprep_env(temp_dir, random_bold_data, random_rating_data)
+        (rating_dir / "sub-001_ses-1_nback_dir-AP.csv").write_text("ID\n001\n")
+        (rating_dir / "sub-001.csv").write_text("ID\n001\n")
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "stopsignal", temp_dir / "output")
+        with pytest.raises(FileNotFoundError, match="No rating files for task stopsignal .*; it has ratings for: nback, rest$"):
+            pipeline._load_rating_data()
+
+    def test_an_empty_folder_lists_no_tasks(self, temp_dir, random_bold_data):
+        bold_file, rating_dir = setup_fmriprep_env(temp_dir, random_bold_data)
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        with pytest.raises(FileNotFoundError) as error:
+            pipeline._load_rating_data()
+        assert "it has ratings for" not in str(error.value)
 
 
 class TestCleanData:
