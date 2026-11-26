@@ -26,7 +26,7 @@ Some AFNI modules bring their own Python packages, which clash with `fmriqc`. A 
 
 ## "More than one QC directory matching task"
 
-`fmriqc prep afni` makes one row per participant. If a participant has a match in several sessions, narrow `--task` to one session, for example `ses-01/rest`.
+`fmriqc prep afni` makes one row per participant and session. Two QC folders for the same participant and session usually mean that `--task` matches two folders, such as `rest_output` and `rest2_output`; make `--task` longer, for example `rest_output`.
 
 ## No ratings match the MRIQC rows
 

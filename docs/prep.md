@@ -7,7 +7,7 @@
 ```bash
 fmriqc prep afni \
     --input-dir /PATH/AFNI_derivatives \
-    --task ses-01/kidvid \
+    --task kidvid \
     --prefix sub- \
     --output-dir /PATH/QC
 ```
@@ -16,7 +16,7 @@ fmriqc prep afni \
 : The folder that holds all participants' AFNI output.
 
 `--task`
-: A part of the path between `--input-dir` and each participant's QC folder, usually the task name. Each row is one participant, so if a participant matches in more than one place (for example `ses-01/rest_output` and `ses-02/rest_output`), the command stops and lists them; narrow `--task` to one session, such as `ses-01/rest`.
+: A part of the path between `--input-dir` and each participant's QC folder, usually the task name. To keep one session only, add it, such as `ses-01/rest`.
 
 `--prefix`
 : What comes before the ID in the folder names, usually `sub-`. It is removed from the IDs in the table.
@@ -24,9 +24,9 @@ fmriqc prep afni \
 `--output-dir`
 : The folder for `df_final.csv`. It is created if needed.
 
-The command reads `QC_<ID>/extra_info/out.ss_review.<ID>.json` of every participant. This file holds the quantitative summary of `afni_proc.py` (the `qsumm` block of the APQC report) and the APQC ratings. In `df_final.csv`:
+The command reads `QC_<ID>/extra_info/out.ss_review.<ID>.json` of every participant. A participant with several sessions gets one row per session; the session comes from a `ses-<label>` folder in the path or from a subject ID that ends in `_ses-<label>`. This file holds the quantitative summary of `afni_proc.py` (the `qsumm` block of the APQC report) and the APQC ratings. In `df_final.csv`:
 
-- Every numeric field becomes a column. A field with several values, such as one per run or one per stimulus class, becomes one column per value, numbered `_1`, `_2` and so on.
+- Every numeric field becomes a column. A field with several values, such as one per run or one per stimulus class, becomes one column per value, numbered `_1`, `_2` and so on, also for participants with a single value.
 - Text fields, such as the AFNI version or the names of the output datasets, are left out.
 - Field names have spaces replaced by `_`, and the main metrics get short names:
 
@@ -76,9 +76,9 @@ The rating columns are `T1mask`, `Norm`, `SurfRecon`, `SDC`, `Align`, `CompCor`,
 
 ## The table, df_final.csv
 
-`df_final.csv` has one row per participant (AFNI) or per run (fMRIPrep):
+`df_final.csv` has one row per participant and session (AFNI) or per run (fMRIPrep):
 
-- `ID`, and for fMRIPrep `session`, `run` and `task`, which identify the row;
+- `ID`, `session` (for AFNI only when there are sessions), and for fMRIPrep `run` and `task`, which identify the row;
 - the numeric metrics, at full precision;
 - the ratings, each `good`, `bad` or `other`, or empty when not rated.
 

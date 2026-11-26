@@ -207,6 +207,23 @@ class TestPlotsAreDrawnOnDemand:
         assert response["lollipop-chart"]["figure"]["data"]
         assert self.lollipop(dashboard, "plots-tab", drawn=True).status_code == 204
 
+    @staticmethod
+    def panel_titles(figure):
+        return [a["text"] for a in figure["layout"].get("annotations", [])]
+
+    def test_afni_sessions_get_one_panel_each(self, tmp_path):
+        df = pd.concat([afni_runs().assign(session="01"), afni_runs().assign(session="02")])
+        dashboard = make_dashboard(AFNIDashboard, df, tmp_path)
+        heatmap = self.heatmaps(dashboard, [0, 8], "plots-tab").get_json()["response"]["quantitative-heatmap"]
+        lollipop = self.lollipop(dashboard, "plots-tab").get_json()["response"]["lollipop-chart"]
+        assert self.panel_titles(heatmap["figure"]) == ["Session 01", "Session 02"]
+        assert self.panel_titles(lollipop["figure"]) == ["Session 01", "Session 02"]
+
+    def test_afni_without_sessions_keeps_one_panel(self, tmp_path):
+        dashboard = make_dashboard(AFNIDashboard, afni_runs(), tmp_path)
+        heatmap = self.heatmaps(dashboard, [0, 2], "plots-tab").get_json()["response"]["quantitative-heatmap"]
+        assert self.panel_titles(heatmap["figure"]) == ["Run 1"]
+
 
 @pytest.fixture
 def fmriprep_dashboard(tmp_path):

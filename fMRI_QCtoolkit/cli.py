@@ -16,7 +16,7 @@ from .utils.port_utils import find_free_port
 from .utils.subject_utils import parse_subjects_input,validate_fmriprep_subjects,validate_afni_subjects
 
 app = typer.Typer(help="Rate AFNI and fMRIPrep QC reports and review them in a dashboard", add_completion=False)
-AFNI_TASK_HELP = "Task name as it appears in the folder path, e.g. rest or ses-01/rest"
+AFNI_TASK_HELP = "Task name as it appears in the folder path, e.g. rest; ses-01/rest keeps one session"
 PREFIX_HELP = "Text before the ID in folder names, e.g. sub-"
 DASHBOARD_TASK_HELP = "Task name, used in the names of downloaded files"
 

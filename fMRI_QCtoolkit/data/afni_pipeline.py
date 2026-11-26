@@ -17,6 +17,25 @@ def _all_numbers(values):
     return not present.empty and pd.to_numeric(present, errors="coerce").notna().all()
 
 
+# AFNI writes a single value as plain text and several as a list; this one is per stimulus class even when there is one
+ALWAYS_LISTS = {"fraction TRs censored"}
+SESSION = re.compile(r"(?<![A-Za-z0-9])ses-([A-Za-z0-9]+)")
+
+
+def _split_session(subject_id, folder):
+    """(participant, session) from a subject ID like sub-01_ses-01, else from a ses-<label> folder; session None if neither."""
+    match = re.fullmatch(r"(.+)_ses-([A-Za-z0-9]+)", subject_id)
+    if match:
+        return match.group(1), match.group(2)
+    sessions = SESSION.findall(folder.as_posix())
+    return subject_id, sessions[-1] if sessions else None
+
+
+def _describe(key):
+    participant, session = key
+    return participant if session is None else f"{participant} session {session}"
+
+
 class AFNIPipeline(BaseDataProcessor):
     """Data processor for AFNI pipeline with flexible file discovery."""
 
@@ -49,17 +68,13 @@ class AFNIPipeline(BaseDataProcessor):
         ] + frac_cols
         
         self.core_cols = [
-            "ID", "runs", "TRs_total_raw", "TRs_removed", "cens_mot", 
+            "ID", "session", "runs", "TRs_total_raw", "TRs_removed", "cens_mot", 
             "cens_displace", "DF_frac", "TSNR", "cens_frac", "GCOR",
             "flip_guess"
         ]
         
     def _find_json_files(self):
-        """
-        Find all out.ss_review.*.json files under */QC_*/extra_info/ 
-        where the path contains the specified task. Could be ses-01/{task}_output
-        Subject ID still must match the prefix pattern.
-        """
+        """out.ss_review.*.json under QC_* folders whose path contains the task, keyed by (subject, session)."""
         if not self.work_dir or not self.work_dir.exists():
             raise FileNotFoundError(f"Input directory does not exist: {self.work_dir}")
         
@@ -85,30 +100,32 @@ class AFNIPipeline(BaseDataProcessor):
                 print("No match found, skipping")
                 continue
             subject_id = qc_match.group(1)
+            participant, session = _split_session(subject_id, qc_dir.relative_to(self.work_dir).parent)
 
-            # Check if subject_id is prefix + a BIDS label (e.g. prefix001, prefixA01)
-            if self.prefix and not re.fullmatch(fr"{re.escape(self.prefix)}[A-Za-z0-9]+", subject_id):
-                print(f"Subject ID {subject_id} does not match prefix {self.prefix}, skipping")
+            # Check if the participant is prefix + a BIDS label (e.g. prefix001, prefixA01)
+            if self.prefix and not re.fullmatch(fr"{re.escape(self.prefix)}[A-Za-z0-9]+", participant):
+                print(f"Subject ID {participant} does not match prefix {self.prefix}, skipping")
                 continue
 
             json_file = qc_dir / "extra_info" / f"out.ss_review.{subject_id}.json"
+            key = (participant, session)
             if json_file.exists():
-                if subject_id in json_files:
-                    duplicates.setdefault(subject_id, [json_files[subject_id]]).append(json_file)
+                if key in json_files:
+                    duplicates.setdefault(key, [json_files[key]]).append(json_file)
                 else:
-                    json_files[subject_id] = json_file
+                    json_files[key] = json_file
             else:
                 print(f"Warning: Expected JSON file not found: {json_file}")
 
         print(f"Searched {qc_dirs_found} QC_* directories (with 'task'), found {len(json_files)} valid JSON files")
 
-        # One row per subject: several matches (usually one per session) would overwrite each other
+        # One row per participant and session: several matches would overwrite each other
         if duplicates:
-            listing = "\n".join(f"  {sid}: " + ", ".join(str(path) for path in paths)
-                                for sid, paths in sorted(duplicates.items()))
+            listing = "\n".join(f"  {_describe(key)}: " + ", ".join(str(path) for path in paths)
+                                for key, paths in sorted(duplicates.items(), key=lambda item: _describe(item[0])))
             raise ValueError(
-                f"Some subjects have more than one QC directory matching task '{self.task}':\n{listing}\n"
-                f"Narrow --task to one session, for example --task ses-01/{self.task}."
+                f"Some participants have more than one QC directory matching task '{self.task}':\n{listing}\n"
+                f"Narrow --task so it matches one folder per participant and session."
             )
         
         return json_files
@@ -126,47 +143,42 @@ class AFNIPipeline(BaseDataProcessor):
         
         print(f"Found {len(json_files)} JSON files to process")
         
-        all_data = []
-        successful_loads = 0
-        
-        for subject_id, json_path in json_files.items():
+        # Sessions in order, so the later sort by ID keeps each participant's sessions in order
+        keys = sorted(json_files, key=lambda key: (key[1] is not None, key[1] or "", key[0]))
+        loaded = []
+        for key in keys:
             try:
-                with open(json_path, "r") as f:
-                    data = json.load(f)
-                
-                flat_data = {"ID": subject_id}
-                
-                # Flatten nested data
-                for key, value in data.items():
-                    clean_key = self._clean_key(key)
-                    if isinstance(value, list):
-                        for idx, val in enumerate(value, start=1):
-                            flat_data[f"{clean_key}_{idx}"] = val
-                    else:
-                        flat_data[clean_key] = value
-                
-                all_data.append(flat_data)
-                successful_loads += 1
-                
+                with open(json_files[key], "r") as f:
+                    loaded.append((key, json.load(f)))
             except Exception as e:
-                print(f"Warning: Error processing {json_path}: {e}")
-                continue
-        
-        if not all_data:
+                print(f"Warning: Error processing {json_files[key]}: {e}")
+
+        if not loaded:
             raise ValueError("No valid data could be loaded from JSON files")
-        
+
+        # A field with several values in any file is numbered in every file, so one field never splits over two columns
+        list_fields = ALWAYS_LISTS | {field for _, data in loaded for field, value in data.items() if isinstance(value, list)}
+        with_sessions = any(session is not None for (_, session), _ in loaded)
+        all_data = []
+        for (participant, session), data in loaded:
+            flat_data = {"ID": participant, **({"session": session} if with_sessions else {})}
+            for key, value in data.items():
+                clean_key = self._clean_key(key)
+                if key in list_fields:
+                    for idx, val in enumerate(value if isinstance(value, list) else [value], start=1):
+                        flat_data[f"{clean_key}_{idx}"] = val
+                else:
+                    flat_data[clean_key] = value
+            all_data.append(flat_data)
+
         self.df_raw = pd.DataFrame(all_data)
-        print(f"Successfully loaded data for {successful_loads}/{len(json_files)} subjects")
-        
-        # Show sample of found files for verification
-        if successful_loads > 0:
-            print("\nSample of loaded subjects:")
-            sample_size = min(5, len(all_data))
-            for i, row in enumerate(self.df_raw.head(sample_size).itertuples()):
-                corresponding_file = json_files.get(row.ID, "Unknown")
-                print(f"  {row.ID} -> {corresponding_file}")
-            if len(all_data) > sample_size:
-                print(f"  ... and {len(all_data) - sample_size} more")
+        print(f"Successfully loaded data for {len(loaded)}/{len(json_files)} QC directories")
+
+        print("\nSample of loaded subjects:")
+        for key, _ in loaded[:5]:
+            print(f"  {_describe(key)} -> {json_files[key]}")
+        if len(loaded) > 5:
+            print(f"  ... and {len(loaded) - 5} more")
     
     def _clean_key(self, key):
         """Clean JSON keys for column names."""

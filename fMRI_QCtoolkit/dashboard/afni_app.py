@@ -21,3 +21,9 @@ class AFNIDashboard(BaseDashboard):
         "qsumm_rating": "quantitative",
         "FINAL_rating": "final",
     }
+
+    def __init__(self, data_processor, *args, **kwargs):
+        # One panel per session when the data has sessions; otherwise one panel for everyone
+        if 'session' in data_processor.get_data().columns:
+            self.GROUP_BY = 'session'
+        super().__init__(data_processor, *args, **kwargs)

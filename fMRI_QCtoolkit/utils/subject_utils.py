@@ -56,12 +56,10 @@ def validate_afni_subjects(input_dir: Path, subject_list: list, prefix: str, tas
         subject_clean = f"{prefix}{subject_id}"  # AFNI uses prefix + subject ID
 
         # AFNI pattern: search for *{task}*/QC_sub-XXX/index.html anywhere in input_dir
-        if task:
-            qc_pattern = f"*{task}*/**/QC_{subject_clean}/index.html"
-        else:
-            qc_pattern = f"**/QC_{subject_clean}/index.html"
-
-        found_paths = list(input_dir.rglob(qc_pattern))
+        base = f"*{task}*/**/" if task else "**/"
+        # The session may be part of the subject ID given to afni_proc.py, as in QC_sub-01_ses-01
+        found_paths = sorted({*input_dir.rglob(f"{base}QC_{subject_clean}/index.html"),
+                              *input_dir.rglob(f"{base}QC_{subject_clean}_ses-*/index.html")})
 
         if found_paths:
             found_files.extend([str(p) for p in found_paths])

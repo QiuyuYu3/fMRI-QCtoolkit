@@ -49,9 +49,7 @@ class TestFindJSONFiles:
         )
         
         json_files = pipeline._find_json_files()
-        assert len(json_files) == 2
-        assert "sub-001" in json_files
-        assert "sub-002" in json_files
+        assert set(json_files) == {("sub-001", None), ("sub-002", None)}
     
     def test_filters_by_prefix(self, temp_dir, sample_json_data):
         """Testing by prefix filtering"""
@@ -68,8 +66,7 @@ class TestFindJSONFiles:
         pipeline = AFNIPipeline(temp_dir, "rest", "sub-", temp_dir)
         json_files = pipeline._find_json_files()
         
-        assert len(json_files) == 1
-        assert "sub-001" in json_files
+        assert list(json_files) == [("sub-001", None)]
 
 
 class TestLoadRawData:
@@ -203,40 +200,78 @@ def _qc_dir(root, rel, subject_id, data):
 
 class TestSubjectMatching:
 
-    def test_same_subject_in_two_sessions_is_refused(self, temp_dir, sample_json_data):
+    def test_sessions_come_from_the_folders(self, temp_dir, sample_json_data):
+        _qc_dir(temp_dir, "sub-001/ses-01/rest_output", "sub-001", sample_json_data)
+        _qc_dir(temp_dir, "sub-001/ses-02/rest_output", "sub-001", sample_json_data)
+        json_files = AFNIPipeline(temp_dir, "rest", "sub-", temp_dir)._find_json_files()
+        assert sorted(json_files) == [("sub-001", "01"), ("sub-001", "02")]
+        assert "ses-02" in json_files[("sub-001", "02")].as_posix()
+
+    def test_sessions_come_from_the_subject_id(self, temp_dir, sample_json_data):
+        _qc_dir(temp_dir, "rest_output", "sub-001_ses-pre", sample_json_data)
+        _qc_dir(temp_dir, "rest_output", "sub-001_ses-post", sample_json_data)
+        json_files = AFNIPipeline(temp_dir, "rest", "sub-", temp_dir)._find_json_files()
+        assert sorted(json_files) == [("sub-001", "post"), ("sub-001", "pre")]
+
+    def test_narrowing_task_to_a_session_keeps_one(self, temp_dir, sample_json_data):
         _qc_dir(temp_dir, "ses-01/rest_output", "sub-001", sample_json_data)
         _qc_dir(temp_dir, "ses-02/rest_output", "sub-001", sample_json_data)
-        _qc_dir(temp_dir, "ses-01/rest_output", "sub-002", sample_json_data)
-
-        with pytest.raises(ValueError, match=r"sub-001.*\n.*ses-01/rest"):
-            AFNIPipeline(temp_dir, "rest", "sub-", temp_dir)._find_json_files()
-
-    def test_narrowing_task_to_a_session_resolves_it(self, temp_dir, sample_json_data):
-        _qc_dir(temp_dir, "ses-01/rest_output", "sub-001", sample_json_data)
-        _qc_dir(temp_dir, "ses-02/rest_output", "sub-001", sample_json_data)
-
         json_files = AFNIPipeline(temp_dir, "ses-02/rest", "sub-", temp_dir)._find_json_files()
-        assert list(json_files) == ["sub-001"]
-        assert "ses-02" in json_files["sub-001"].as_posix()
+        assert list(json_files) == [("sub-001", "02")]
+
+    def test_two_folders_for_one_participant_and_session_are_refused(self, temp_dir, sample_json_data):
+        _qc_dir(temp_dir, "ses-01/rest_output", "sub-001", sample_json_data)
+        _qc_dir(temp_dir, "ses-01/rest2_output", "sub-001", sample_json_data)
+        _qc_dir(temp_dir, "ses-01/rest_output", "sub-002", sample_json_data)
+        with pytest.raises(ValueError, match=r"sub-001 session 01: .*rest.*\n.*Narrow --task"):
+            AFNIPipeline(temp_dir, "rest", "sub-", temp_dir)._find_json_files()
 
     def test_alphanumeric_labels_match_the_prefix(self, temp_dir, sample_json_data):
         _qc_dir(temp_dir, "rest_output", "sub-A01", sample_json_data)
-        assert list(AFNIPipeline(temp_dir, "rest", "sub-", temp_dir)._find_json_files()) == ["sub-A01"]
+        assert list(AFNIPipeline(temp_dir, "rest", "sub-", temp_dir)._find_json_files()) == [("sub-A01", None)]
 
     def test_prefix_is_matched_literally(self, temp_dir, sample_json_data):
         _qc_dir(temp_dir, "rest_output", "s.001", sample_json_data)
         _qc_dir(temp_dir, "rest_output", "sX001", sample_json_data)
-        assert list(AFNIPipeline(temp_dir, "rest", "s.", temp_dir)._find_json_files()) == ["s.001"]
+        assert list(AFNIPipeline(temp_dir, "rest", "s.", temp_dir)._find_json_files()) == [("s.001", None)]
 
     def test_prep_reports_duplicates_without_a_traceback(self, temp_dir, sample_json_data):
         from typer.testing import CliRunner
         from fMRI_QCtoolkit.cli import app
 
-        _qc_dir(temp_dir, "ses-01/rest_output", "sub-001", sample_json_data)
-        _qc_dir(temp_dir, "ses-02/rest_output", "sub-001", sample_json_data)
+        _qc_dir(temp_dir, "rest_output", "sub-001", sample_json_data)
+        _qc_dir(temp_dir, "rest2_output", "sub-001", sample_json_data)
         result = CliRunner().invoke(app, ["prep", "afni", "--input-dir", str(temp_dir), "--output-dir",
                                           str(temp_dir / "out"), "--task", "rest", "--prefix", "sub-"])
 
         assert result.exit_code == 1
         assert "Narrow --task" in result.output
         assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
+class TestSessionsAndLists:
+
+    @staticmethod
+    def _process(root):
+        return AFNIPipeline(root, "rest", "sub-", root / "out").process().df_final
+
+    def test_one_row_per_participant_and_session(self, temp_dir, sample_json_data):
+        for subject, session in (("sub-002", "02"), ("sub-010", "01"), ("sub-002", "01")):
+            _qc_dir(temp_dir, f"{subject}/ses-{session}/rest_output", subject, sample_json_data)
+        df = self._process(temp_dir)
+        assert list(df.columns[:2]) == ["ID", "session"]
+        assert list(zip(df["ID"], df["session"])) == [("002", "01"), ("002", "02"), ("010", "01")]
+
+    def test_single_session_data_has_no_session_column(self, mock_afni_directory):
+        assert "session" not in self._process(mock_afni_directory).columns
+
+    def test_a_field_with_several_values_anywhere_is_numbered_everywhere(self, temp_dir, sample_json_data):
+        _qc_dir(temp_dir, "rest_output", "sub-001", {**sample_json_data, "num TRs per run": "160",
+                                                      "fraction TRs censored": "0.050"})
+        _qc_dir(temp_dir, "rest_output", "sub-002", {**sample_json_data, "num TRs per run": ["160", "158"],
+                                                      "fraction TRs censored": "0.100"})
+        df = self._process(temp_dir)
+        assert "num_TRs_per_run" not in df.columns
+        assert df["num_TRs_per_run_1"].tolist() == ["160", "160"]
+        assert df["num_TRs_per_run_2"].isna().tolist() == [True, False]
+        assert df["frac_TRs_cens_1"].tolist() == ["0.050", "0.100"]

@@ -122,3 +122,15 @@ def test_validate_afni_subjects_random(tmp_path: Path, random_subject_ids):
     assert set(missing) == set(missing_subjects)
 
 
+
+
+def test_validate_afni_subjects_finds_every_session(tmp_path: Path):
+    for rel in ("sub-3001/ses-01/rest_output/QC_sub-3001", "sub-3001/ses-02/rest_output/QC_sub-3001",
+                "rest_output/QC_sub-3002_ses-01", "rest_output/QC_sub-3002_ses-02", "rest_output/QC_sub-30021"):
+        (tmp_path / rel).mkdir(parents=True)
+        (tmp_path / rel / "index.html").write_text("<html></html>")
+
+    found, missing = validate_afni_subjects(tmp_path, ["3001", "3002"], prefix="sub-", task="rest")
+    assert sorted(Path(p).parent.name for p in found) == ["QC_sub-3001", "QC_sub-3001",
+                                                          "QC_sub-3002_ses-01", "QC_sub-3002_ses-02"]
+    assert missing == []

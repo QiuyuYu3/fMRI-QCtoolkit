@@ -10,7 +10,7 @@ For AFNI, the rating happens in AFNI's own QC report, the [APQC HTML](https://af
 
 ## Folder layout
 
-`--input-dir` is the folder that holds all participants' AFNI output. The command looks below it for each participant's `QC_<prefix><ID>/index.html`, in a path that contains `--task`. For example:
+`--input-dir` is the folder that holds all participants' AFNI output. The command looks below it for each participant's `QC_<prefix><ID>/index.html` (or `QC_<prefix><ID>_ses-<label>/index.html`), in a path that contains `--task`. For example:
 
 ```
 AFNI_derivatives/
@@ -30,7 +30,7 @@ AFNI_derivatives/
 fmriqc rating afni \
     --input-dir /PATH/AFNI_derivatives \
     --subjects "001,002" \
-    --task ses-01/cards \
+    --task cards \
     --prefix sub-
 ```
 
@@ -41,7 +41,7 @@ fmriqc rating afni \
 : The participants to rate, separated by commas or spaces (`"001,002"` or `"001 002"`), or the path of a text file that lists them. A leading `sub-` is ignored.
 
 `--task`
-: A part of the path between `--input-dir` and the QC folder, usually the task name (`cards` matches `cards_output`). Add the session (`ses-01/cards`) to pick one session.
+: A part of the path between `--input-dir` and the QC folder, usually the task name (`cards` matches `cards_output`). Every session found is opened; add the session (`ses-01/cards`) to open one only.
 
 `--prefix`
 : What comes before the ID in the folder names, usually `sub-`.

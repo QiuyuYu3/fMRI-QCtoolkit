@@ -9,6 +9,7 @@
 - **Table only** columns in the Settings tab, shown in the table without a filter.
 - Settings are saved as `afni_config.json` or `fmriprep_config.json` next to `df_final.csv` and used again next time; `--config FILE` uses another file. The terminal shows which file is used.
 - **Download config** in the Settings tab, and `fmriqc config afni|fmriprep --output FILE`, give a settings file to edit, share or reuse.
+- `fmriqc prep afni` and `fmriqc rating afni` handle several sessions per participant, with one row per session and one heatmap panel per session.
 - A [handbook](https://qiuyuyu3.github.io/fMRI-QCtoolkit/) that covers each step in detail; the README now keeps only a quick start.
 
 ### Changed
@@ -31,6 +32,7 @@
 - A metric with the same value in every run no longer flattens the other metrics in the lollipop chart.
 - With Dash 4, the boxes under each slider no longer cover the tick boxes below.
 - Threshold numbers on the sliders sit above the track, so the value boxes no longer hide one near an end; with Dash 4, a metric's tick boxes fit on one line.
+- `fmriqc prep afni` puts a field such as the TRs per run or the censored fraction per stimulus class in the same numbered columns for every participant, also when some have only one value; the threshold on `frac_TRs_cens_*` now applies to tasks with one stimulus class.
 - The two threshold numbers on a slider no longer overlap when they are close.
 - Heatmap panel titles sit at the left, so they stay in view on wide heatmaps.
 - The Selected Rows table is only as tall as the rows in it, and shows them all without scrolling.
