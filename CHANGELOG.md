@@ -1,6 +1,8 @@
 # Change Log
 
 ## [Unreleased]
+### Fixed
+- In the Settings tab, Save now keeps a change to the order of the metrics.
 
 
 ## [2.0.1] - 2026-11-26

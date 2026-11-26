@@ -295,6 +295,23 @@ class TestSaving:
         assert sorted(p.name for p in path.parent.iterdir()) == ["thresholds.json"]
         assert dashboard.config_version == 0
 
+    def test_moving_a_row_is_a_change_that_save_writes(self, saved_to):
+        original = {"metrics": {"fd_mean": {"bad": "> 1"}, "fd_perc": {"bad": "> 20"}}}
+        dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs(), original)
+        rows = rows_of(dashboard)[::-1]
+        shown = dashboard.settings.preview(rows)
+        assert (shown['save_style'], shown['unsaved']) == (SAVE_STYLE, "Unsaved changes")
+        assert dashboard.settings.save(rows, version=0)[1]
+        assert list(json.loads(path.read_text(encoding="utf-8"))["metrics"]) == ["fd_perc", "fd_mean"]
+
+    def test_saving_an_untouched_form_leaves_table_columns_in_their_hand_written_order(self, saved_to):
+        original = {"metrics": {"fd_mean": {"bad": "> 1"}}, "table_columns": ["task", "efc"]}
+        dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs(), original)
+        table = list(dashboard.config.table_columns)
+        assert dashboard.settings.preview(rows_of(dashboard), table)['unsaved'] == ""
+        assert dashboard.settings.save(rows_of(dashboard), 0, table) == (NOTHING_TO_SAVE, False)
+        assert sorted(p.name for p in path.parent.iterdir()) == ["thresholds.json"]
+
     def test_saving_an_untouched_form_creates_the_missing_file(self, saved_to):
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
         assert dashboard.settings.save(rows_of(dashboard), version=0)[1]

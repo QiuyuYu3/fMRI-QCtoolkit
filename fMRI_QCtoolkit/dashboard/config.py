@@ -46,6 +46,11 @@ class Config:
     table_columns: tuple = ()
 
 
+def same_settings(a, b):
+    """Whether two configs set the same; metric order counts, while table-only columns always show in data order."""
+    return list(a.metrics.items()) == list(b.metrics.items()) and set(a.table_columns) == set(b.table_columns)
+
+
 def default_config_path(pipeline):
     return Path(__file__).with_name(CONFIG_FILES[pipeline])
 

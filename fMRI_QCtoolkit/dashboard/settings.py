@@ -9,8 +9,9 @@ import pandas as pd
 from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 
-from .config import (ID_COLUMNS, ConfigError, Metric, backup_path, default_config_path, dump_config, load_config,
-                     parse_config, parse_entry, parse_table_columns, resolve_metrics, save_config)
+from .config import (ID_COLUMNS, Config, ConfigError, Metric, backup_path, default_config_path, dump_config,
+                     load_config, parse_config, parse_entry, parse_table_columns, resolve_metrics, same_settings,
+                     save_config)
 from ..utils.filter_components_utils import ACCENT, slider_bounds
 from ..utils.status import (LEVELS, RULE_TIERS, assign_status, describe_levels, format_number, get_status_colors,
                             get_status_mapping, rated_tiers, rest_tier)
@@ -321,8 +322,7 @@ class SettingsTab:
         except ConfigError as e:
             table_error = str(e)
         state = d.state
-        changed = (bool(errors) or bool(table_error) or list(parsed.items()) != list(state.config.metrics.items())
-                   or set(table) != set(state.config.table_columns))
+        changed = bool(errors) or bool(table_error) or not same_settings(Config(parsed, tuple(table)), state.config)
         invalid = bool(errors) or bool(table_error) or not rows
         if rows:
             now = len(df) - int(state.status.eq('bad').any(axis=1).sum())
@@ -401,7 +401,7 @@ class SettingsTab:
             raw = form_raw(rows, self.in_data_order(table))
             try:
                 # Writing the same settings again would replace the backup of the version before them
-                if existed and parse_config(raw, source=str(d.save_path)) == d.config:
+                if existed and same_settings(parse_config(raw, source=str(d.save_path)), d.config):
                     return NOTHING_TO_SAVE, False
                 config = save_config(d.save_path, raw)
             except ConfigError as e:
