@@ -9,6 +9,7 @@
 - **Table only** columns in the Settings tab, shown in the table without a filter.
 - Settings are saved as `afni_config.json` or `fmriprep_config.json` next to `df_final.csv` and used again next time; `--config FILE` uses another file. The terminal shows which file is used.
 - **Download config** in the Settings tab, and `fmriqc config afni|fmriprep --output FILE`, give a settings file to edit, share or reuse.
+- A [handbook](https://qiuyuyu3.github.io/fMRI-QCtoolkit/) that covers each step in detail; the README now keeps only a quick start.
 
 ### Changed
 - **Thresholds are set in the settings file instead of the code.** Config files from 1.x no longer work; `fmriqc config` writes a new one.
