@@ -16,48 +16,92 @@ pip install fmri-qctoolkit
 
 ## Quick start
 
-**1. Rate** each participant's QC report: AFNI's APQC report, or the fMRIPrep report in the toolkit's rating page.
+### 1. Rate
+
+Rate AFNI output in AFNI's APQC report:
 
 ```bash
-fmriqc rating afni --input-dir /PATH/AFNI_derivatives --subjects "001,002" --task rest --prefix sub-
-fmriqc rating fmriprep --input-dir /PATH/fmriprep --subjects "001,002" --output-dir /PATH/ratings
+fmriqc rating afni \
+    --input-dir /PATH/AFNI_derivatives \
+    --subjects "001,002" \
+    --task rest \
+    --prefix sub-
 ```
 
-**2. Prepare** one table, `df_final.csv`, with the ratings and the metrics (for fMRIPrep, from MRIQC's `group_bold.tsv`).
+![AFNI rating](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/AFNI_rating.png)
+
+Rate fMRIPrep output in the toolkit's rating page, on top of the fMRIPrep report:
 
 ```bash
-fmriqc prep afni --input-dir /PATH/AFNI_derivatives --task rest --prefix sub- --output-dir /PATH/QC
-fmriqc prep fmriprep --bold-file /PATH/mriqc/group_bold.tsv --rating-dir /PATH/ratings --task rest --output-dir /PATH/QC
+fmriqc rating fmriprep \
+    --input-dir /PATH/fmriprep \
+    --subjects "001,002" \
+    --output-dir /PATH/ratings
 ```
 
-**3. View** the table in the dashboard.
+![fMRIPrep rating](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/fMRIPrep_rating.png)
+
+### 2. Prepare
+
+Collect the ratings and the metrics into one table, `df_final.csv`. For fMRIPrep, the metrics come from MRIQC's `group_bold.tsv`.
 
 ```bash
-fmriqc dashboard afni --data-file /PATH/QC/df_final.csv --task rest
-fmriqc dashboard fmriprep --data-file /PATH/QC/df_final.csv --task rest
+fmriqc prep afni \
+    --input-dir /PATH/AFNI_derivatives \
+    --task rest \
+    --prefix sub- \
+    --output-dir /PATH/QC
 ```
-
-The rating and dashboard commands print a link to open in your browser. In the dashboard, runs rated bad on any metric are hidden at first, and the **Settings** tab changes which metrics are shown and the thresholds that rate them.
-
-![dashboard](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/dashboard2.png)
-
-### On an HPC cluster
-
-Add `--no-browser` to `fmriqc rating fmriprep`. Then, on your own computer, forward the port in the printed link (5003 in `http://localhost:5003/...`) and leave this terminal open while you open the link:
 
 ```bash
-ssh -N -L 5003:127.0.0.1:5003 user@hpc.example.edu
+fmriqc prep fmriprep \
+    --bold-file /PATH/mriqc/group_bold.tsv \
+    --rating-dir /PATH/ratings \
+    --task rest \
+    --output-dir /PATH/QC
 ```
 
-If the command runs on a compute node such as `node123`, go through the login node: `ssh -N -L 5003:127.0.0.1:5003 -J user@hpc.example.edu user@node123`. More in [Opening the pages](https://qiuyuyu3.github.io/fMRI-QCtoolkit/opening-pages.html).
+### 3. View
+
+```bash
+fmriqc dashboard fmriprep \
+    --data-file /PATH/QC/df_final.csv \
+    --task rest
+```
+
+For AFNI, use `fmriqc dashboard afni` with the same options. Open the link printed in the terminal. Runs rated bad on any metric are hidden at first; the filters on the left change which runs are shown.
+
+The **Table** tab lists the runs. Select some and download them.
+
+![Table tab](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/dashboard1.png)
+
+The **Plots** tab shows the ratings as heatmaps and the metrics as a lollipop chart.
+
+![Heatmaps](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/dashboard2.png)
+
+![Lollipop chart](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/dashboard3.png)
+
+The **Settings** tab chooses the metrics shown and the thresholds that rate them.
+
+![Settings tab](https://raw.githubusercontent.com/QiuyuYu3/fMRI-QCtoolkit/main/images/dashboard_settings.png)
+
+The screenshots show simulated data.
+
+## On an HPC cluster
+
+Start a remote desktop session on the cluster (such as XDesktop or an Open OnDemand desktop), open a terminal in it, and load Firefox before running the commands above:
+
+```bash
+ml Firefox
+```
+
+The rating pages open in Firefox. For the dashboard, copy the printed link into Firefox. Module names differ between clusters; `module avail firefox` lists yours. To rate AFNI output, load AFNI as well. More in [Opening the pages](https://qiuyuyu3.github.io/fMRI-QCtoolkit/opening-pages.html).
 
 ## Documentation
 
-The [handbook](https://qiuyuyu3.github.io/fMRI-QCtoolkit/) covers each step with all its options: [rating AFNI](https://qiuyuyu3.github.io/fMRI-QCtoolkit/rating-afni.html) and [fMRIPrep](https://qiuyuyu3.github.io/fMRI-QCtoolkit/rating-fmriprep.html) output, [preparing the table](https://qiuyuyu3.github.io/fMRI-QCtoolkit/prep.html), the [dashboard](https://qiuyuyu3.github.io/fMRI-QCtoolkit/dashboard.html), the [Settings tab](https://qiuyuyu3.github.io/fMRI-QCtoolkit/settings.html) and [config file](https://qiuyuyu3.github.io/fMRI-QCtoolkit/config.html), the [default thresholds](https://qiuyuyu3.github.io/fMRI-QCtoolkit/thresholds.html), a [command reference](https://qiuyuyu3.github.io/fMRI-QCtoolkit/cli.html) and [troubleshooting](https://qiuyuyu3.github.io/fMRI-QCtoolkit/troubleshooting.html).
-
-The [training materials](https://github.com/QiuyuYu3/fMRI-QCtoolkit/tree/main/training_materials) hold a QC reference sheet for the AFNI pipeline, for training raters.
-
-Changes between versions are listed in the [change log](https://github.com/QiuyuYu3/fMRI-QCtoolkit/blob/main/CHANGELOG.md).
+- [Handbook](https://qiuyuyu3.github.io/fMRI-QCtoolkit/)
+- [Training materials](https://github.com/QiuyuYu3/fMRI-QCtoolkit/tree/main/training_materials)
+- [Change log](https://github.com/QiuyuYu3/fMRI-QCtoolkit/blob/main/CHANGELOG.md)
 
 ## Citation
 
