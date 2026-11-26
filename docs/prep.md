@@ -78,7 +78,7 @@ The rating columns are `T1mask`, `Norm`, `SurfRecon`, `SDC`, `Align`, `CompCor`,
 
 `df_final.csv` has one row per participant (AFNI) or per run (fMRIPrep):
 
-- `ID`, and for fMRIPrep `session` and `run`, which identify the row;
+- `ID`, and for fMRIPrep `session`, `run` and `task`, which identify the row;
 - the numeric metrics, at full precision;
 - the ratings, each `good`, `bad` or `other`, or empty when not rated.
 
