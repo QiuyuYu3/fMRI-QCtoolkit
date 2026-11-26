@@ -5,6 +5,7 @@
 - The dashboard opens when a metric has infinite values, and the lollipop chart still shows that metric for the other runs.
 - The Settings tab no longer reports unsaved changes as soon as it opens a hand-edited config file.
 - Selected Rows and Download Selected Data no longer include selected rows that the filters have hidden.
+- In the Settings tab, a value typed right before clicking Save or a row button is no longer lost, and Save works on the first click; the counts update when you leave a box or press Enter.
 
 
 ## [2.0.0] - 2026-11-25

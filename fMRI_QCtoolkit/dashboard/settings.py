@@ -22,8 +22,8 @@ OPERATORS = ['>', '>=', '<', '<=', '==', '!=']
 OPERATOR_OPTIONS = [{'label': '\u00a0', 'value': ''}] + [{'label': op, 'value': op} for op in OPERATORS]
 LEVEL_OPTIONS = [{'label': level, 'value': level} for level in LEVELS]
 TIER_COLORS = {tier: get_status_colors()[number] for tier, number in get_status_mapping().items()}
-# Seconds of no typing before a box is sent, so the preview does not chase every keystroke
-TYPING_PAUSE_S = 0.5
+# Sent on Enter or on leaving the box, so that a button clicked right after typing gets the typed value
+DEBOUNCE = True
 GRID = {'display': 'grid', 'gap': '6px', 'align-items': 'center', 'font-size': '13px'}
 _AREAS = ('metric', 'label', 'gop', 'gval', 'rest', 'bop', 'bval', 'step', 'runs', 'move')
 # A row's ten cells, the header's too, are placed by area; below 1440 px a row takes two lines, which fit a laptop
@@ -45,6 +45,11 @@ _CHECK_GRID = {'display': 'grid', 'grid-template-columns': 'repeat(auto-fill, mi
 _SMALL_BUTTON = {'padding': '3px 10px', 'margin-right': '6px', 'cursor': 'pointer', 'font-size': '14px',
                  'border': '1px solid #6c757d', 'border-radius': '4px', 'background-color': 'white',
                  'color': '#495057'}
+_BUTTON = {'border': 'none', 'padding': '8px 16px', 'border-radius': '4px', 'cursor': 'pointer', 'margin-right': '8px'}
+SAVE_STYLE = {**_BUTTON, 'background-color': ACCENT, 'color': 'white'}
+# Faded while there is nothing to save, yet it takes every click, which may bring a value typed just before
+SAVE_IDLE_STYLE = {**SAVE_STYLE, 'opacity': 0.5}
+NOTHING_TO_SAVE = "Nothing to save: no changes."
 TABLE_BUTTONS = ('thr-table-all', 'thr-table-clear')
 _RANK = {'NA': 0, 'good': 1, 'other': 2, 'bad': 3}
 
@@ -189,7 +194,7 @@ class SettingsTab:
 
         def number(field, placeholder=None):
             return dcc.Input(id=ident(field), type='number', step='any', value=row[field], placeholder=placeholder,
-                             debounce=TYPING_PAUSE_S, style=_BOX)
+                             debounce=DEBOUNCE, style=_BOX)
 
         def button(kind, text, title):
             return html.Button(text, id=ident(kind), n_clicks=0, title=title,
@@ -198,7 +203,7 @@ class SettingsTab:
         return html.Div([
             html.Div([
                 html.Code(key, style={'overflow-wrap': 'anywhere'}),
-                dcc.Input(id=ident('label'), type='text', value=row['label'], debounce=TYPING_PAUSE_S, style=_BOX),
+                dcc.Input(id=ident('label'), type='text', value=row['label'], debounce=DEBOUNCE, style=_BOX),
                 operator('good'), number('good-value'),
                 # Empty follows the rules, shown in gray like the automatic step
                 dcc.Dropdown(id=ident('otherwise'), options=LEVEL_OPTIONS, value=row['otherwise'],
@@ -238,8 +243,6 @@ class SettingsTab:
                    html.B("Bad"), html.Span(),
                    html.B("Step", title="The slider's step; left empty, the one shown in gray"),
                    html.B("Runs and values per level"), html.Span()]
-        button_style = {'border': 'none', 'padding': '8px 16px', 'border-radius': '4px', 'cursor': 'pointer',
-                        'margin-right': '8px'}
         return html.Div([
             html.Div([
                 html.P("Metrics appear in the sidebar and table in this order. A run that meets neither rule gets "
@@ -264,16 +267,15 @@ class SettingsTab:
                 html.Div(id='thr-table-error', style={'color': '#C0392B', 'font-size': '12px'}),
             ], style={'margin': '18px 0'}),
             html.Div([
-                html.Button("Save", id='thr-save', n_clicks=0,
-                            style={**button_style, 'background-color': ACCENT, 'color': 'white'}),
+                html.Button("Save", id='thr-save', n_clicks=0, style=SAVE_IDLE_STYLE),
                 html.Button("Discard changes", id='thr-discard', n_clicks=0,
-                            style={**button_style, 'background-color': '#6c757d', 'color': 'white'}),
+                            style={**_BUTTON, 'background-color': '#6c757d', 'color': 'white'}),
                 html.Button("Use defaults", id='thr-defaults', n_clicks=0,
                             title="The package's defaults; saved only when you press Save",
-                            style={**button_style, 'background-color': '#6c757d', 'color': 'white'}),
+                            style={**_BUTTON, 'background-color': '#6c757d', 'color': 'white'}),
                 html.Button("Download config", id='thr-download-button', n_clicks=0,
                             title="Save these settings as a file on this computer",
-                            style={**button_style, 'background-color': 'white', 'color': ACCENT,
+                            style={**_BUTTON, 'background-color': 'white', 'color': ACCENT,
                                    'border': f'1px solid {ACCENT}'}),
                 html.Span(id='thr-unsaved', style={'color': '#8a6d00'}),
             ], style={'margin-top': '10px'}),
@@ -334,7 +336,8 @@ class SettingsTab:
             'rest_defaults': [default_rest(row) for row in rows],
             'errors': [errors.get(row['key']) for row in rows],
             'summary': summary,
-            'save_off': d.save_path is None or invalid or not changed,
+            'save_off': d.save_path is None,
+            'save_style': SAVE_IDLE_STYLE if invalid or not changed else SAVE_STYLE,
             'download_off': invalid,
             'unsaved': "Unsaved changes" if changed else "",
             'options': self.addable_columns(keys),
@@ -395,8 +398,12 @@ class SettingsTab:
             if version != d.config_version:
                 return "Not saved: settings were changed in another tab. Reload the page and try again.", False
             existed = d.save_path.exists()
+            raw = form_raw(rows, self.in_data_order(table))
             try:
-                config = save_config(d.save_path, form_raw(rows, self.in_data_order(table)))
+                # Writing the same settings again would replace the backup of the version before them
+                if existed and parse_config(raw, source=str(d.save_path)) == d.config:
+                    return NOTHING_TO_SAVE, False
+                config = save_config(d.save_path, raw)
             except ConfigError as e:
                 return f"Not saved: {e}", False
             except OSError as e:
@@ -444,6 +451,7 @@ class SettingsTab:
              Output({'type': 'thr-error', 'key': ALL}, 'children'),
              Output('thr-summary', 'children'),
              Output('thr-save', 'disabled'),
+             Output('thr-save', 'style'),
              Output('thr-download-button', 'disabled'),
              Output('thr-unsaved', 'children'),
              Output('thr-add', 'options'),
@@ -454,7 +462,7 @@ class SettingsTab:
         def update_preview(*args):
             *fields, table = args
             shown = self.preview(form_rows(_keys(ctx.inputs_list[0]), *fields), table or [])
-            return [shown[k] for k in ('counts', 'rest_defaults', 'errors', 'summary', 'save_off',
+            return [shown[k] for k in ('counts', 'rest_defaults', 'errors', 'summary', 'save_off', 'save_style',
                                        'download_off', 'unsaved', 'options', 'table_options', 'table_error')]
 
         @app.callback(
@@ -482,7 +490,8 @@ class SettingsTab:
                 raise PreventUpdate
             *fields, table, version = args
             message, saved = self.save(form_rows(_keys(ctx.states_list[0]), *fields), version, table or [])
-            return _message(message, ok=saved), (self.dashboard.config_version if saved else no_update)
+            return (_message(message, ok=saved or message == NOTHING_TO_SAVE),
+                    self.dashboard.config_version if saved else no_update)
 
         # The page is rebuilt from the new thresholds; the tab it was on is kept by the tabs' persistence
         app.clientside_callback(

@@ -14,7 +14,8 @@ from fMRI_QCtoolkit.dashboard.afni_app import AFNIDashboard
 from fMRI_QCtoolkit.dashboard.config import ConfigError
 from fMRI_QCtoolkit.dashboard.config import default_config_path, dump_config, load_config, parse_config
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
-from fMRI_QCtoolkit.dashboard.settings import config_rows, form_raw, new_row, row_entry
+from fMRI_QCtoolkit.dashboard.settings import (NOTHING_TO_SAVE, SAVE_IDLE_STYLE, SAVE_STYLE, config_rows, form_raw,
+                                               new_row, row_entry)
 from tests.dashboard_helpers import (afni_runs, dash_call, layout_components, layout_values, make_dashboard,
                                      shown_ids)
 
@@ -86,7 +87,7 @@ class TestPreview:
     def test_an_untouched_form_has_no_unsaved_changes(self, saved_to, entry):
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs(), {"metrics": {"fd_perc": entry}})
         shown = dashboard.settings.preview(rows_of(dashboard))
-        assert (shown['unsaved'], shown['save_off']) == ("", True)
+        assert (shown['unsaved'], shown['save_style']) == ("", SAVE_IDLE_STYLE)
 
     def test_counts_per_status(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
@@ -160,14 +161,15 @@ class TestPreview:
         shown = dashboard.settings.preview(rows)
         assert shown['save_off'] and not shown['download_off'] and shown['unsaved'] == "Unsaved changes"
 
-    def test_save_is_on_only_when_something_changed(self, saved_to):
+    def test_save_is_faded_until_something_changes_but_always_takes_a_click(self, saved_to):
+        # A click right after typing sends the value first, while the button still looks unchanged
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())
         rows = rows_of(dashboard)
         shown = dashboard.settings.preview(rows)
-        assert (shown['save_off'], shown['unsaved']) == (True, "")
+        assert (shown['save_off'], shown['save_style'], shown['unsaved']) == (False, SAVE_IDLE_STYLE, "")
         row(rows, "fd_mean")["label"] = "Mean FD"
         shown = dashboard.settings.preview(rows)
-        assert (shown['save_off'], shown['unsaved']) == (False, "Unsaved changes")
+        assert (shown['save_off'], shown['save_style'], shown['unsaved']) == (False, SAVE_STYLE, "Unsaved changes")
 
     def test_columns_on_offer_are_numeric_and_not_yet_covered(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
@@ -287,6 +289,17 @@ class TestSaving:
         assert json.loads(path.read_text(encoding="utf-8")) == original
         assert sorted(p.name for p in path.parent.iterdir()) == ["thresholds.json"]
 
+    def test_saving_unchanged_settings_leaves_the_file_and_its_backup_alone(self, saved_to):
+        dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs(), {"metrics": {"fd_mean": {"bad": "> 1"}}})
+        assert dashboard.settings.save(rows_of(dashboard), version=0) == (NOTHING_TO_SAVE, False)
+        assert sorted(p.name for p in path.parent.iterdir()) == ["thresholds.json"]
+        assert dashboard.config_version == 0
+
+    def test_saving_an_untouched_form_creates_the_missing_file(self, saved_to):
+        dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
+        assert dashboard.settings.save(rows_of(dashboard), version=0)[1]
+        assert load_config(path) == dashboard.config
+
 
 class TestTableOnlyColumns:
 
@@ -304,7 +317,7 @@ class TestTableOnlyColumns:
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())
         shown = dashboard.settings.preview(rows_of(dashboard), ["fd_mean"])
         assert "['fd_mean'] already in metrics" in shown['table_error']
-        assert shown['save_off'] and shown['download_off']
+        assert shown['save_style'] == SAVE_IDLE_STYLE and shown['download_off']
 
     def test_adding_it_as_a_metric_takes_it_out_of_the_table_only_list(self, tmp_path):
         tab = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path).settings
