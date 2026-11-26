@@ -14,8 +14,9 @@ from fMRI_QCtoolkit.dashboard.afni_app import AFNIDashboard
 from fMRI_QCtoolkit.dashboard.config import ConfigError
 from fMRI_QCtoolkit.dashboard.config import default_config_path, dump_config, load_config, parse_config
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
-from fMRI_QCtoolkit.dashboard.settings import (FIELDS, NOTHING_TO_SAVE, SAVE_IDLE_STYLE, SAVE_STYLE, config_rows,
-                                               form_raw, form_rows, new_row, row_entry)
+from fMRI_QCtoolkit.dashboard.settings import (DOWNLOAD_IDLE_STYLE, DOWNLOAD_STYLE, FIELDS, NOTHING_TO_SAVE,
+                                               SAVE_IDLE_STYLE, SAVE_STYLE, config_rows, form_raw, form_rows, new_row,
+                                               row_entry)
 from tests.dashboard_helpers import (afni_runs, dash_call, layout_components, layout_values, make_dashboard,
                                      shown_ids)
 
@@ -171,14 +172,16 @@ class TestPreview:
         assert "overlap" in errors[keys.index("fd_mean")]
         assert errors[keys.index("fd_perc")].startswith("metrics.fd_perc.bad: '20' is not a rule")
         assert summary.endswith("Rows with errors are left out.")
-        assert shown['save_off'] and shown['download_off'] and shown['unsaved'] == "Unsaved changes"
+        assert shown['save_off'] and shown['unsaved'] == "Unsaved changes"
+        assert shown['download_style'] == DOWNLOAD_IDLE_STYLE
 
     def test_save_is_off_without_a_config_file(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         rows = rows_of(dashboard)
         row(rows, "fd_perc").update({"good-value": 8, "bad-value": 10})
         shown = dashboard.settings.preview(rows)
-        assert shown['save_off'] and not shown['download_off'] and shown['unsaved'] == "Unsaved changes"
+        assert shown['save_off'] and shown['unsaved'] == "Unsaved changes"
+        assert shown['download_style'] == DOWNLOAD_STYLE
 
     def test_save_is_faded_until_something_changes_but_always_takes_a_click(self, saved_to):
         # A click right after typing sends the value first, while the button still looks unchanged
@@ -353,7 +356,7 @@ class TestTableOnlyColumns:
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())
         shown = dashboard.settings.preview(rows_of(dashboard), ["fd_mean"])
         assert "['fd_mean'] already in metrics" in shown['table_error']
-        assert shown['save_style'] == SAVE_IDLE_STYLE and shown['download_off']
+        assert (shown['save_style'], shown['download_style']) == (SAVE_IDLE_STYLE, DOWNLOAD_IDLE_STYLE)
 
     def test_adding_it_as_a_metric_takes_it_out_of_the_table_only_list(self, tmp_path):
         tab = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path).settings
@@ -443,10 +446,18 @@ class TestThroughDash:
         assert sent["filename"] == "fmriprep_config.json"
         assert parse_config(json.loads(sent["content"])).metrics["fd_perc"].rules["bad"] == (">", 30.0)
 
+    def test_the_download_button_says_why_an_invalid_form_gives_no_file(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        resp = dash_call(dashboard, "thr-download.data",
+                         {("thr-download-button", "n_clicks"): 1, (sid("thr-bad-value", "fd_mean"), "value"): 0.1},
+                         "thr-download-button.n_clicks")
+        response = resp.get_json()["response"]
+        assert "thr-download" not in response
+        assert "Not downloaded: fmriprep_config.json: metrics.fd_mean" in json.dumps(response["thr-message"])
 
     def test_the_save_button_writes_the_form_to_the_config_path(self, saved_to):
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
-        resp = dash_call(dashboard, "thr-message.children",
+        resp = dash_call(dashboard, "thr-saved.data",
                          {("thr-save", "n_clicks"): 1, (sid("thr-bad-value", "fd_perc"), "value"): 30},
                          "thr-save.n_clicks")
         assert resp.status_code == 200
@@ -490,7 +501,7 @@ class TestThroughDash:
 
     def test_the_save_button_writes_the_table_only_columns(self, saved_to):
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
-        resp = dash_call(dashboard, "thr-message.children",
+        resp = dash_call(dashboard, "thr-saved.data",
                          {("thr-save", "n_clicks"): 1, ("thr-table", "value"): ["efc"]}, "thr-save.n_clicks")
         assert resp.get_json()["response"]["thr-saved"]["data"] == 1
         assert load_config(path).table_columns == ("efc",)

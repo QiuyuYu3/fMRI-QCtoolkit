@@ -208,3 +208,19 @@ def test_a_value_typed_back_after_enter_is_the_one_saved(session):
         session.by_id("thr-save").click()
     assert session.eventually(lambda: session.saved().get("fd_perc", {}).get("good"), "<= 15") == "<= 15"
     assert not session.errors
+
+
+def test_download_config_right_after_fixing_an_error_gives_the_file(session):
+    session.open_tab("Settings")
+    good = session.by_id({"type": "thr-good-value", "key": "fd_perc"})
+    error = session.by_id({"type": "thr-error", "key": "fd_perc"})
+    good.fill("25")
+    good.press("Enter")
+    assert session.eventually(lambda: "overlap" in error.inner_text(), True)
+    good.fill("15")
+    with session.page.expect_download() as dl:
+        session.by_id("thr-download-button").click(force=True)
+    sent = json.loads(Path(dl.value.path()).read_text(encoding="utf-8"))
+    assert sent["metrics"]["fd_perc"]["good"] == "<= 15"
+    assert session.eventually(error.inner_text, "") == ""
+    assert not session.errors

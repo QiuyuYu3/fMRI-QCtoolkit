@@ -53,6 +53,9 @@ SAVE_STYLE = {**_BUTTON, 'background-color': ACCENT, 'color': 'white'}
 # Faded while there is nothing to save, yet it takes every click, which may bring a value typed just before
 SAVE_IDLE_STYLE = {**SAVE_STYLE, 'opacity': 0.5}
 NOTHING_TO_SAVE = "Nothing to save: no changes."
+DOWNLOAD_STYLE = {**_BUTTON, 'background-color': 'white', 'color': ACCENT, 'border': f'1px solid {ACCENT}'}
+# Faded while the form has errors; like Save it takes every click, so the first click after a fix downloads
+DOWNLOAD_IDLE_STYLE = {**DOWNLOAD_STYLE, 'opacity': 0.5}
 TABLE_BUTTONS = ('thr-table-all', 'thr-table-clear')
 _RANK = {'NA': 0, 'good': 1, 'other': 2, 'bad': 3}
 
@@ -297,9 +300,7 @@ class SettingsTab:
                             title="The package's defaults; saved only when you press Save",
                             style={**_BUTTON, 'background-color': '#6c757d', 'color': 'white'}),
                 html.Button("Download config", id='thr-download-button', n_clicks=0,
-                            title="Save these settings as a file on this computer",
-                            style={**_BUTTON, 'background-color': 'white', 'color': ACCENT,
-                                   'border': f'1px solid {ACCENT}'}),
+                            title="Save these settings as a file on this computer", style=DOWNLOAD_STYLE),
                 html.Span(id='thr-unsaved', style={'color': '#8a6d00'}),
             ], style={'margin-top': '10px'}),
             html.Div(id='thr-message'),
@@ -360,7 +361,7 @@ class SettingsTab:
             'summary': summary,
             'save_off': d.save_path is None,
             'save_style': SAVE_IDLE_STYLE if invalid or not changed else SAVE_STYLE,
-            'download_off': invalid,
+            'download_style': DOWNLOAD_IDLE_STYLE if invalid else DOWNLOAD_STYLE,
             'unsaved': "Unsaved changes" if changed else "",
             'options': self.addable_columns(keys),
             'table_options': self.table_options(keys),
@@ -369,10 +370,10 @@ class SettingsTab:
 
     def config_file(self, rows, table=()):
         """(file name, text) of the form's settings as a config file; raises ConfigError if they are invalid."""
-        raw = form_raw(rows, self.in_data_order(table))
-        parse_config(raw)
         d = self.dashboard
         name = d.save_path.name if d.save_path else f"{d.PIPELINE}_config.json"
+        raw = form_raw(rows, self.in_data_order(table))
+        parse_config(raw, source=name)
         return name, dump_config(raw)
 
     def edit(self, rows, trigger, clicked, added):
@@ -474,7 +475,7 @@ class SettingsTab:
              Output('thr-summary', 'children'),
              Output('thr-save', 'disabled'),
              Output('thr-save', 'style'),
-             Output('thr-download-button', 'disabled'),
+             Output('thr-download-button', 'style'),
              Output('thr-unsaved', 'children'),
              Output('thr-add', 'options'),
              Output('thr-table', 'options'),
@@ -485,10 +486,10 @@ class SettingsTab:
             *fields, table = args
             shown = self.preview(form_rows(_keys(ctx.inputs_list[0]), *fields), table or [])
             return [shown[k] for k in ('counts', 'rest_defaults', 'errors', 'summary', 'save_off', 'save_style',
-                                       'download_off', 'unsaved', 'options', 'table_options', 'table_error')]
+                                       'download_style', 'unsaved', 'options', 'table_options', 'table_error')]
 
         @app.callback(
-            Output('thr-download', 'data'),
+            [Output('thr-download', 'data'), Output('thr-message', 'children', allow_duplicate=True)],
             [Input('thr-download-button', 'n_clicks')],
             field_states + [table_state],
             prevent_initial_call=True
@@ -497,9 +498,9 @@ class SettingsTab:
             *fields, table = args
             try:
                 name, text = self.config_file(form_rows(_keys(ctx.states_list[0]), *fields), table or [])
-            except ConfigError:
-                raise PreventUpdate
-            return dcc.send_string(text, name)
+            except ConfigError as e:
+                return no_update, _message(f"Not downloaded: {e}")
+            return dcc.send_string(text, name), None
 
         @app.callback(
             [Output('thr-message', 'children'), Output('thr-saved', 'data')],

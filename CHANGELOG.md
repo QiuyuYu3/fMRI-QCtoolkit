@@ -4,6 +4,7 @@
 ### Fixed
 - In the Settings tab, Save now keeps a change to the order of the metrics.
 - In the Settings tab, a number changed with Enter and then typed back is now saved as shown, not as the number entered with Enter.
+- Download config works on the first click after fixing an error in the Settings tab, and says why when an error remains.
 
 
 ## [2.0.1] - 2026-11-26
