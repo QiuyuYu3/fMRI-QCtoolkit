@@ -379,10 +379,13 @@ class BaseDashboard:
             positions = self.filtered_positions(ranges, statuses, args[2:])
             return self.table_records(positions), positions
 
-    def selected_data(self, selected_rows):
-        """Full-precision rows behind the table's selection, in the order of the full table."""
-        positions = sorted(int(row[ROW_ID]) for row in selected_rows or [])
-        return self.processor.get_data().iloc[positions]
+    def selected_data(self, selected_rows, positions=None):
+        """Full-precision rows behind the table's selection that pass the filters, in the order of the full table."""
+        picked = {int(row[ROW_ID]) for row in selected_rows or []}
+        # The grid keeps rows a filter hid in selectedRows when none of the selected rows stays shown
+        if positions is not None:
+            picked &= set(positions)
+        return self.processor.get_data().iloc[sorted(picked)]
 
     def selected_grid(self, selected):
         """Selected Rows shows every selected row, as tall as they need."""
@@ -444,10 +447,10 @@ class BaseDashboard:
         # Callback for selected rows display
         @self.app.callback(
             Output('selected-rows-display', 'children'),
-            [Input('datatable', 'selectedRows')]
+            [Input('datatable', 'selectedRows'), Input('filtered-rows', 'data')]
         )
-        def display_selected_rows(selected_rows):
-            selected = self.selected_data(selected_rows)
+        def display_selected_rows(selected_rows, positions):
+            selected = self.selected_data(selected_rows, positions)
             if selected.empty:
                 return html.Div("No row selected.", style={'padding': '10px', 'text-align': 'center'})
             return self.selected_grid(selected)
@@ -456,12 +459,12 @@ class BaseDashboard:
         @self.app.callback(
             Output("download-dataframe-csv", "data"),
             [Input("download-button", "n_clicks")],
-            [State('datatable', 'selectedRows')]
+            [State('datatable', 'selectedRows'), State('filtered-rows', 'data')]
         )
-        def download_selected_data(n_clicks, selected_rows):
+        def download_selected_data(n_clicks, selected_rows, positions):
             if not n_clicks:
                 return no_update
-            selected = self.selected_data(selected_rows)
+            selected = self.selected_data(selected_rows, positions)
             if selected.empty:
                 selected = pd.DataFrame({"Message": ["No row selected."]})
             return dcc.send_data_frame(selected.to_csv, f"{self.task}_MRI_QC_subj.csv", index=False)

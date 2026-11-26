@@ -339,7 +339,7 @@ def precise_runs():
 
 
 class TestSelectedRows:
-    """The grid keeps the selection across filter changes itself, since each row's id is its position."""
+    """Each row's id is its position; Selected Rows and the download keep only selected rows the filters show."""
 
     def test_each_row_carries_its_position_in_the_full_table(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
@@ -367,6 +367,21 @@ class TestSelectedRows:
         dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
         resp = dash_call(dashboard, "download-dataframe-csv.data", {("download-button", "n_clicks"): 1},
                          "download-button.n_clicks")
+        assert "No row selected." in resp.get_json()["response"]["download-dataframe-csv"]["data"]["content"]
+
+    def test_selected_rows_the_filters_hide_are_left_out(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
+        assert dashboard.selected_data(dashboard.table_records([0, 2]), [1, 2])["ID"].tolist() == ["003"]
+
+    def test_a_selection_the_filters_hide_entirely_is_neither_shown_nor_downloaded(self, tmp_path):
+        # The grid keeps such rows in selectedRows, so the filtered positions decide
+        dashboard = make_dashboard(FMRIPrepDashboard, precise_runs(), tmp_path)
+        values = {("datatable", "selectedRows"): dashboard.table_records([0]), ("filtered-rows", "data"): [1, 2],
+                  ("download-button", "n_clicks"): 1}
+        shown = dash_call(dashboard, "selected-rows-display.children", values, "filtered-rows.data")
+        assert shown.get_json()["response"]["selected-rows-display"]["children"]["props"]["children"] == \
+            "No row selected."
+        resp = dash_call(dashboard, "download-dataframe-csv.data", values, "download-button.n_clicks")
         assert "No row selected." in resp.get_json()["response"]["download-dataframe-csv"]["data"]["content"]
 
     def test_a_filter_change_sends_the_table_but_no_plots(self, tmp_path):
