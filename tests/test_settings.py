@@ -363,6 +363,12 @@ def sid(kind, key):
 class TestThroughDash:
     """The tab's callbacks driven by Dash requests, as the browser sends them."""
 
+    def test_the_header_and_every_row_have_the_ten_cells_the_layout_places(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        grids = [c for c in dashboard.build_layout()._traverse() if getattr(c, "className", None) == "thr-grid"]
+        assert len(grids) == 1 + len(rows_of(dashboard))
+        assert all(len(grid.children) == 10 for grid in grids)
+
     def test_the_tab_is_called_settings(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         tabs = [c.label for c in dashboard.build_layout()._traverse() if type(c).__name__ == "Tab"]

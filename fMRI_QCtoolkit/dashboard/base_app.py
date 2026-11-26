@@ -14,7 +14,7 @@ from dash.dash_table.Format import Format, Scheme, Trim
 from dash.exceptions import PreventUpdate
 
 from .config import ID_COLUMNS, default_config_path, load_config, resolve_metrics
-from .settings import SETTINGS_TAB, SettingsTab
+from .settings import SETTINGS_CSS, SETTINGS_TAB, SettingsTab
 from ..utils.access import AccessGate, url_host
 from ..utils.filter_components_utils import (ACCENT, RANGE, SIDEBAR_CSS, STATUS, create_metric_filter,
                                              create_qualitative_dropdown, create_rules_summary, default_statuses,
@@ -28,7 +28,7 @@ PLOTS_TAB = 'plots-tab'
 # Dash 4's tab box clips what is wider than it; older Dash lets a narrow window scroll sideways to it instead
 TAB_OVERFLOW_CSS = ".tab-parent { overflow: visible; }"
 ACCENT_STYLE = (f"<style>html:root {{ --Dash-Fill-Interactive-Strong: {ACCENT}; }} "
-                f"{SIDEBAR_CSS} {TAB_OVERFLOW_CSS}</style>")
+                f"{SIDEBAR_CSS} {TAB_OVERFLOW_CSS} {SETTINGS_CSS}</style>")
 SPINNER_DELAY_MS = 300
 
 

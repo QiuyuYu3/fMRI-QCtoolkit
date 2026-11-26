@@ -24,9 +24,17 @@ LEVEL_OPTIONS = [{'label': level, 'value': level} for level in LEVELS]
 TIER_COLORS = {tier: get_status_colors()[number] for tier, number in get_status_mapping().items()}
 # Seconds of no typing before a box is sent, so the preview does not chase every keystroke
 TYPING_PAUSE_S = 0.5
-GRID = {'display': 'grid', 'gap': '6px', 'align-items': 'center',
-        'grid-template-columns': '116px minmax(140px, 260px) 80px 68px 94px 80px 68px 124px minmax(212px, 1fr) 90px',
-        'font-size': '13px'}
+GRID = {'display': 'grid', 'gap': '6px', 'align-items': 'center', 'font-size': '13px'}
+_AREAS = ('metric', 'label', 'gop', 'gval', 'rest', 'bop', 'bval', 'step', 'runs', 'move')
+# A row's ten cells, the header's too, are placed by area; below 1440 px a row takes two lines, which fit a laptop
+SETTINGS_CSS = (
+    ''.join(f'.thr-grid > :nth-child({i}) {{ grid-area: {area}; }} ' for i, area in enumerate(_AREAS, 1))
+    + '.thr-grid { grid-template-columns: 116px minmax(140px, 260px) 80px 68px 94px 80px 68px 124px '
+      'minmax(212px, 1fr) 90px; grid-template-areas: "' + ' '.join(_AREAS) + '"; } '
+    + '@media (max-width: 1439px) { .thr-grid { grid-template-columns: 110px 80px 68px 94px 80px 68px '
+      'minmax(124px, 1fr) 90px; grid-template-areas: "metric label label label label label step move" '
+      '". gop gval rest bop bval runs runs"; } .thr-grid > :nth-child(8) { max-width: 124px; } }'
+)
 _BOX = {'width': '100%', 'box-sizing': 'border-box', 'font-size': '13px'}
 _NOTE_STYLE = {'font-size': '12px', 'color': '#666'}
 _TEXT_STYLE = {'font-size': '15px', 'color': '#555'}
@@ -201,7 +209,7 @@ class SettingsTab:
                 html.Div(id=ident('counts')),
                 html.Div([button('up', '↑', 'Move up'), button('down', '↓', 'Move down'),
                           button('delete', '✕', 'Remove this metric')], style={'white-space': 'nowrap'}),
-            ], style=GRID),
+            ], className='thr-grid', style=GRID),
             html.Div(id=ident('error'), style={'color': '#C0392B', 'font-size': '12px'}),
         ], style={'padding': '4px 0', 'border-bottom': '1px solid #e9ecef'})
 
@@ -223,10 +231,11 @@ class SettingsTab:
         config = self.dashboard.config
         rows = config_rows(config.metrics)
         keys = [r['key'] for r in rows]
-        heading = [html.B("Metric"), html.B("Label"), html.B("Good", style={'grid-column': 'span 2'}),
+        # Ten cells like a row's, so that both are laid out alike on any screen
+        heading = [html.B("Metric"), html.B("Label"), html.B("Good"), html.Span(),
                    html.B("Otherwise", title="The level of a value that meets neither rule; gray is what the "
                                              "rules give"),
-                   html.B("Bad", style={'grid-column': 'span 2'}),
+                   html.B("Bad"), html.Span(),
                    html.B("Step", title="The slider's step; left empty, the one shown in gray"),
                    html.B("Runs and values per level"), html.Span()]
         button_style = {'border': 'none', 'padding': '8px 16px', 'border-radius': '4px', 'cursor': 'pointer',
@@ -238,7 +247,7 @@ class SettingsTab:
                 self._file_note(),
             ], style=_PANEL),
             html.Div(id='thr-summary', style={'font-weight': 'bold', 'margin': '10px 0'}),
-            html.Div(heading, style={**GRID, 'font-size': '13px', 'padding-bottom': '4px',
+            html.Div(heading, className='thr-grid', style={**GRID, 'padding-bottom': '4px',
                                      'border-bottom': '2px solid #dee2e6'}),
             html.Div([self.render_row(row) for row in rows], id='thr-rows'),
             dcc.Dropdown(id='thr-add', options=self.addable_columns(keys), value=None,
