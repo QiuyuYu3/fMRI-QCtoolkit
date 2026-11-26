@@ -37,6 +37,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/QiuyuYu3/fMRI-QCtoolkit"
+Documentation = "https://qiuyuyu3.github.io/fMRI-QCtoolkit/"
 Repository = "https://github.com/QiuyuYu3/fMRI-QCtoolkit"
 Issues = "https://github.com/QiuyuYu3/fMRI-QCtoolkit/issues"
 Changelog = "https://github.com/QiuyuYu3/fMRI-QCtoolkit/blob/main/CHANGELOG.md"
@@ -49,6 +50,11 @@ dev = [
   "isort",
   "flake8",
   "ruff"
+]
+docs = [
+  "sphinx>=7",
+  "myst-parser>=3",
+  "furo"
 ]
 
 [project.scripts]
