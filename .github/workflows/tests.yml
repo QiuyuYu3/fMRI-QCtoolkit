@@ -16,8 +16,13 @@ jobs:
         resolution: [highest]
         include:
           - os: ubuntu-latest
+            python-version: "3.14"
+            resolution: highest
+            browser: true
+          - os: ubuntu-latest
             python-version: "3.11"
             resolution: lowest-direct
+            browser: true
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -26,5 +31,12 @@ jobs:
           activate-environment: true
       - name: Install
         run: uv pip install --resolution ${{ matrix.resolution }} . "pytest>=8"
+      - name: Install the browser
+        if: matrix.browser
+        run: |
+          uv pip install --resolution ${{ matrix.resolution }} "playwright>=1.65"
+          python -m playwright install --with-deps chromium
       - name: Test
+        env:
+          FMRIQC_REQUIRE_BROWSER: ${{ matrix.browser && '1' || '' }}
         run: python -m pytest -q

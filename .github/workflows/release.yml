@@ -45,8 +45,13 @@ jobs:
         resolution: [highest]
         include:
           - os: ubuntu-latest
+            python-version: "3.14"
+            resolution: highest
+            browser: true
+          - os: ubuntu-latest
             python-version: "3.11"
             resolution: lowest-direct
+            browser: true
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -60,8 +65,15 @@ jobs:
       - name: Install the wheel
         # Listing pyproject.toml makes the dependencies direct, so lowest-direct applies to them.
         run: uv pip install --resolution ${{ matrix.resolution }} dist/*.whl -r pyproject.toml "pytest>=8"
+      - name: Install the browser
+        if: matrix.browser
+        run: |
+          uv pip install --resolution ${{ matrix.resolution }} "playwright>=1.65"
+          python -m playwright install --with-deps chromium
       - name: Test the installed wheel
         # Remove the source so the tests import the installed wheel.
+        env:
+          FMRIQC_REQUIRE_BROWSER: ${{ matrix.browser && '1' || '' }}
         run: |
           rm -rf fMRI_QCtoolkit
           python -m pytest -q
