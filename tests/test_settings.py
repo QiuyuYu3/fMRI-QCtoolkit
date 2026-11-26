@@ -14,8 +14,8 @@ from fMRI_QCtoolkit.dashboard.afni_app import AFNIDashboard
 from fMRI_QCtoolkit.dashboard.config import ConfigError
 from fMRI_QCtoolkit.dashboard.config import default_config_path, dump_config, load_config, parse_config
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
-from fMRI_QCtoolkit.dashboard.settings import (NOTHING_TO_SAVE, SAVE_IDLE_STYLE, SAVE_STYLE, config_rows, form_raw,
-                                               new_row, row_entry)
+from fMRI_QCtoolkit.dashboard.settings import (FIELDS, NOTHING_TO_SAVE, SAVE_IDLE_STYLE, SAVE_STYLE, config_rows,
+                                               form_raw, form_rows, new_row, row_entry)
 from tests.dashboard_helpers import (afni_runs, dash_call, layout_components, layout_values, make_dashboard,
                                      shown_ids)
 
@@ -74,6 +74,25 @@ class TestFormEntries:
 
     def test_a_number_without_an_operator_is_kept_for_the_check_to_reject(self):
         assert row_entry({**new_row("efc"), "bad-value": 0.3}) == {"label": "efc", "bad": "0.3"}
+
+    @pytest.mark.parametrize("typed,read", [
+        ("18", 18.0), (" 0.25 ", 0.25), ("1e-3", 0.001), ("", None), ("  ", None), (None, None),
+        ("abc", "abc"), ("1,5", "1,5"), ("inf", "inf"), ("nan", "nan"),
+    ])
+    def test_number_boxes_are_read_as_numbers_or_kept_as_typed(self, typed, read):
+        (form,) = form_rows(["efc"], *[[typed if f in ("good-value", "bad-value", "step") else None] for f in FIELDS])
+        assert (form["good-value"], form["bad-value"], form["step"]) == (read, read, read)
+
+    @pytest.mark.parametrize("field,typed,message", [
+        ("good-value", "abc", "metrics.efc.good: '<= abc' is not a rule"),
+        ("good-value", "inf", "metrics.efc.good: '<= inf' is not a rule"),
+        ("step", "abc", "metrics.efc.step must be a positive number"),
+    ])
+    def test_text_that_is_not_a_number_is_a_row_error(self, tmp_path, field, typed, message):
+        dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
+        typed_in = {**dict.fromkeys(FIELDS), "label": "efc", "good-op": "<=", "good-value": "0.6", field: typed}
+        (form,) = form_rows(["efc"], *[[typed_in[f]] for f in FIELDS])
+        assert dashboard.settings.preview([form])['errors'][0].startswith(message)
 
 
 class TestPreview:

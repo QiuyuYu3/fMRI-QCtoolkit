@@ -194,3 +194,17 @@ def test_save_right_after_typing_saves_the_typed_value(session, kind, metric, ty
         session.by_id("thr-save").click(force=True)
     assert session.eventually(lambda: session.saved().get(metric, {}).get(field), stored) == stored
     assert not session.errors
+
+
+def test_a_value_typed_back_after_enter_is_the_one_saved(session):
+    session.open_tab("Settings")
+    good = session.by_id({"type": "thr-good-value", "key": "fd_perc"})
+    counts = session.by_id({"type": "thr-counts", "key": "fd_perc"})
+    good.fill("18")
+    good.press("Enter")
+    assert session.eventually(lambda: "other 0" in counts.inner_text(), True)
+    good.fill("15")
+    with session.page.expect_navigation():
+        session.by_id("thr-save").click()
+    assert session.eventually(lambda: session.saved().get("fd_perc", {}).get("good"), "<= 15") == "<= 15"
+    assert not session.errors

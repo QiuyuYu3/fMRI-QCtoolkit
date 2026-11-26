@@ -3,6 +3,7 @@
 ## [Unreleased]
 ### Fixed
 - In the Settings tab, Save now keeps a change to the order of the metrics.
+- In the Settings tab, a number changed with Enter and then typed back is now saved as shown, not as the number entered with Enter.
 
 
 ## [2.0.1] - 2026-11-26

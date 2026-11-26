@@ -2,6 +2,7 @@
 Settings tab: the dashboard's metrics and their thresholds; preview what they would hide, save or download them
 """
 
+import math
 import time
 
 import numpy as np
@@ -18,6 +19,7 @@ from ..utils.status import (LEVELS, RULE_TIERS, assign_status, describe_levels, 
 
 SETTINGS_TAB = 'settings-tab'
 FIELDS = ('label', 'good-op', 'good-value', 'bad-op', 'bad-value', 'otherwise', 'step')
+NUMBER_FIELDS = ('good-value', 'bad-value', 'step')
 OPERATORS = ['>', '>=', '<', '<=', '==', '!=']
 # A blank choice for "no rule" instead of a clear button, which leaves no room for the value in a narrow column
 OPERATOR_OPTIONS = [{'label': '\u00a0', 'value': ''}] + [{'label': op, 'value': op} for op in OPERATORS]
@@ -73,7 +75,26 @@ def config_rows(metrics):
 
 def form_rows(keys, *fields):
     """Rows of the form from the per-field value lists that the pattern-matching callbacks receive."""
-    return [dict(zip(('key',) + FIELDS, values)) for values in zip(keys, *fields)]
+    rows = [dict(zip(('key',) + FIELDS, values)) for values in zip(keys, *fields)]
+    for row in rows:
+        row.update({field: _number(row[field]) for field in NUMBER_FIELDS})
+    return rows
+
+
+def _number(text):
+    """A typed number as a float; blank is None, and other text stays as typed for the config check to reject."""
+    if not isinstance(text, str):
+        return text
+    text = text.strip()
+    try:
+        value = float(text)
+    except ValueError:
+        return text or None
+    return value if math.isfinite(value) else text
+
+
+def _box_text(value):
+    return value if value is None or isinstance(value, str) else format_number(value)
 
 
 def row_entry(row):
@@ -85,7 +106,7 @@ def row_entry(row):
     for tier in RULE_TIERS:
         op, value = row.get(f'{tier}-op'), row.get(f'{tier}-value')
         if op or value is not None:
-            entry[tier] = f"{op or ''} {'' if value is None else format_number(value)}".strip()
+            entry[tier] = f"{op or ''} {_box_text(value) or ''}".strip()
     # Written only where it differs from what the rules give anyway, so default entries read as before
     otherwise = row.get('otherwise')
     if otherwise and otherwise != default_rest(row):
@@ -194,7 +215,8 @@ class SettingsTab:
                                 clearable=False, searchable=False, style={'font-size': '13px'})
 
         def number(field, placeholder=None):
-            return dcc.Input(id=ident(field), type='number', step='any', value=row[field], placeholder=placeholder,
+            # A text box, since Dash 4 may not send a number box's value typed back after Enter
+            return dcc.Input(id=ident(field), type='text', value=_box_text(row[field]), placeholder=placeholder,
                              debounce=DEBOUNCE, style=_BOX)
 
         def button(kind, text, title):
