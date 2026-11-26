@@ -20,16 +20,14 @@ To update to the newest version later, activate the environment and run `pip ins
 
 Load a Python module of version 3.11 or newer, then create and activate the environment as above. Activate it again in every new session before running `fmriqc`.
 
-`fmriqc rating afni` runs AFNI's `open_apqc.py`, so that step also needs AFNI (see [Rating AFNI output](rating-afni.md)). The other commands do not use AFNI. Some AFNI modules put their own copies of Python packages such as numpy and pandas on the `PYTHONPATH`, which can break `fmriqc`; if that happens, see [Troubleshooting](troubleshooting.md#an-import-error-after-loading-the-afni-module).
+Only `fmriqc rating afni` needs AFNI. If `fmriqc` stops with an error after you load AFNI, see [Troubleshooting](troubleshooting.md#an-import-error-after-loading-the-afni-module).
 
 ## From the repository
 
-The repository holds example data (`examples/example_data`) that the [Quick start](quickstart.md) uses; it is not part of the PyPI package. To use it, or to work on the code, clone the repository and install it in development mode:
+The example data that the [Quick start](quickstart.md) uses is in the repository, not in the PyPI package. To try it, clone the repository and install from it:
 
 ```bash
 git clone https://github.com/QiuyuYu3/fMRI-QCtoolkit.git
 cd fMRI-QCtoolkit
-pip install -e ".[dev]"
+pip install -e .
 ```
-
-To build this handbook locally, install the documentation tools with `pip install -e ".[docs]"` and run `sphinx-build docs docs/_build/html`.

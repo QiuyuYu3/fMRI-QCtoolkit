@@ -18,10 +18,7 @@ The dashboard looks for a free port between 5000 and 5500. Stop old dashboards y
 
 ## An import error after loading the AFNI module
 
-Some AFNI modules on HPC clusters put their own Python packages on the `PYTHONPATH`, and `fmriqc` then loads those instead of the ones in your environment. A typical message is `No module named 'numpy.core._multiarray_umath'`. Two things help:
-
-- For `fmriqc rating afni`, load an AFNI module built for the same Python version as your environment (ask your cluster's support which one).
-- Run `fmriqc prep` and `fmriqc dashboard` in a session without the AFNI module; they do not need it.
+Some AFNI modules bring their own Python packages, which clash with `fmriqc`. A typical message is `No module named 'numpy.core._multiarray_umath'`. Load AFNI only for `fmriqc rating afni`, and run `fmriqc prep` and `fmriqc dashboard` in a new terminal without it. If rating still fails, ask your cluster's support for an AFNI module that matches your Python version.
 
 ## No reports or JSON files are found
 

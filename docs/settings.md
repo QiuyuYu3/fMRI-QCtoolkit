@@ -30,7 +30,7 @@ Step
 Runs and values per level
 : How many runs each rating gets with the thresholds in the form, and the range of values each rating covers, for example `good 10  x ≤ 15`, `other 10  15 < x ≤ 20`, `bad 8  x > 20`. A metric with no rules shows "no thresholds", and one missing from the data shows "not in the data".
 
-The arrows move a row up or down, and ✕ removes it. On a screen narrower than 1440 pixels, each row folds onto two lines.
+The arrows move a row up or down, and ✕ removes it.
 
 ## Ways to use the rules
 
@@ -62,4 +62,4 @@ Use defaults
 Download config
 : Saves the settings in the form as a file on the computer running the browser, for example to keep with a study, to share, or to start from next time with `--config`. It works even when Save cannot write to the server.
 
-"Unsaved changes" appears next to the buttons while the form differs from the saved settings. If the settings were saved from another browser tab in the meantime, Save refuses and asks you to reload the page, so that one tab does not overwrite the other.
+"Unsaved changes" appears next to the buttons until you save. If you saved from another browser tab in the meantime, reload the page before saving here.

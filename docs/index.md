@@ -60,9 +60,7 @@ thresholds
 :hidden:
 :maxdepth: 1
 
-cli
 troubleshooting
 training
-changelog
 citation
 ```
