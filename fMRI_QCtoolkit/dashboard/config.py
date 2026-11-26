@@ -9,7 +9,8 @@ from dataclasses import dataclass, replace
 from fnmatch import fnmatchcase
 from pathlib import Path
 
-from ..utils.status import LEVELS, RULE_TIERS, format_number, format_rule, negate_rule, overlap, parse_rule
+from ..utils.status import (LEVELS, RULE_TIERS, format_number, format_rule, negate_rule, overlap, parse_rule,
+                            rest_tier)
 
 CONFIG_FILES = {"afni": "afni_config.json", "fmriprep": "fmriprep_config.json"}
 # Columns of df_final.csv that identify a run rather than measure it
@@ -221,4 +222,7 @@ def _parse_metric(key, entry, where):
     otherwise = entry.get("otherwise")
     if otherwise is not None and otherwise not in LEVELS:
         raise ConfigError(f"{where}.otherwise must be one of {', '.join(LEVELS)}")
+    # Read as the Settings tab writes entries, so an untouched form shows no unsaved changes
+    label = label.strip() or key
+    otherwise = None if otherwise == rest_tier(rules) else otherwise
     return Metric(column=key, label=label, rules=rules, step=step, entry=key, entry_label=label, otherwise=otherwise)

@@ -3,6 +3,7 @@
 ## [Unreleased]
 ### Fixed
 - The dashboard opens when a metric has infinite values, and the lollipop chart still shows that metric for the other runs.
+- The Settings tab no longer reports unsaved changes as soon as it opens a hand-edited config file.
 
 
 ## [2.0.0] - 2026-11-25

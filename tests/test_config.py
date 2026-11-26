@@ -87,6 +87,15 @@ class TestResolveMetrics:
     def test_label_defaults_to_the_column(self):
         assert parse_config({"metrics": {"aqi": {}}}).metrics["aqi"].label == "aqi"
 
+    def test_entries_read_as_the_settings_tab_writes_them(self):
+        metrics = parse_config({"metrics": {
+            "a": {"label": " A "}, "b": {"label": ""},
+            "c": {"good": "< 1", "otherwise": "other"}, "d": {"bad": "> 1", "otherwise": "good"},
+            "e": {"good": "< 1", "otherwise": "bad"},
+        }}).metrics
+        assert [(m.label, m.otherwise) for m in metrics.values()] == [
+            ("A", None), ("b", None), ("c", None), ("d", None), ("e", "bad")]
+
     def test_star_expands_in_table_order(self):
         config = parse_config({"metrics": {"frac_TRs_cens_*": {"label": "Fraction TRs Censored",
                                                                "bad": ">= 0.2"}}}).metrics

@@ -77,6 +77,17 @@ class TestFormEntries:
 
 class TestPreview:
 
+    @pytest.mark.parametrize("entry", [
+        {"label": " FD ", "good": "<= 15"},
+        {"label": "", "good": "<= 15"},
+        {"label": "FD", "good": "<= 15", "otherwise": "other"},
+        {"label": "FD", "bad": "> 20", "otherwise": "good"},
+    ])
+    def test_an_untouched_form_has_no_unsaved_changes(self, saved_to, entry):
+        dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs(), {"metrics": {"fd_perc": entry}})
+        shown = dashboard.settings.preview(rows_of(dashboard))
+        assert (shown['unsaved'], shown['save_off']) == ("", True)
+
     def test_counts_per_status(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, fmriprep_runs(), tmp_path)
         shown = dashboard.settings.preview(rows_of(dashboard))
