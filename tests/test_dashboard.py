@@ -157,6 +157,9 @@ class TestTableDisplay:
                           "datatable.selected_rows").get_json()["response"]["selected-rows-display"]["children"]
         assert [c["id"] for c in shown["props"]["columns"]] == expected
         assert list(shown["props"]["data"][0]) == expected
+        # A few selected rows take only the room they need
+        assert shown["props"]["style_table"]["maxHeight"] == "300px"
+        assert "height" not in shown["props"]["style_table"]
 
     def test_table_only_columns_follow_the_metrics_in_data_order_and_absent_ones_are_reported(self, tmp_path):
         df = pd.DataFrame({"ID": ["001"], "Final": ["good"], "efc": [0.5], "snr": [3.0], "fd_mean": [0.1]})

@@ -476,7 +476,7 @@ class BaseDashboard:
             return dash_table.DataTable(
                 data=selected[self.table_column_ids()].to_dict('records'),
                 columns=self._table_columns(),
-                style_table={'height': '300px', 'overflowY': 'auto', 'overflowX': 'auto'},
+                style_table={'maxHeight': '300px', 'overflowY': 'auto', 'overflowX': 'auto'},
                 style_cell={'textAlign': 'left', 'fontSize': '11px', 'padding': '6px'},
                 style_header={'backgroundColor': '#e9ecef', 'fontWeight': 'bold'},
                 page_size=50
