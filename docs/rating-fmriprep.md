@@ -21,7 +21,10 @@ fMRIPrep_derivatives/
 ## Command
 
 ```bash
-fmriqc rating fmriprep --input-dir /PATH/fMRIPrep_derivatives --subjects "001,002" --output-dir /PATH/ratings
+fmriqc rating fmriprep \
+    --input-dir /PATH/fMRIPrep_derivatives \
+    --subjects "001,002" \
+    --output-dir /PATH/ratings
 ```
 
 `--input-dir`
@@ -34,7 +37,7 @@ fmriqc rating fmriprep --input-dir /PATH/fMRIPrep_derivatives --subjects "001,00
 : The folder for the rating files. Use the same folder every time, so that reopening a participant shows the ratings saved before.
 
 `--no-browser`
-: Only print the links, without opening browser tabs. Use it on an HPC cluster (see [Opening the pages](opening-pages.md)).
+: Only print the links, without opening browser tabs. Not needed on an HPC cluster's remote desktop (see [Opening the pages](opening-pages.md)).
 
 Participants without a report are listed in the terminal, and the others open. Press Ctrl+C in the terminal when you are done.
 

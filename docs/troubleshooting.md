@@ -6,7 +6,7 @@ The link's token belongs to one run of the command. Every start prints a new lin
 
 ## The link does not open on an HPC cluster
 
-The browser on your computer cannot reach the cluster directly. Forward the port in the link with `ssh -L`, as described in [Opening the pages](opening-pages.md#on-an-hpc-cluster), and keep that terminal open. If the command runs on a compute node, forward through the login node with `-J`.
+The browser on your own computer cannot reach the cluster. Open the link in Firefox on the cluster's remote desktop instead, as described in [Opening the pages](opening-pages.md#on-an-hpc-cluster).
 
 ## "Port allocation failed"
 

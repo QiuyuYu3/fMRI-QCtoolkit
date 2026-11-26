@@ -5,7 +5,11 @@
 ## AFNI
 
 ```bash
-fmriqc prep afni --input-dir /PATH/AFNI_derivatives --task ses-01/kidvid --prefix sub- --output-dir /PATH/QC
+fmriqc prep afni \
+    --input-dir /PATH/AFNI_derivatives \
+    --task ses-01/kidvid \
+    --prefix sub- \
+    --output-dir /PATH/QC
 ```
 
 `--input-dir`
@@ -45,7 +49,11 @@ The command reads `QC_<ID>/extra_info/out.ss_review.<ID>.json` of every particip
 ## fMRIPrep
 
 ```bash
-fmriqc prep fmriprep --bold-file /PATH/mriqc/group_bold.tsv --rating-dir /PATH/ratings --task rest --output-dir /PATH/QC
+fmriqc prep fmriprep \
+    --bold-file /PATH/mriqc/group_bold.tsv \
+    --rating-dir /PATH/ratings \
+    --task rest \
+    --output-dir /PATH/QC
 ```
 
 `--bold-file`

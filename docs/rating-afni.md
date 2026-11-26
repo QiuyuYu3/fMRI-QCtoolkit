@@ -27,7 +27,11 @@ AFNI_derivatives/
 ## Command
 
 ```bash
-fmriqc rating afni --input-dir /PATH/AFNI_derivatives --subjects "001,002" --task ses-01/cards --prefix sub-
+fmriqc rating afni \
+    --input-dir /PATH/AFNI_derivatives \
+    --subjects "001,002" \
+    --task ses-01/cards \
+    --prefix sub-
 ```
 
 `--input-dir`

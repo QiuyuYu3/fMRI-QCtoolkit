@@ -1,42 +1,34 @@
 # Opening the pages
 
-`fmriqc rating fmriprep` and `fmriqc dashboard` start a small web server and print a link in the terminal, for example:
+`fmriqc rating fmriprep` and `fmriqc dashboard` print a link in the terminal, for example:
 
 ```
 http://localhost:5003/0030?token=Xk3v9QpL2mR7tYwZ8aBcD1eF4gH6jK0n
 ```
 
-Open that link in your browser. On your own computer, `fmriqc rating fmriprep` opens the rating pages by itself. The server runs until you press Ctrl+C in the terminal, so keep the terminal open while you work.
+`fmriqc rating fmriprep` opens its pages in your browser by itself. For the dashboard, copy the link into your browser. Keep the terminal open while you work, and press Ctrl+C there when you are done.
 
-Every start prints a new link. If a page says "Access denied", use the link printed most recently.
+If a page says "Access denied", use the link printed most recently.
 
 ## On an HPC cluster
 
-The server runs on the cluster, and your browser runs on your own computer, so the browser needs a tunnel to reach it.
+Work in a remote desktop on the cluster, such as XDesktop or an Open OnDemand desktop:
 
-1. Start the command on the cluster. For `fmriqc rating fmriprep`, add `--no-browser`, which only prints the links.
-2. Note the port number in the link, `5003` in the example above.
-3. On your own computer, open a new terminal and run, with your user name and the cluster's address:
+1. Start a remote desktop session and open a terminal in it.
+2. Load Firefox, and AFNI if you rate AFNI output:
 
    ```bash
-   ssh -N -L 5003:127.0.0.1:5003 user@hpc.example.edu
+   ml Firefox
+   ml AFNI
    ```
 
-   This command prints nothing and keeps running. Leave that terminal open.
-4. Open the printed link in your browser.
+   Module names differ between clusters; `module avail firefox` lists yours.
+3. Run the `fmriqc` commands in that terminal. The pages open in Firefox on the remote desktop.
 
-If the server runs on a compute node (for example `node123` in an `srun` or `salloc` session), go through the login node to that node:
-
-```bash
-ssh -N -L 5003:127.0.0.1:5003 -J user@hpc.example.edu user@node123
-```
-
-`fmriqc rating afni` is different: it opens the APQC pages with AFNI's own `open_apqc.py`, so follow AFNI's instructions for viewing APQC remotely (see [Rating AFNI output](rating-afni.md)).
+Without a remote desktop, add `--no-browser` to `fmriqc rating fmriprep`, run `ssh -N -L 5003:127.0.0.1:5003 user@hpc.example.edu` on your own computer (with the port from the link), and open the link in your own browser.
 
 ## The token
 
-The token in the link keeps other users on the same machine, such as an HPC login node, out of your pages and ratings. After the first visit the browser keeps it in a cookie, so you can move between pages without the token in the address.
+The token in the link keeps other users of the cluster out of your pages and ratings. After the first visit, your browser remembers it.
 
-If you forward to a different local port (`-L 8888:127.0.0.1:5003`), change the port in the link and keep the token.
-
-`fmriqc dashboard --host` binds the dashboard to an address that other machines can reach. The token is then the only protection, so share the link only with people who should see the data. With `--host 0.0.0.0` the printed link uses the machine's hostname, and `--debug` is refused.
+`fmriqc dashboard --host` lets other computers open the dashboard. Anyone with the link can then see the data, so share it only with people who should.

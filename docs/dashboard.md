@@ -1,8 +1,13 @@
 # Dashboard
 
 ```bash
-fmriqc dashboard afni --data-file /PATH/QC/df_final.csv --task rest
-fmriqc dashboard fmriprep --data-file /PATH/QC/df_final.csv --task rest
+fmriqc dashboard afni \
+    --data-file /PATH/QC/df_final.csv \
+    --task rest
+
+fmriqc dashboard fmriprep \
+    --data-file /PATH/QC/df_final.csv \
+    --task rest
 ```
 
 `--data-file`

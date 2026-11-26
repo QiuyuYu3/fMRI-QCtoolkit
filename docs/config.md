@@ -11,7 +11,10 @@ The settings of the [Settings tab](settings.md) live in a JSON file. Most users 
 When the dashboard starts, the terminal prints the file it uses, with a note when the file does not exist yet.
 
 ```bash
-fmriqc dashboard fmriprep --data-file /PATH/QC/df_final.csv --task rest --config my_fmriprep_config.json
+fmriqc dashboard fmriprep \
+    --data-file /PATH/QC/df_final.csv \
+    --task rest \
+    --config my_fmriprep_config.json
 ```
 
 ## Writing a copy of the defaults
