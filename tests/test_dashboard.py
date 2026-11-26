@@ -354,11 +354,11 @@ class TestSelectedRows:
         assert [(r["ID"], r["_row"]) for r in response["datatable"]["rowData"]] == [("001", "0"), ("002", "1"),
                                                                                     ("003", "2")]
 
-    def test_a_few_selected_rows_take_only_the_room_they_need_and_many_scroll(self, tmp_path):
+    def test_selected_rows_shows_every_row_without_a_scroll_box(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, pd.concat([precise_runs()] * 10, ignore_index=True), tmp_path)
-        df = dashboard.processor.get_data()
-        few = dashboard.selected_grid(df.iloc[:3])
-        assert few.dashGridOptions["domLayout"] == "autoHeight"
-        many = dashboard.selected_grid(df)
-        assert "domLayout" not in many.dashGridOptions
-        assert many.style == {"height": "300px"}
+        grid = dashboard.selected_grid(dashboard.processor.get_data())
+        assert grid.dashGridOptions["domLayout"] == "autoHeight"
+        assert grid.style == {"height": None}
+        panel = next(c for c in dashboard.build_layout()._traverse()
+                     if any(getattr(child, "id", None) == "selected-rows-display" for child in getattr(c, "children", []) or []))
+        assert "max-height" not in panel.style

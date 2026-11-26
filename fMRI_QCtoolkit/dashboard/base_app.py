@@ -39,7 +39,6 @@ ROW_ID = '_row'
 NUMBER_FORMAT = {"function": "params.value == null ? '' : d3.format('.3~f')(params.value)"}
 ROW_HEIGHT = 32
 HEADER_HEIGHT = 36
-SELECTED_MAX_HEIGHT = 300
 
 
 class BaseDashboard:
@@ -186,8 +185,6 @@ class BaseDashboard:
                                         html.H4("Selected Rows"),
                                         html.Div(id='selected-rows-display')
                                     ], style={
-                                        'max-height': '400px',
-                                        'overflow-y': 'auto',
                                         'border': '1px solid #ddd',
                                         'background-color': '#f8f9fa',
                                         'padding': '10px',
@@ -367,12 +364,9 @@ class BaseDashboard:
         return self.processor.get_data().iloc[positions]
 
     def selected_grid(self, selected):
-        """Selected Rows grows with its rows up to SELECTED_MAX_HEIGHT, then scrolls."""
-        fits = HEADER_HEIGHT + ROW_HEIGHT * len(selected) <= SELECTED_MAX_HEIGHT
-        return self._grid(11, '#e9ecef', {'domLayout': 'autoHeight'} if fits else {},
-                          id='selected-rows-table',
-                          rowData=selected[self.table_column_ids()].to_dict('records'),
-                          style={'height': None} if fits else {'height': f'{SELECTED_MAX_HEIGHT}px'})
+        """Selected Rows shows every selected row, as tall as they need."""
+        return self._grid(11, '#e9ecef', {'domLayout': 'autoHeight'}, id='selected-rows-table',
+                          rowData=selected[self.table_column_ids()].to_dict('records'), style={'height': None})
 
     def heatmap_figures(self, df):
         quant_labels, qual_labels = self.get_variable_labels()
