@@ -105,15 +105,7 @@ The rating pages open in Firefox. For the dashboard, copy the printed link into 
 
 ## Citation
 
-A paper describing fMRI-QCtoolkit is in preparation. Until then, cite the software with the details in [CITATION.cff](https://github.com/QiuyuYu3/fMRI-QCtoolkit/blob/main/CITATION.cff) ("Cite this repository" on GitHub). Please also cite the tools whose outputs you rate:
-
-- Cox, R. W. (1996). AFNI: software for analysis and visualization of functional magnetic resonance neuroimages. Computers and Biomedical Research, 29(3), 162–173. https://doi.org/10.1006/cbmr.1996.0014
-- Esteban, O., Birman, D., Schaer, M., Koyejo, O. O., Poldrack, R. A., & Gorgolewski, K. J. (2017). MRIQC: Advancing the automatic prediction of image quality in MRI from unseen sites. PLoS ONE, 12(9), e0184661. https://doi.org/10.1371/journal.pone.0184661
-- Esteban, O., Ciric, R., Finc, K., et al. (2020). Analysis of task-based functional MRI data preprocessed with fMRIPrep. Nature Protocols, 15, 2186–2202. https://doi.org/10.1038/s41596-020-0327-3
-
-The default AFNI thresholds follow Reynolds, R. C., Taylor, P. A., & Glen, D. R. (2023). Quality control practices in FMRI analysis: Philosophy, methods and examples using AFNI. Frontiers in Neuroscience, 16, 1073800. https://doi.org/10.3389/fnins.2022.1073800
-
-The full list of references is in the [handbook](https://qiuyuyu3.github.io/fMRI-QCtoolkit/citation.html).
+A paper describing fMRI-QCtoolkit is in preparation. Until then, cite the software with the details in [CITATION.cff](https://github.com/QiuyuYu3/fMRI-QCtoolkit/blob/main/CITATION.cff) ("Cite this repository" on GitHub). The tools and papers to cite along with it are listed in the [handbook](https://qiuyuyu3.github.io/fMRI-QCtoolkit/citation.html).
 
 ## License
 
