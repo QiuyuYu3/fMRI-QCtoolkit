@@ -50,6 +50,10 @@ class TestSliderBounds:
         lo, hi, _ = slider_bounds(values, DVARS)
         assert lo <= min(values) and hi >= max(values)
 
+    def test_infinite_values_are_left_out(self):
+        assert slider_bounds([0.1, 0.5, np.inf, -np.inf], DVARS) == slider_bounds([0.1, 0.5], DVARS)
+        assert slider_bounds([np.inf], DVARS) == (0.0, 1.0, 0.01)
+
 
 class TestStatusChecklist:
 

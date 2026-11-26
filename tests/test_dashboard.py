@@ -68,6 +68,16 @@ class TestDefaultView:
         ratings[final] = ["good", "NA"]
         assert shown_ids(dashboard, ranges, statuses, ratings) == ["001", "003"]
 
+    def test_an_infinite_value_is_rated_and_leaves_the_slider_and_lollipop_to_the_others(self, tmp_path):
+        df = afni_runs()
+        df.loc[0, "cens_frac"] = np.inf
+        dashboard = make_dashboard(AFNIDashboard, df, tmp_path)
+        assert dashboard.status["cens_frac"].iloc[0] == "bad"
+        assert shown_ids(dashboard, *layout_values(dashboard)) == ["003", "005", "008"]
+        lollipop = dashboard.processor.get_lollipop_data()
+        scaled = lollipop[lollipop["Variable"] == "cens_frac"].set_index("ID")["Value"]
+        assert np.isnan(scaled["001"]) and np.isfinite(scaled.drop("001")).all()
+
 
 class TestCustomConfig:
 

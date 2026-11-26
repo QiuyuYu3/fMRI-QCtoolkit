@@ -2,6 +2,7 @@
 Base data processor for MRI QC pipelines
 """
 
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from abc import ABC, abstractmethod
@@ -52,10 +53,10 @@ class BaseDataProcessor(ABC):
         # Create a copy of df_final excluding checkbox groups for quantitative analysis
         quan_data = self.df_final.drop(columns=self.checkbox_groups, errors='ignore')
         
-        # Ensure all variables are numeric
+        # Numeric, with infinite values as missing so that they leave the mean finite
         for var in vars_of_interest:
             if var in quan_data.columns:
-                quan_data[var] = pd.to_numeric(quan_data[var], errors='coerce')
+                quan_data[var] = pd.to_numeric(quan_data[var], errors='coerce').replace([np.inf, -np.inf], np.nan)
         
         # Calculate mean and standard deviation for scaling
         mean_values = quan_data[vars_of_interest].mean(skipna=True)

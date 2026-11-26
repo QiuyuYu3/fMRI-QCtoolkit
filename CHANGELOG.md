@@ -1,6 +1,8 @@
 # Change Log
 
 ## [Unreleased]
+### Fixed
+- The dashboard opens when a metric has infinite values, and the lollipop chart still shows that metric for the other runs.
 
 
 ## [2.0.0] - 2026-11-25

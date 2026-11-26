@@ -43,8 +43,8 @@ def _clean(x):
 
 
 def slider_bounds(values, metric):
-    """(min, max, step) of a metric's slider: covers the data and the threshold lines."""
-    values = pd.to_numeric(pd.Series(values), errors="coerce").dropna()
+    """(min, max, step) of a metric's slider: covers the finite values and the threshold lines."""
+    values = pd.to_numeric(pd.Series(values), errors="coerce").replace([math.inf, -math.inf], math.nan).dropna()
     points = [value for op, value in metric.rules.values() if op in UPWARD | DOWNWARD]
     if not values.empty:
         points += [float(values.min()), float(values.max())]
