@@ -174,30 +174,3 @@ def random_plot_data():
     return pd.DataFrame(data)
 
 
-@pytest.fixture()
-def random_lollipop_data():
-    """Generate random lollipop plot data"""
-    np.random.seed(42)
-    n_subjects = np.random.randint(3, 8)
-    n_vars = np.random.randint(2, 4)
-    
-    data = []
-    row_num = 1
-    for j in range(n_vars):
-        var_name = f"var{j+1}"
-        mean_val = np.random.uniform(0.1, 0.5)
-        
-        for i in range(n_subjects):
-            subject_id = f"{i+1:03d}"
-            data.append({
-                'ID': subject_id,
-                'Variable': var_name,
-                'Value': np.random.uniform(0.05, 0.8),
-                'mean_value': mean_val,
-                'row_number': row_num
-            })
-            row_num += 1
-    
-    return pd.DataFrame(data)
-
-

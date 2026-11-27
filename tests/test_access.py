@@ -190,6 +190,14 @@ class TestDashboardIsGated:
         assert client.get(f"/?token={TOKEN}").status_code == 302
         assert client.get("/_dash-layout").status_code == 200
 
+    def test_run_on_a_host_reachable_from_other_machines_lets_its_name_in(self, dashboard, monkeypatch):
+        monkeypatch.setattr(dashboard.app, "run", lambda **kwargs: None)
+
+        dashboard.run(host="0.0.0.0", port=5003)
+
+        headers = {"Host": "node123.hpc.example.edu:5003"}
+        assert dashboard.app.server.test_client().get(f"/?token={TOKEN}", headers=headers).status_code == 302
+
 
 class TestPrintedLinkHost:
 

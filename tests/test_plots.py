@@ -102,21 +102,16 @@ class TestCreateHeatmap:
 
 class TestCreateLollipopPlot:
     
-    def test_creates_lollipop_with_valid_data(self, random_lollipop_data):
-        """Test lollipop plot creation with random data"""
-        fig = create_lollipop_plot(random_lollipop_data)
-        
-        assert fig is not None
-        assert hasattr(fig, 'data')
-        assert len(fig.data) > 0
-    
-    def test_handles_multiple_variables(self, random_lollipop_data):
-        """Test handling multiple variables with random data"""
-        fig = create_lollipop_plot(random_lollipop_data)
-        
-        assert fig is not None
-        # Should create traces for each variable
-        assert len(fig.data) > 2
+    def test_each_session_panel_shows_only_its_own_runs(self):
+        data = pd.DataFrame({'ID': ['001', '002', '003'], 'session': ['01', '01', '02'], 'Variable': 'fd_mean',
+                             'Value': [0.1, -0.1, 0.5], 'mean_value': 0.2})
+
+        fig = create_lollipop_plot(data, group_by='session')
+
+        markers = [t for t in fig.data if t.mode == 'markers']
+        assert {t.xaxis: sorted(row[0] for row in t.customdata) for t in markers} == {'x': ['001', '002'],
+                                                                                      'x2': ['003']}
+        assert [a.text for a in fig.layout.annotations] == ['Session 01', 'Session 02']
 
 class TestFormatSession:
     """BIDS session labels need not be numeric."""

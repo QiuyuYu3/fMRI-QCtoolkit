@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -43,6 +44,26 @@ def test_dashboard_afni_launches(launched, tmp_path, sample_afni_data):
     result = runner.invoke(cli.app, ["dashboard", "afni", "--data-file", str(data_file), "--task", "rest"])
     assert result.exit_code == 0, result.output
     assert [type(d) for d, _ in launched] == [AFNIDashboard]
+
+
+def test_a_host_reachable_from_other_machines_is_passed_on_with_a_warning(launched, tmp_path):
+    data_file = tmp_path / "df_final.csv"
+    shutil.copyfile(EXAMPLES / "df_final.csv", data_file)
+    result = runner.invoke(cli.app, ["dashboard", "fmriprep", "--data-file", str(data_file), "--task", "rest",
+                                     "--host", "0.0.0.0"])
+    assert result.exit_code == 0, result.output
+    assert launched[0][1]["host"] == "0.0.0.0"
+    assert "reachable from other machines" in result.output
+
+
+def test_debug_on_a_host_reachable_from_other_machines_is_refused(launched, tmp_path):
+    data_file = tmp_path / "df_final.csv"
+    shutil.copyfile(EXAMPLES / "df_final.csv", data_file)
+    result = runner.invoke(cli.app, ["dashboard", "fmriprep", "--data-file", str(data_file), "--task", "rest",
+                                     "--host", "0.0.0.0", "--debug"])
+    assert result.exit_code == 1
+    assert "Refusing --debug" in result.output
+    assert launched == []
 
 
 @pytest.mark.parametrize("pipeline", ["afni", "fmriprep"])
@@ -98,6 +119,40 @@ def test_prep_fmriprep_reports_missing_ratings_in_one_line(tmp_path):
     assert result.exit_code == 1
     assert "Error: No rating files for task rest" in result.output
     assert "Traceback" not in result.output
+
+
+class TestRatingCommands:
+
+    def test_rating_afni_opens_every_session_with_the_given_afni(self, tmp_path, monkeypatch):
+        for session in ("ses-01", "ses-02"):
+            qc = tmp_path / "sub-001" / session / "rest_output" / "QC_sub-001"
+            qc.mkdir(parents=True)
+            (qc / "index.html").write_text("<html></html>")
+        calls = []
+        monkeypatch.setattr(cli.subprocess, "run", lambda args, env, check: calls.append((args, env["PATH"])))
+
+        result = runner.invoke(cli.app, ["rating", "afni", "--input-dir", str(tmp_path), "--subjects", "001,002",
+                                         "--task", "rest", "--prefix", "sub-", "--afni-path", "/opt/afni"])
+
+        assert result.exit_code == 0, result.output
+        [(args, path)] = calls
+        assert args[:2] == ["open_apqc.py", "-infiles"]
+        assert sorted(Path(page).parts[-4] for page in args[2:]) == ["ses-01", "ses-02"]
+        assert path.startswith("/opt/afni" + os.pathsep)
+        assert "HTML files not found for subjects: 002" in result.output
+
+    def test_rating_fmriprep_rates_only_the_participants_with_a_report(self, tmp_path, monkeypatch):
+        for participant in ("001", "003"):
+            (tmp_path / f"sub-{participant}.html").write_text("<html></html>")
+        started = []
+        monkeypatch.setattr(cli.FMRIPrepRatingApp, "run_app_and_open_browsers",
+                            lambda self, open_browser: started.append((self.subjects, open_browser)))
+
+        result = runner.invoke(cli.app, ["rating", "fmriprep", "--input-dir", str(tmp_path), "--output-dir",
+                                         str(tmp_path / "out"), "--subjects", "001 002 003", "--no-browser"])
+
+        assert result.exit_code == 0, result.output
+        assert started == [(["001", "003"], False)]
 
 
 class TestDashboardConfigOption:
