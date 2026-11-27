@@ -47,8 +47,8 @@ class TestPackagedThresholdsMatchTheOldRules:
         values, expected = zip(*cases)
         assert assign_status(list(values), packaged_rules("fmriprep", column)).tolist() == list(expected)
 
-    @pytest.mark.parametrize("column", ["tsnr", "gcor"])
-    def test_fmriprep_tsnr_and_gcor_have_no_thresholds(self, column):
+    @pytest.mark.parametrize("column", ["tsnr", "gcor", "dvars_nstd", "gsr_x", "gsr_y", "aor", "aqi"])
+    def test_fmriprep_metrics_without_thresholds(self, column):
         assert packaged_rules("fmriprep", column) == {}
 
     def test_censoring_per_stimulus_is_bad_from_point_two(self):
@@ -80,6 +80,7 @@ class TestAssignStatus:
         ({"bad": (">=", 0.2)}, ["good", "bad"]),
         ({"good": (">", 150.0)}, ["good", "other"]),
         ({"good": ("<", 0.15), "bad": (">=", 0.2)}, ["good", "other", "bad"]),
+        ({"good": ("<=", 15.0), "bad": (">=", 20.0)}, ["good", "other", "bad"]),
         ({"good": ("<=", 15.0), "bad": (">", 15.0)}, ["good", "bad"]),
         ({"good": ("==", 0.0), "bad": ("!=", 0.0)}, ["good", "bad"]),
     ])
@@ -120,6 +121,7 @@ class TestAssignStatus:
 
     @pytest.mark.parametrize("good,bad,both", [
         (("<", 0.25), (">=", 0.2), 0.2),
+        (("<", 0.25), (">", 0.2), 0.225),
         (("<=", 0.2), (">=", 0.2), 0.2),
         (("<", 0.2), (">=", 0.2), None),
         ((">", 0.7), ("<=", 0.6), None),

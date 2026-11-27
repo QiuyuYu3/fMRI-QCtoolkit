@@ -36,7 +36,7 @@ class TestSliderBounds:
         assert slider_bounds([0, 1, 0], FLIP) == (0.0, 1.0, 1)
 
     def test_equality_rules_add_no_line(self):
-        assert slider_bounds([0, 0], FLIP)[:2] == (0.0, 1.0)
+        assert slider_bounds([0, 1], Metric("x", "X", {"good": ("==", 5.0)}))[:2] == (0.0, 1.0)
 
     def test_missing_data_without_thresholds(self):
         assert slider_bounds([np.nan, None], DVARS) == (0.0, 1.0, 0.01)
