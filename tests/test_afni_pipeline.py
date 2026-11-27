@@ -218,6 +218,12 @@ class TestSubjectMatching:
         json_files = AFNIPipeline(temp_dir, "ses-02/rest", "sub-", temp_dir)._find_json_files()
         assert list(json_files) == [("sub-001", "02")]
 
+    def test_the_task_is_looked_for_below_the_input_folder(self, temp_dir, sample_json_data):
+        root = temp_dir / "interest_study"
+        _qc_dir(root, "sub-001.rest.results", "sub-001", sample_json_data)
+        _qc_dir(root, "sub-002.nback.results", "sub-002", sample_json_data)
+        assert list(AFNIPipeline(root, "rest", "sub-", temp_dir / "out")._find_json_files()) == [("sub-001", None)]
+
     def test_two_folders_for_one_participant_and_session_are_refused(self, temp_dir, sample_json_data):
         _qc_dir(temp_dir, "ses-01/rest_output", "sub-001", sample_json_data)
         _qc_dir(temp_dir, "ses-01/rest2_output", "sub-001", sample_json_data)

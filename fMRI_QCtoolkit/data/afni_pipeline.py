@@ -88,8 +88,9 @@ class AFNIPipeline(BaseDataProcessor):
             if not qc_dir.is_dir():
                 continue
             
-            # Filter by task string in the full path (case-insensitive optional)
-            if self.task.lower() not in qc_dir.as_posix().lower():
+            # Only the path below the input folder, so a task name in the input folder's own path matches nothing
+            relative = qc_dir.relative_to(self.work_dir)
+            if self.task.lower() not in relative.as_posix().lower():
                 continue
 
             qc_dirs_found += 1
@@ -100,7 +101,7 @@ class AFNIPipeline(BaseDataProcessor):
                 print("No match found, skipping")
                 continue
             subject_id = qc_match.group(1)
-            participant, session = _split_session(subject_id, qc_dir.relative_to(self.work_dir).parent)
+            participant, session = _split_session(subject_id, relative.parent)
 
             # Check if the participant is prefix + a BIDS label (e.g. prefix001, prefixA01)
             if self.prefix and not re.fullmatch(fr"{re.escape(self.prefix)}[A-Za-z0-9]+", participant):
