@@ -78,7 +78,7 @@ class AFNIPipeline(BaseDataProcessor):
         if not self.work_dir or not self.work_dir.exists():
             raise FileNotFoundError(f"Input directory does not exist: {self.work_dir}")
         
-        print(f"Searching for JSON files in {self.work_dir}/**/QC_*/extra_info/, with 'task' in path")
+        print(f"Searching for JSON files in {self.work_dir}/**/QC_*/extra_info/, with '{self.task}' in path")
 
         json_files = {}
         duplicates = {}
@@ -118,7 +118,7 @@ class AFNIPipeline(BaseDataProcessor):
             else:
                 print(f"Warning: Expected JSON file not found: {json_file}")
 
-        print(f"Searched {qc_dirs_found} QC_* directories (with 'task'), found {len(json_files)} valid JSON files")
+        print(f"Searched {qc_dirs_found} QC_* directories (with '{self.task}'), found {len(json_files)} valid JSON files")
 
         # One row per participant and session: several matches would overwrite each other
         if duplicates:
