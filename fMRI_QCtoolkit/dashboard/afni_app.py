@@ -11,6 +11,7 @@ class AFNIDashboard(BaseDashboard):
     PIPELINE = 'afni'
     RATING_LABELS = {
         "mot_rating": "motion",
+        "mecho_rating": "multi-echo",
         "radcor_rating": "correlation",
         "regr_rating": "regression",
         "va2t_rating": "anat to template",

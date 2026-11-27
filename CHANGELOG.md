@@ -8,6 +8,7 @@
 - `fmriqc prep afni` no longer picks up other tasks' QC folders when the task name appears in the `--input-dir` path itself.
 - On a Mac, Cmd+click a box in the fMRIPrep rating page to add a comment.
 - `fmriqc prep afni` names the task it searched for, instead of printing "task".
+- `fmriqc prep afni` keeps the multi-echo rating, and the dashboard shows a rating filter only for the ratings in the data.
 
 
 ## [2.0.1] - 2026-11-26

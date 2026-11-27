@@ -16,8 +16,8 @@ from fMRI_QCtoolkit.dashboard.base_app import BaseDashboard
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
 from fMRI_QCtoolkit.data.base import read_csv_exact
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
-from tests.dashboard_helpers import (FD_MEAN_RANGE, afni_runs, dash_call, layout_values, make_dashboard,
-                                     shown_ids)
+from tests.dashboard_helpers import (FD_MEAN_RANGE, afni_runs, dash_call, layout_components, layout_values,
+                                     make_dashboard, shown_ids)
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "example_data" / "fmriprep"
 
@@ -64,9 +64,20 @@ class TestDefaultView:
                            "fd_mean": [0.1] * 3, "Final": ["good", "bad", None]})
         dashboard = make_dashboard(FMRIPrepDashboard, df, tmp_path)
         ranges, statuses, ratings = layout_values(dashboard)
-        final = dashboard.processor.checkbox_groups.index("Final")
+        final = dashboard.rating_columns().index("Final")
         ratings[final] = ["good", "NA"]
         assert shown_ids(dashboard, ranges, statuses, ratings) == ["001", "003"]
+
+    def test_only_the_ratings_in_the_data_get_a_filter(self, tmp_path):
+        df = afni_runs().assign(mot_rating="good", mecho_rating=["good"] * 7 + ["bad"])
+        dashboard = make_dashboard(AFNIDashboard, df, tmp_path)
+        dropdowns = [c.id for c in layout_components(dashboard) if isinstance(c.id, str) and c.id.endswith("_dropdown")]
+        assert dropdowns == ["mot_rating_dropdown", "mecho_rating_dropdown"]
+        assert set(dashboard.RATING_LABELS) == set(dashboard.processor.checkbox_groups)
+
+        response = dash_call(dashboard, "datatable.rowData", {("mecho_rating_dropdown", "value"): ["good"]},
+                             "mecho_rating_dropdown.value").get_json()["response"]
+        assert [row["ID"] for row in response["datatable"]["rowData"]] == ["001", "003", "005"]
 
     def test_an_infinite_value_is_rated_and_leaves_the_slider_and_lollipop_to_the_others(self, tmp_path):
         df = afni_runs()

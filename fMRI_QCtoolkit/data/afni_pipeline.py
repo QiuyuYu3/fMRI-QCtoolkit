@@ -51,8 +51,8 @@ class AFNIPipeline(BaseDataProcessor):
     def _set_variables(self):
         """Set AFNI-specific variables."""
         self.checkbox_groups = [
-            "vorig_rating", "ve2a_rating", "va2t_rating", "vstat_rating", 
-            "mot_rating", "regr_rating", "radcor_rating", "warns_rating", 
+            "vorig_rating", "ve2a_rating", "va2t_rating", "vstat_rating",
+            "mot_rating", "mecho_rating", "regr_rating", "radcor_rating", "warns_rating",
             "qsumm_rating", "FINAL_rating"
         ]
         

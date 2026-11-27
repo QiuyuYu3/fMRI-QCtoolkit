@@ -107,7 +107,11 @@ class BaseDashboard:
     def get_filter_components(self):
         state = self.state
         components = [create_metric_filter(m, state.bounds[m.column]) for m in state.metrics]
-        return components + [create_qualitative_dropdown(g) for g in self.processor.checkbox_groups]
+        return components + [create_qualitative_dropdown(g) for g in self.rating_columns()]
+
+    def rating_columns(self):
+        columns = self.processor.get_data().columns
+        return [g for g in self.processor.checkbox_groups if g in columns]
 
     def get_variable_labels(self):
         return {m.column: m.label for m in self.metrics}, self.RATING_LABELS
@@ -120,7 +124,7 @@ class BaseDashboard:
         picked = set(state.config.table_columns)
         columns = ([c for c in ID_COLUMNS if c in df.columns] + [m.column for m in state.metrics]
                    + [c for c in df.columns if c in picked]
-                   + [g for g in self.processor.checkbox_groups if g in df.columns])
+                   + self.rating_columns())
         return list(dict.fromkeys(columns))
 
     def _table_columns(self):
@@ -341,13 +345,12 @@ class BaseDashboard:
             allowed = set(selected or []) | (set() if metric.rated else {'good'})
             keep &= state.status[metric.column].isin(allowed).to_numpy()
             keep &= self._in_range(state, metric.column, ranges.get(metric.column))
-        for group, selected in zip(self.processor.checkbox_groups, ratings):
-            if group in df.columns:
-                selected = selected or []
-                passed = df[group].isin([v for v in selected if v != 'NA'])
-                if 'NA' in selected:
-                    passed |= df[group].isna()
-                keep &= passed.to_numpy()
+        for group, selected in zip(self.rating_columns(), ratings):
+            selected = selected or []
+            passed = df[group].isin([v for v in selected if v != 'NA'])
+            if 'NA' in selected:
+                passed |= df[group].isna()
+            keep &= passed.to_numpy()
         return np.flatnonzero(keep).tolist()
 
     @staticmethod
@@ -365,7 +368,7 @@ class BaseDashboard:
         return passed | np.isnan(values)
 
     def _setup_table_callback(self):
-        groups = self.processor.checkbox_groups
+        groups = self.rating_columns()
 
         # The grid keeps the selection of the rows that are still shown, since their row ids stay the same
         @self.app.callback(
@@ -427,7 +430,7 @@ class BaseDashboard:
 
     def qualitative_heatmap_rows(self, df):
         """Long table for the qualitative heatmap: one row per run and rated section."""
-        groups = [g for g in self.processor.checkbox_groups if g in df.columns]
+        groups = self.rating_columns()
         columns = [c for c in HEATMAP_COLUMNS if c != 'Value']
         if df.empty or not groups:
             return pd.DataFrame(columns=columns)

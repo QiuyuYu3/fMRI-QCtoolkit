@@ -33,7 +33,7 @@ def layout_values(dashboard):
         return {c.id["column"]: c.value for c in comps if isinstance(c.id, dict) and c.id["type"] == kind}
 
     named = {c.id: c for c in comps if isinstance(c.id, str)}
-    ratings = [named[f"{g}_dropdown"].value for g in dashboard.processor.checkbox_groups]
+    ratings = [named[f"{g}_dropdown"].value for g in dashboard.rating_columns()]
     return by_column(RANGE), by_column(STATUS), ratings
 
 

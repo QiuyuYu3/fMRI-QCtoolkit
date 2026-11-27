@@ -135,6 +135,20 @@ class TestCleanData:
         assert not {"AFNI_version", "slice_timing_pattern"} & set(columns)
         assert columns[0] == "ID" and columns[-1] == "vorig_rating"
 
+    def test_every_apqc_block_rating_is_kept_in_block_order(self, temp_dir, sample_json_data):
+        # The APQC blocks in the order AFNI's rating page lists them
+        blocks = ["vorig", "ve2a", "va2t", "vstat", "mot", "mecho", "regr", "radcor", "warns", "qsumm", "FINAL"]
+        data = {**sample_json_data, **{f"{block} rating": "good" for block in reversed(blocks)}}
+        qc_dir = temp_dir / "rest_output/QC_sub-001/extra_info"
+        qc_dir.mkdir(parents=True)
+        (qc_dir / "out.ss_review.sub-001.json").write_text(json.dumps(data))
+
+        pipeline = AFNIPipeline(temp_dir, "rest", "sub-", temp_dir / "output")
+        pipeline._load_raw_data()
+        pipeline._clean_data()
+
+        assert [c for c in pipeline.df_final.columns if c.endswith("_rating")] == [f"{b}_rating" for b in blocks]
+
     def test_removes_prefix_from_id(self, mock_afni_directory):
         """Remove prefix from ID"""
         pipeline = AFNIPipeline(
