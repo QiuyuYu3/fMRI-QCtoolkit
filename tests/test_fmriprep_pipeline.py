@@ -131,8 +131,18 @@ class TestLoadRatingData:
         (rating_dir / "sub-001_ses-1_nback_dir-AP.csv").write_text("ID\n001\n")
         (rating_dir / "sub-001.csv").write_text("ID\n001\n")
         pipeline = FMRIPrepPipeline(bold_file, rating_dir, "stopsignal", temp_dir / "output")
-        with pytest.raises(FileNotFoundError, match="No rating files for task stopsignal .*; it has ratings for: nback, rest$"):
+        with pytest.raises(FileNotFoundError, match="No rating files for task stopsignal .*; it has ratings for: rest$"):
             pipeline._load_rating_data()
+
+    def test_a_task_whose_files_are_all_split_is_not_offered(self, temp_dir, random_bold_data, capsys):
+        bold_file, rating_dir = setup_fmriprep_env(temp_dir, random_bold_data)
+        for direction in ["AP", "PA"]:
+            (rating_dir / f"sub-001_ses-1_rest_dir-{direction}.csv").write_text("ID\n001\n")
+        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
+        with pytest.raises(FileNotFoundError) as error:
+            pipeline._load_rating_data()
+        assert "skipping 2 rating file(s) split by an entity" in capsys.readouterr().out
+        assert str(error.value) == f"No rating files for task rest in {rating_dir}"
 
     def test_an_empty_folder_lists_no_tasks(self, temp_dir, random_bold_data):
         bold_file, rating_dir = setup_fmriprep_env(temp_dir, random_bold_data)

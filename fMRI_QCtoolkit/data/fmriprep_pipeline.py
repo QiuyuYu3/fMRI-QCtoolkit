@@ -13,8 +13,8 @@ from pathlib import Path
 from collections import defaultdict
 from .base import BaseDataProcessor
 
-# sub-<ID>[_ses-<session>]_<task>[_<entity>-<value>...].csv, as the rating page writes them
-RATING_FILE = re.compile(r'sub-[A-Za-z0-9]+(?:_ses-[A-Za-z0-9]+)?_([A-Za-z0-9]+)(?:_[a-z]+-[A-Za-z0-9]+)*\.csv$')
+# sub-<ID>[_ses-<session>]_<task>.csv: a rating file prep can use, unlike one split by an entity after the task
+RATING_FILE = re.compile(r'sub-[A-Za-z0-9]+(?:_ses-[A-Za-z0-9]+)?_([A-Za-z0-9]+)\.csv$')
 
 class FMRIPrepPipeline(BaseDataProcessor):
     """Data processor for fMRIPrep pipeline."""

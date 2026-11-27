@@ -9,6 +9,7 @@
 - On a Mac, Cmd+click a box in the fMRIPrep rating page to add a comment.
 - `fmriqc prep afni` names the task it searched for, instead of printing "task".
 - `fmriqc prep afni` keeps the multi-echo rating, and the dashboard shows a rating filter only for the ratings in the data.
+- `fmriqc prep fmriprep` no longer says a task has ratings when all of its rating files are split by an entity such as `dir`.
 
 
 ## [2.0.1] - 2026-11-26
