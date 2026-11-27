@@ -115,27 +115,16 @@ class TestLoadBoldData:
 class TestLoadRatingData:
     
     def test_loads_task_specific_csv(self, temp_dir, random_bold_data, random_rating_data):
-        """Test loading task-specific rating data with random data"""
         bold_file, rating_dir = setup_fmriprep_env(
             temp_dir, random_bold_data, random_rating_data
         )
-        
+        (rating_dir / "sub-X01_ses-1_nback.csv").write_text("ID,Final_1_r\nX01,good\n")
+
         pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
         pipeline._load_rating_data()
-        
-        assert pipeline.rating_data is not None
-        assert 'ID' in pipeline.rating_data.columns
-        assert 'run' in pipeline.rating_data.columns
-    
-    def test_loads_task_specific_csv_random(self, temp_dir, random_bold_data, random_rating_data):
-        """Test with random rating data"""
-        bold_file, rating_dir = setup_fmriprep_env(temp_dir, random_bold_data, random_rating_data)
-        
-        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
-        pipeline._load_rating_data()
-        
-        assert pipeline.rating_data is not None
-        assert len(pipeline.rating_data) > 0
+
+        assert sorted(pipeline.rating_data['ID']) == sorted(random_rating_data['ID'].astype(str))
+        assert (pipeline.rating_data['run'] == 1).all()
 
     def test_another_tasks_ratings_are_never_used(self, temp_dir, random_bold_data, random_rating_data):
         bold_file, rating_dir = setup_fmriprep_env(temp_dir, random_bold_data, random_rating_data)
@@ -156,18 +145,19 @@ class TestLoadRatingData:
 class TestCleanData:
     """Test data cleaning and merging"""
     
-    def test_merges_bold_and_rating(self, temp_dir, random_bold_data, random_rating_data):
-        """Use random data from conftest"""
-        bold_file, rating_dir = setup_fmriprep_env(
-            temp_dir, random_bold_data, random_rating_data
-        )
-        
-        pipeline = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output")
-        pipeline._load_raw_data()
-        pipeline._clean_data()
-        
-        assert pipeline.df_final is not None
-        assert len(pipeline.df_final) > 0
+    def test_names_without_session_or_run_match_the_rating_files(self, temp_dir):
+        # The rating page names such files sub-<ID>_<task>.csv and their columns <module>_1_r
+        bold_file = temp_dir / "group_bold.tsv"
+        bold_file.write_text("bids_name\tfd_mean\nsub-01_task-rest_bold\t0.1\nsub-02_task-rest_bold\t0.2\n")
+        rating_dir = temp_dir / "ratings"
+        rating_dir.mkdir()
+        (rating_dir / "sub-01_rest.csv").write_text("ID,T1mask_1_r,Final_1_r\n01,good,bad\n")
+        (rating_dir / "sub-02_rest.csv").write_text("ID,T1mask_1_r,Final_1_r\n02,other,good\n")
+
+        df = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output").process().df_final
+
+        assert df[['ID', 'session', 'run', 'fd_mean', 'T1mask', 'Final']].values.tolist() == [
+            ['01', '1', 1, 0.1, 'good', 'bad'], ['02', '1', 1, 0.2, 'other', 'good']]
 
 
 class TestFromSavedData:
@@ -258,6 +248,8 @@ class TestIntegrationWithExampleData:
         # Every run of the example has both its MRIQC metrics and its ratings
         assert len(df) == 15
         assert df["Final"].notna().all() and df["gcor"].notna().all()
+        # Rated once per session, in the run 1 columns, and given to every run
+        assert df[["T1mask", "Norm", "SurfRecon"]].notna().all().all()
 
 class TestNonNumericSessionLabels:
     """BIDS session labels need not be numeric (ses-pre, ses-V1)."""

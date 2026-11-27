@@ -96,27 +96,26 @@ class TestLoadRawData:
 class TestCleanData:
     """Test data cleaning"""
     
-    def test_flip_conversion(self, temp_dir, sample_json_data):
-        """flip_guess transformation"""
-        data_no_flip = sample_json_data.copy()
-        data_no_flip["flip guess"] = "NO_FLIP"
-        
-        qc_dir = temp_dir / "rest_output/QC_sub-001/extra_info"
-        qc_dir.mkdir(parents=True)
-        (qc_dir / "out.ss_review.sub-001.json").write_text(json.dumps(data_no_flip))
-        
+    @pytest.mark.parametrize("guess,expected", [("NO_FLIP", 0), ("DO_FLIP", 1)])
+    def test_flip_guess_becomes_a_number(self, temp_dir, sample_json_data, guess, expected):
+        _qc_dir(temp_dir, "rest_output", "sub-001", {**sample_json_data, "flip guess": guess})
+
         pipeline = AFNIPipeline(temp_dir, "rest", "sub-", temp_dir / "output")
         pipeline._load_raw_data()
-        
-        assert 'flip_guess' in pipeline.df_raw.columns
-        
         pipeline._clean_data()
-        
-        if 'flip_guess' in pipeline.df_final.columns:
-            assert pipeline.df_final['flip_guess'].iloc[0] == 0
-        else:
-            assert pipeline.df_raw['flip_guess'].iloc[0] == 0
-    
+
+        assert pipeline.df_final['flip_guess'].iloc[0] == expected
+
+    def test_afni_fields_become_the_dashboard_metrics(self, mock_afni_directory):
+        out = mock_afni_directory / "output"
+        AFNIPipeline(mock_afni_directory, "rest", "sub-", out).process()
+
+        row = AFNIPipeline.from_saved_data(out / "df_final.csv").df_final.iloc[0]
+
+        assert row[["runs", "TRs_removed", "TRs_total_raw", "cens_mot", "cens_displace", "flip_guess",
+                    "DF_frac", "cens_frac", "TSNR", "GCOR"]].tolist() == [2, 4, 300, 0.08, 1.7, 0, 0.71, 0.12,
+                                                                          152.3, 0.04]
+
     def test_every_numeric_field_is_kept(self, temp_dir, sample_json_data):
         # AFNI writes numbers as text
         data = {**sample_json_data, "anat/EPI mask Dice coef": "0.91", "max motion displacement": "1.4",

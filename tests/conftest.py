@@ -34,18 +34,18 @@ def temp_dir(tmp_path: Path) -> Path:
 # AFNI
 @pytest.fixture()
 def sample_json_data() -> dict:
-    """Generate random AFNI JSON data"""
-    np.random.seed(42)
+    """out.ss_review JSON as AFNI writes it: literal field names, values as text."""
     return {
-        "TRs total raw": np.random.randint(200, 400),
-        "TRs censored motion": np.random.randint(5, 50),
-        "censor fraction": np.random.uniform(0.05, 0.25),
-        "global correlation (GCOR)": np.random.uniform(0.1, 0.3),
-        "flip guess": np.random.choice(["FLIP", "NO_FLIP"]),
-        "TSNR": np.random.uniform(100, 300),
-        "DF_frac": np.random.uniform(0.5, 0.8),
-        "cens_mot": np.random.uniform(0.05, 0.2),
-        "cens_displace": np.random.uniform(3, 12),
+        "num runs found": "2",
+        "TRs removed (per run)": "4",
+        "TRs total (uncensored)": "300",
+        "average censored motion": "0.08",
+        "max censored displacement": "1.7",
+        "flip guess": "NO_FLIP",
+        "final DF fraction": "0.71",
+        "censor fraction": "0.12",
+        "TSNR average": "152.3",
+        "global correlation (GCOR)": "0.04",
     }
 
 
