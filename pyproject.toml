@@ -1,6 +1,6 @@
 [project]
 name = "fmri_qctoolkit"
-version = "2.0.2"
+version = "2.1.0"
 description = "MRI Quality Control Dashboard for AFNI and fMRIPrep pipelines"
 authors = [
   { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" },

@@ -1,6 +1,9 @@
 # Change Log
 
 ## [Unreleased]
+
+
+## [2.1.0] - 2026-11-27
 ### Added
 - `fmriqc prep custom` and `fmriqc dashboard custom` open ratings and metrics from any software, given as your own tables.
 
