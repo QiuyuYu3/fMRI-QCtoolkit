@@ -1,6 +1,6 @@
 # Rating fMRIPrep output
 
-`fmriqc rating fmriprep` opens each participant's fMRIPrep HTML report (`sub-<ID>.html`) in a page with a rating bar on top. You rate each section of the report, and the ratings are saved as you click.
+`fmriqc rating fmriprep` opens each participant's fMRIPrep HTML report (`sub-<ID>.html`, or the files fMRIPrep splits it into) in a page with a rating bar on top. You rate each section of the report, and the ratings are saved as you click.
 
 ![An fMRIPrep report with the rating bar](../images/fMRIPrep_rating.png)
 
@@ -81,4 +81,6 @@ The session, task and run of each section come from the report's headings. A run
 
 If a task is split further, for example by acquisition or phase-encoding direction, each part is rated and saved in its own file, but `fmriqc prep` cannot use those files yet and lists them as skipped.
 
-For participants with several sessions, fMRIPrep merges all T1w images into a single anatomical reference ([longitudinal processing](https://fmriprep.org/en/stable/workflows.html#longitudinal-processing)). T1mask, Norm and SurfRecon therefore describe that merged image: one rating per participant, not per session. If several images appear under one of these headings, the participant was processed more than once; check the `Get figure file:` line and rate the one from your current run.
+By default, for participants with several sessions, fMRIPrep merges all T1w images into a single anatomical reference ([longitudinal processing](https://fmriprep.org/en/stable/workflows.html#longitudinal-processing)). T1mask, Norm and SurfRecon therefore describe that merged image: one rating per participant, not per session. If several images appear under one of these headings, the participant was processed more than once; check the `Get figure file:` line and rate the one from your current run.
+
+With more than four sessions (fMRIPrep's `--aggregate-session-reports`), fMRIPrep splits the report into `sub-<ID>_anat.html` and a `sub-<ID>_ses-<session>_func.html` for each session. With `--subject-anatomical-reference sessionwise`, it processes each session on its own and writes a `sub-<ID>_ses-<session>.html` for each; T1mask, Norm and SurfRecon are then rated once per session. Either way, the rating page shows all of a participant's files on one page.

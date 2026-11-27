@@ -28,7 +28,7 @@ The command reads `QC_<ID>/extra_info/out.ss_review.<ID>.json` of every particip
 
 - Every numeric field becomes a column. A field with several values, such as one per run or one per stimulus class, becomes one column per value, numbered `_1`, `_2` and so on, also for participants with a single value.
 - Text fields, such as the AFNI version or the names of the output datasets, are left out.
-- Field names have spaces replaced by `_`, and the main metrics get short names:
+- Field names have spaces replaced by `_` and brackets removed, and the main metrics get short names:
 
 | Column | Field in the review file |
 |---|---|
