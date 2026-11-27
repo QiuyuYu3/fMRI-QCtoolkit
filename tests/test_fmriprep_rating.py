@@ -4,6 +4,7 @@ Focus on field matching across parse_tasks, process_html, load_ratings, and save
 """
 
 import os
+import threading
 import pytest
 import tempfile
 import csv
@@ -918,6 +919,64 @@ class TestSaveRoute:
 
         assert resp.status_code == 500
         assert json.loads((app.output_dir / "sub-0030.json").read_text())["ratings"] == ratings
+
+    def test_a_save_that_fails_halfway_keeps_the_last_sidecar(self, client_for, monkeypatch):
+        app, client = client_for(HTML_WITH_SESSION)
+        first = {"SDC_ses-01_run-1": "good"}
+        assert client.post("/save_ratings", json={"id": "0030", "ratings": first, "notes": {}}).status_code == 200
+        files = sorted(p.name for p in app.output_dir.iterdir())
+
+        def dump_halfway(obj, f, **kwargs):
+            f.write('{"ratings": {')
+            raise OSError("No space left on device")
+
+        monkeypatch.setattr(json, "dump", dump_halfway)
+        resp = client.post("/save_ratings", json={"id": "0030", "ratings": {"SDC_ses-01_run-1": "bad"}, "notes": {}})
+        monkeypatch.undo()
+
+        assert resp.status_code == 500
+        assert json.loads((app.output_dir / "sub-0030.json").read_text())["ratings"] == first
+        assert client.get("/0030").status_code == 200
+        assert sorted(p.name for p in app.output_dir.iterdir()) == files
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX file modes")
+    def test_saved_files_keep_their_mode_and_new_ones_follow_the_umask(self, client_for):
+        app, client = client_for(HTML_ANAT_ONLY)
+        sidecar = app.output_dir / "sub-0030.json"
+        sidecar.write_text("{}")
+        sidecar.chmod(0o664)
+        umask = os.umask(0o022)
+        try:
+            assert client.post("/save_ratings", json={"id": "0030", "ratings": {}, "notes": {}}).status_code == 200
+        finally:
+            os.umask(umask)
+        assert oct(sidecar.stat().st_mode & 0o777) == oct(0o664)
+        assert oct((app.output_dir / "sub-0030.csv").stat().st_mode & 0o777) == oct(0o644)
+
+    def test_saves_at_the_same_time_leave_one_readable_save(self, client_for):
+        app, _ = client_for(HTML_ANAT_ONLY)
+        levels = ["good", "bad", "other", "NA"]
+        for _ in range(20):
+            barrier = threading.Barrier(len(levels))
+
+            def post(i):
+                client = app.app.test_client()
+                client.get(f"/0030?token={self.TOKEN}")
+                barrier.wait()
+                # Notes of different lengths, so a shorter file written over a longer one would leave a tail
+                client.post("/save_ratings", json={"id": "0030", "ratings": {"T1mask_run-1": levels[i]},
+                                                   "notes": {"T1mask_run-1": "x" * (i * 300)}})
+
+            workers = [threading.Thread(target=post, args=(i,)) for i in range(len(levels))]
+            for worker in workers:
+                worker.start()
+            for worker in workers:
+                worker.join()
+            sidecar = json.loads((app.output_dir / "sub-0030.json").read_text(encoding="utf-8"))
+            with (app.output_dir / "sub-0030.csv").open(newline="", encoding="utf-8") as f:
+                row = next(csv.DictReader(f))
+            assert (row["T1mask_1_r"], row["T1mask_1_c"]) == (sidecar["ratings"]["T1mask_run-1"],
+                                                              sidecar["notes"]["T1mask_run-1"])
 
 
 class TestGroupIdsStayUnique:

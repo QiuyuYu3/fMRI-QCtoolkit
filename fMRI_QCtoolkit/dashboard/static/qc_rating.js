@@ -48,8 +48,24 @@ function promptNote(modId, modName) {
   }
 }
 
+// One save at a time, so the server stores them in order; clicks during a save go out together after it
+let saving = false;
+let saveAgain = false;
+
+window.addEventListener("beforeunload", (e) => {
+  if (saving || saveAgain) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
 // Save current ratings and notes to backend via POST
 function saveRatingsToServer() {
+  if (saving) {
+    saveAgain = true;
+    return;
+  }
+  saving = true;
   fetch("/save_ratings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -76,6 +92,13 @@ function saveRatingsToServer() {
       alert("Network error while saving rating");
     }
     console.error(err);
+  })
+  .finally(() => {
+    saving = false;
+    if (saveAgain) {
+      saveAgain = false;
+      saveRatingsToServer();
+    }
   });
 }
 

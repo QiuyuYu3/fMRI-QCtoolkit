@@ -21,6 +21,7 @@ import os
 import csv
 import json
 import re
+import shutil
 import sys
 import time
 import webbrowser
@@ -97,6 +98,8 @@ class FMRIPrepRatingApp:
         self.app.config["DATA_DIR"] = str(self.data_dir)
         self.app.config["OUTPUT_DIR"] = str(self.output_dir)
         self.gate = AccessGate(self.app, token)
+        # A thread lock, not a file lock, which network file systems may not honour
+        self._save_lock = threading.Lock()
         self.setup_routes()
     
     def setup_routes(self):
@@ -471,81 +474,96 @@ class FMRIPrepRatingApp:
             return jsonify({"status": "fail", "message": "Ratings and notes must be objects"}), 400
         
         try:
-            pages = self._report_pages(participant_id)
-            if not pages:
-                raise FileNotFoundError(f"HTML file not found for participant {participant_id}")
-
-            # The sidecar is what a reopened page reads, so it must not depend on the CSV export succeeding
-            json_file = self.output_dir / f"sub-{participant_id}.json"
-            with json_file.open("w", encoding="utf-8") as f:
-                json.dump({"ratings": ratings, "notes": notes}, f, ensure_ascii=False, indent=2)
-
-            def common_data(anat_session):
-                data = {}
-                for mod in self.COMMON_MODULES:
-                    frontend_key = self._anat_id(mod, anat_session)
-                    data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
-                    data[f"{mod}_1_c"] = notes.get(frontend_key, "")
-                return data
-
-            tasks = [(task, anat_session) for html_content, anat_session in pages
-                     for task in self.parse_tasks_from_html(html_content)]
-
-            # An anatomical-only report still gets a subject-level export
-            all_combined_data = {}
-            if not tasks:
-                for _, anat_session in pages:
-                    prefix = f"ses-{anat_session}_" if anat_session else ""
-                    all_combined_data.update({prefix + k: v for k, v in common_data(anat_session).items()})
-
-            for task_info, anat_session in tasks:
-                session = task_info['session']
-                task_name = task_info['name']
-
-                row_data = {"ID": participant_id, **common_data(anat_session)}
-
-                # Functional modules + Final, one column set per report group.
-                # The column index is the BIDS run label, so it lines up with group_bold.tsv.
-                for run_label, suffix in zip(task_info['runs'], task_info['suffixes']):
-                    for mod in self.FUNCTIONAL_MODULES + ["Final"]:
-                        frontend_key = f"{mod}{suffix}"
-                        row_data[f"{mod}_{run_label}_r"] = ratings.get(frontend_key, "NA")
-                        row_data[f"{mod}_{run_label}_c"] = notes.get(frontend_key, "")
-
-                # Save per-task CSV
-                name_parts = []
-                if session is not None:
-                    name_parts.append(f"ses-{session}")
-                name_parts.append(task_name)
-                name_parts += [f"{k}-{v}" for k, v in task_info['extras'].items()]
-                csv_prefix = "_".join(name_parts)
-                csv_file = self.output_dir / f"sub-{participant_id}_{csv_prefix}.csv"
-
-                with csv_file.open("w", newline="", encoding="utf-8") as f:
-                    writer = csv.DictWriter(f, fieldnames=list(row_data.keys()))
-                    writer.writeheader()
-                    writer.writerow(row_data)
-
-                # Collect for combined CSV
-                for key, value in row_data.items():
-                    if key != "ID":
-                        all_combined_data[f"{csv_prefix}_{key}"] = value
-            
-            # Save combined CSV
-            combined_csv = self.output_dir / f"sub-{participant_id}.csv"
-            combined_row = {"ID": participant_id, **all_combined_data}
-            
-            with combined_csv.open("w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=list(combined_row.keys()))
-                writer.writeheader()
-                writer.writerow(combined_row)
-
-            # self.logger.info(f"Saved ratings for sub-{participant_id}")
+            # One save at a time, so the sidecar and the CSVs always come from the same one
+            with self._save_lock:
+                self._write_ratings(participant_id, ratings, notes)
             return jsonify({"status": "success"})
-            
+
         except Exception as e:
             self.logger.error(f"Error saving ratings: {e}", exc_info=True)
             return jsonify({"status": "fail", "message": str(e)}), 500
+
+    @staticmethod
+    def _write_atomically(path: Path, write, newline=None):
+        """Write through a temporary file beside `path`, so `path` only ever holds a whole save."""
+        # Named per process and thread, and made by open() under the umask, not owner-only as mkstemp makes it
+        temporary = path.with_name(f".{path.name}.{os.getpid()}-{threading.get_ident()}.tmp")
+        try:
+            with temporary.open("w", newline=newline, encoding="utf-8") as f:
+                write(f)
+            if path.exists():
+                shutil.copymode(path, temporary)
+            os.replace(temporary, path)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
+
+    @classmethod
+    def _write_csv_row(cls, path: Path, row: Dict[str, str]):
+        def write(f):
+            writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+            writer.writeheader()
+            writer.writerow(row)
+        cls._write_atomically(path, write, newline="")
+
+    def _write_ratings(self, participant_id: str, ratings: Dict, notes: Dict):
+        pages = self._report_pages(participant_id)
+        if not pages:
+            raise FileNotFoundError(f"HTML file not found for participant {participant_id}")
+
+        # The sidecar is what a reopened page reads, so it must not depend on the CSV export succeeding
+        json_file = self.output_dir / f"sub-{participant_id}.json"
+        self._write_atomically(json_file, lambda f: json.dump({"ratings": ratings, "notes": notes}, f,
+                                                              ensure_ascii=False, indent=2))
+
+        def common_data(anat_session):
+            data = {}
+            for mod in self.COMMON_MODULES:
+                frontend_key = self._anat_id(mod, anat_session)
+                data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
+                data[f"{mod}_1_c"] = notes.get(frontend_key, "")
+            return data
+
+        tasks = [(task, anat_session) for html_content, anat_session in pages
+                 for task in self.parse_tasks_from_html(html_content)]
+
+        # An anatomical-only report still gets a subject-level export
+        all_combined_data = {}
+        if not tasks:
+            for _, anat_session in pages:
+                prefix = f"ses-{anat_session}_" if anat_session else ""
+                all_combined_data.update({prefix + k: v for k, v in common_data(anat_session).items()})
+
+        for task_info, anat_session in tasks:
+            session = task_info['session']
+            task_name = task_info['name']
+
+            row_data = {"ID": participant_id, **common_data(anat_session)}
+
+            # Functional modules + Final, one column set per report group.
+            # The column index is the BIDS run label, so it lines up with group_bold.tsv.
+            for run_label, suffix in zip(task_info['runs'], task_info['suffixes']):
+                for mod in self.FUNCTIONAL_MODULES + ["Final"]:
+                    frontend_key = f"{mod}{suffix}"
+                    row_data[f"{mod}_{run_label}_r"] = ratings.get(frontend_key, "NA")
+                    row_data[f"{mod}_{run_label}_c"] = notes.get(frontend_key, "")
+
+            # Save per-task CSV
+            name_parts = []
+            if session is not None:
+                name_parts.append(f"ses-{session}")
+            name_parts.append(task_name)
+            name_parts += [f"{k}-{v}" for k, v in task_info['extras'].items()]
+            csv_prefix = "_".join(name_parts)
+            self._write_csv_row(self.output_dir / f"sub-{participant_id}_{csv_prefix}.csv", row_data)
+
+            # Collect for combined CSV
+            for key, value in row_data.items():
+                if key != "ID":
+                    all_combined_data[f"{csv_prefix}_{key}"] = value
+
+        self._write_csv_row(self.output_dir / f"sub-{participant_id}.csv",
+                            {"ID": participant_id, **all_combined_data})
     
     def run_app_and_open_browsers(self, port: int = None, open_browser: bool = True):
         """Run the Flask app and open browser tabs for subjects."""

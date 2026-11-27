@@ -16,6 +16,7 @@ from dash._utils import stringify_id
 from werkzeug.serving import make_server
 
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
+from fMRI_QCtoolkit.dashboard.fmriprep_rating_app import FMRIPrepRatingApp
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
 
 
@@ -224,3 +225,43 @@ def test_download_config_right_after_fixing_an_error_gives_the_file(session):
     assert sent["metrics"]["fd_perc"]["good"] == "<= 15"
     assert session.eventually(error.inner_text, "") == ""
     assert not session.errors
+
+
+RATING_REPORT = """<!DOCTYPE html><html><body><nav class="navbar">Summary</nav>
+<h2 class="sub-report-group">Reports for: task <span class="bids-entity">rest</span>, run <span class="bids-entity">1</span>.</h2>
+<h3 class="run-title">BOLD Summary</h3></body></html>"""
+
+
+def test_quick_clicks_on_a_rating_box_save_one_at_a_time_and_keep_the_last(browser, tmp_path):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "sub-01.html").write_text(RATING_REPORT, encoding="utf-8")
+    app = FMRIPrepRatingApp(tmp_path / "data", tmp_path / "out", token="t")
+    server = make_server("127.0.0.1", 0, app.app, threaded=True)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    page = browser.new_page()
+    s = Session(page, tmp_path / "out" / "sub-01.json")
+    page.on("dialog", lambda d: (s.errors.append(d.message), d.dismiss()))
+    try:
+        page.goto(f"http://127.0.0.1:{server.server_port}/01?token=t")
+        page.evaluate("""() => { const send = window.fetch; window.inFlight = 0; window.mostInFlight = 0;
+            window.fetch = (...args) => { window.mostInFlight = Math.max(window.mostInFlight, ++window.inFlight);
+                return send(...args).finally(() => window.inFlight--); }; }""")
+        box = page.locator(".qc-module").filter(has_text="BOLD r1")
+        # Three clicks at once: NA, good, bad, then other
+        box.evaluate("el => { el.click(); el.click(); el.click(); }")
+
+        def settled():
+            if page.evaluate("window.inFlight"):
+                return None
+            try:
+                return json.loads(s.config.read_text(encoding="utf-8"))["ratings"]["BOLD_run-1"]
+            except (FileNotFoundError, json.JSONDecodeError):
+                return None
+
+        assert s.eventually(settled, "other") == "other"
+        assert box.locator(".qc-icon").inner_text() == "?"
+        assert page.evaluate("window.mostInFlight") == 1
+        assert not s.errors
+    finally:
+        page.close()
+        server.shutdown()
