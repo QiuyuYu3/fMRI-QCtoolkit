@@ -11,6 +11,7 @@ from .status import get_status_colors, get_status_mapping
 
 _LOLLIPOP_COLORS = ['#A6CEE3', '#1F78B4', '#B2DF8A', '#33A02C', '#FB9A99',
                     '#E31A1C', '#FDBF6F', '#FF7F00', '#CAB2D6', '#6A3D9A']
+MISSING_GROUP = {'session': '1', 'run': 1}
 
 
 def format_session(value):
@@ -264,6 +265,8 @@ def _lollipop_groups(data, group_by):
     cols = [c for c in (group_by or []) if c in data.columns]
     if not cols:
         return [("", data)]
+    # A row without a session or run joins session 1 or run 1, as in the heatmap
+    data = data.assign(**{c: data[c].where(data[c].notna(), MISSING_GROUP[c]) for c in cols if c in MISSING_GROUP})
 
     combos = data[cols].drop_duplicates().sort_values(cols)
     groups = []

@@ -113,6 +113,17 @@ class TestCreateLollipopPlot:
                                                                                       'x2': ['003']}
         assert [a.text for a in fig.layout.annotations] == ['Session 01', 'Session 02']
 
+    def test_a_run_without_session_or_run_joins_session_1_run_1_as_in_the_heatmap(self):
+        data = pd.DataFrame({'ID': ['001', '002', '099'], 'session': ['1', '1', None], 'run': [1, 2, None],
+                             'Variable': 'age', 'Value': [0.1, 0.1, 0.5], 'mean_value': 0.2})
+
+        fig = create_lollipop_plot(data, group_by=['session', 'run'])
+
+        markers = [t for t in fig.data if t.mode == 'markers']
+        assert {t.xaxis: sorted(row[0] for row in t.customdata) for t in markers} == {'x': ['001', '099'],
+                                                                                      'x2': ['002']}
+        assert [a.text for a in fig.layout.annotations] == ['Session 01 - Run 1', 'Session 01 - Run 2']
+
 class TestFormatSession:
     """BIDS session labels need not be numeric."""
 
