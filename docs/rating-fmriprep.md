@@ -64,7 +64,7 @@ T1mask, Norm and SurfRecon describe the anatomical image, so they are rated once
 
 - The upper row lists the sections. Click one to jump to it in the report; scroll the row sideways with the mouse wheel.
 - In the lower row, click a box to step through good (+), bad (−) and other (?), and back to unrated.
-- Ctrl+click a box to add or edit a comment.
+- Ctrl+click a box (Cmd+click on a Mac) to add or edit a comment.
 - Every click is saved at once; there is no save button. When you reopen a participant with the same `--output-dir`, the saved ratings and comments come back.
 
 ## Files written

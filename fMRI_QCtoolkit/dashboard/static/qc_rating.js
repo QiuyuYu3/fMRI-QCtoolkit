@@ -101,9 +101,9 @@ modulesByRun.forEach(runModules => {
     label.textContent = mod.name;
     modEl.append(icon, label);
 
-    // On click: Ctrl+Click = Add/Edit note; Click = cycle rating
+    // Ctrl+click edits the note, Cmd+click on a Mac (where Ctrl+click opens the menu); click cycles the rating
     modEl.addEventListener("click", (e) => {
-      if (e.ctrlKey) {
+      if (e.ctrlKey || e.metaKey) {
         promptNote(mod.id, mod.name);
       } else {
         let currentState = ratings[mod.id] || "NA";

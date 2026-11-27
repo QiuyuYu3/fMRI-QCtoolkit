@@ -6,6 +6,7 @@
 - In the Settings tab, a number changed with Enter and then typed back is now saved as shown, not as the number entered with Enter.
 - Download config works on the first click after fixing an error in the Settings tab, and says why when an error remains.
 - `fmriqc prep afni` no longer picks up other tasks' QC folders when the task name appears in the `--input-dir` path itself.
+- On a Mac, Cmd+click a box in the fMRIPrep rating page to add a comment.
 
 
 ## [2.0.1] - 2026-11-26
