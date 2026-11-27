@@ -4,6 +4,10 @@
 
 The link's token belongs to one run of the command. Every start prints a new link, so use the one printed most recently. A rating page that cannot save says the same: the server was restarted, so open the new link.
 
+## The rating page cannot read the saved ratings
+
+The participant's `sub-<ID>.json` in `--output-dir` is damaged, and the page names the file and where the problem is. Repair it in a text editor and reload; if the page says there is extra text at the end, deleting that text is enough. Do not delete the file, or the next click would replace the participant's CSV files with that single rating.
+
 ## The link does not open on an HPC cluster
 
 The browser on your own computer cannot reach the cluster. Open the link in Firefox on the cluster's remote desktop instead, as described in [Opening the pages](opening-pages.md#on-an-hpc-cluster).

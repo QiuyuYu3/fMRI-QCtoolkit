@@ -51,7 +51,7 @@ The rating bar has one box per section of the report, for each run:
 | Norm | Spatial normalization of the anatomical T1w reference |
 | SurfRecon | Surface reconstruction |
 | SDC | Susceptibility distortion correction |
-| Align | Alignment of functional and anatomical MRI data (coregistration) |
+| Align | Alignment of functional and anatomical MRI data (coregistration); before fMRIPrep 23.2, (surface driven) or (volume based) |
 | CompCor | Brain mask and (anatomical/temporal) CompCor ROIs |
 | Variance | Variance explained by t/aCompCor components |
 | BOLD | BOLD Summary |
