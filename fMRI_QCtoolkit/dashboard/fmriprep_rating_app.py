@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 from ..utils.access import AccessGate
 from ..utils.port_utils import find_free_port
+from ..utils.subject_utils import fmriprep_reports
 
 
 class FMRIPrepRatingApp:
@@ -240,10 +241,15 @@ class FMRIPrepRatingApp:
         self.logger.debug(f"Parsed {len(tasks)} task units from HTML")
         return tasks
 
-    def process_html_modules(self, html: str) -> Tuple[str, List[List[Dict]]]:
+    @staticmethod
+    def _anat_id(module: str, session: str = None) -> str:
+        return f'{module}_ses-{session}_run-1' if session else f'{module}_run-1'
+
+    def process_html_modules(self, html: str, anat_session: str = None) -> Tuple[str, List[List[Dict]]]:
         """
         Process HTML content to insert IDs and track module run count.
-        `id` is the navigation name, `name` is the display name.
+        `id` is the navigation name, `name` is the display name; `anat_session` names a report whose
+        anatomy belongs to one session.
         Returns:
             Tuple of (processed_html, modules_structure)
         """
@@ -285,8 +291,9 @@ class FMRIPrepRatingApp:
                         mod_short = self.MODULE_MAP[title_strip]
 
                         if mod_short in self.COMMON_MODULES:
-                            module = {"id": f'{mod_short}_run-1', "name": mod_short,
-                                      "session": None, "run": 1, "group": None}
+                            module = {"id": self._anat_id(mod_short, anat_session),
+                                      "name": f'{mod_short} s{anat_session}' if anat_session else mod_short,
+                                      "session": anat_session, "run": 1, "group": None}
                         elif current_group is None:
                             # A rated module before any group heading: keep the legacy fallback
                             module = {"id": f'{mod_short}_run-1', "name": f'{mod_short} r1',
@@ -367,9 +374,20 @@ class FMRIPrepRatingApp:
         self.logger.info(f"Loaded {len(ratings)} ratings for sub-{participant_id}")
         return ratings, notes
 
-    def _warn_unsupported_entities(self, participant_id: str, html_content: str):
+    def _report_pages(self, participant_id: str) -> List[Tuple[str, str]]:
+        """The participant's report files, read in page order, each with its anatomy's session (None: shared)."""
+        reports, _ = fmriprep_reports(self.data_dir, participant_id)
+        return [(path.read_text(encoding="utf-8"), session) for path, session in reports]
+
+    @staticmethod
+    def _body_without_nav(html: str) -> str:
+        """A later report's body, without the fixed navbar that would cover the first report's."""
+        body = re.search(r'<body[^>]*>(.*)</body>', html, re.DOTALL | re.IGNORECASE)
+        return re.sub(r'<nav[\s\S]*?</nav>', '', body.group(1) if body else html, flags=re.IGNORECASE)
+
+    def _warn_unsupported_entities(self, participant_id: str, tasks: List[Dict]):
         """Say up front that acquisition/direction variants get rated but not plotted."""
-        split_units = [t for t in self.parse_tasks_from_html(html_content) if t['extras']]
+        split_units = [t for t in tasks if t['extras']]
         if not split_units:
             return
 
@@ -384,34 +402,37 @@ class FMRIPrepRatingApp:
         pid_clean = self._participant_label(pid)
         if pid_clean is None:
             return "<h2>Invalid participant label</h2>", 404
-        html_file = self.data_dir / f"sub-{pid_clean}.html"
-        
-        if not html_file.exists():
+        pages = self._report_pages(pid_clean)
+
+        if not pages:
             self.logger.error(f"HTML file not found for sub-{pid_clean}")
             return f"<h2>HTML file not found for participant {pid_clean}</h2>", 404
-        
-        html_content = html_file.read_text(encoding="utf-8")
-        
+
         # Load existing ratings
         all_ratings, all_notes = self.load_existing_ratings(pid_clean)
-        
+
         # Extract navigation
-        nav_matches = re.findall(r'(<nav[\s\S]*?</nav>)', html_content, re.IGNORECASE)
+        nav_matches = re.findall(r'(<nav[\s\S]*?</nav>)', pages[0][0], re.IGNORECASE)
         nav_html = ""
         for nav in nav_matches:
             if "Summary" in nav and "navbar" in nav:
                 nav_html = nav
                 break
-        
-        # Process HTML
-        processed_html, modules_by_run = self.process_html_modules(html_content)
 
-        self._warn_unsupported_entities(pid_clean, html_content)
+        # One page for all of the participant's reports, in order
+        contents, modules_by_run, tasks = [], [], []
+        for i, (html_content, anat_session) in enumerate(pages):
+            processed_html, groups = self.process_html_modules(html_content, anat_session)
+            contents.append(processed_html if i == 0 else self._body_without_nav(processed_html))
+            modules_by_run += groups
+            tasks += self.parse_tasks_from_html(html_content)
+
+        self._warn_unsupported_entities(pid_clean, tasks)
 
         return render_template(
             "base.html",
             nav_html=nav_html,
-            content=Markup(processed_html),
+            content=Markup("".join(contents)),
             modules_by_run=modules_by_run,
             ratings_json=all_ratings,
             notes_json=all_notes,
@@ -447,30 +468,38 @@ class FMRIPrepRatingApp:
             return jsonify({"status": "fail", "message": "Ratings and notes must be objects"}), 400
         
         try:
-            html_file = self.data_dir / f"sub-{participant_id}.html"
-            html_content = html_file.read_text(encoding="utf-8")
-            
+            pages = self._report_pages(participant_id)
+            if not pages:
+                raise FileNotFoundError(f"HTML file not found for participant {participant_id}")
+
             # The sidecar is what a reopened page reads, so it must not depend on the CSV export succeeding
             json_file = self.output_dir / f"sub-{participant_id}.json"
             with json_file.open("w", encoding="utf-8") as f:
                 json.dump({"ratings": ratings, "notes": notes}, f, ensure_ascii=False, indent=2)
 
-            tasks = self.parse_tasks_from_html(html_content)
+            def common_data(anat_session):
+                data = {}
+                for mod in self.COMMON_MODULES:
+                    frontend_key = self._anat_id(mod, anat_session)
+                    data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
+                    data[f"{mod}_1_c"] = notes.get(frontend_key, "")
+                return data
 
-            common_data = {}
-            for mod in self.COMMON_MODULES:
-                frontend_key = f"{mod}_run-1"
-                common_data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
-                common_data[f"{mod}_1_c"] = notes.get(frontend_key, "")
+            tasks = [(task, anat_session) for html_content, anat_session in pages
+                     for task in self.parse_tasks_from_html(html_content)]
 
             # An anatomical-only report still gets a subject-level export
-            all_combined_data = {} if tasks else dict(common_data)
+            all_combined_data = {}
+            if not tasks:
+                for _, anat_session in pages:
+                    prefix = f"ses-{anat_session}_" if anat_session else ""
+                    all_combined_data.update({prefix + k: v for k, v in common_data(anat_session).items()})
 
-            for task_info in tasks:
+            for task_info, anat_session in tasks:
                 session = task_info['session']
                 task_name = task_info['name']
 
-                row_data = {"ID": participant_id, **common_data}
+                row_data = {"ID": participant_id, **common_data(anat_session)}
 
                 # Functional modules + Final, one column set per report group.
                 # The column index is the BIDS run label, so it lines up with group_bold.tsv.

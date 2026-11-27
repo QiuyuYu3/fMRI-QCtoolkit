@@ -3,6 +3,7 @@ Unit tests for fmriprep_rating_app module.
 Focus on field matching across parse_tasks, process_html, load_ratings, and save_ratings.
 """
 
+import os
 import pytest
 import tempfile
 import csv
@@ -809,14 +810,14 @@ class TestUnsupportedEntityWarning:
 
     def test_split_task_is_reported(self, temp_app, caplog):
         with caplog.at_level("WARNING"):
-            temp_app._warn_unsupported_entities("001", HTML_ACQ_BETWEEN_TASK_AND_RUN)
+            temp_app._warn_unsupported_entities("001", temp_app.parse_tasks_from_html(HTML_ACQ_BETWEEN_TASK_AND_RUN))
 
         assert "acq-seq" in caplog.text and "acq-mb" in caplog.text
         assert "fmriqc prep" in caplog.text
 
     def test_plain_task_is_silent(self, temp_app, caplog):
         with caplog.at_level("WARNING"):
-            temp_app._warn_unsupported_entities("001", HTML_WITH_SESSION)
+            temp_app._warn_unsupported_entities("001", temp_app.parse_tasks_from_html(HTML_WITH_SESSION))
 
         assert caplog.text == ""
 
@@ -928,3 +929,117 @@ class TestGroupIdsStayUnique:
         groups = [{'session': '01', 'task': 'rest', 'echo': '1', 'run': '1'},
                   {'session': '01', 'task': 'rest', 'echo': '1', 'run': '2'}]
         assert self.suffixes(temp_app, groups) == ['_ses-01_run-1', '_ses-01_run-2']
+
+
+def nireports_page(nav, body):
+    return (f'<!DOCTYPE html><html><head><title>Report</title></head><body>'
+            f'<nav class="navbar fixed-top">{nav}</nav>{body}</body></html>')
+
+
+ANAT_NAV = '<a href="#Summary">Summary</a><a href="#Anatomical">Anatomical</a>'
+ANAT_BODY = """<div id="Summary"><h1>Summary</h1></div>
+<div id="Anatomical"><h1>Anatomical</h1>
+<h3 class="run-title">Brain mask and brain tissue segmentation of the T1w</h3>
+<h3 class="run-title">Spatial normalization of the anatomical T1w reference</h3>
+<h3 class="run-title">Surface reconstruction</h3></div>"""
+
+
+def func_nav(session):
+    return (f'<a id="navbarFunctional" href="#Functional">Functional</a>'
+            f'<a href="#g{session}">Reports for: session <span>{session}</span>, task <span>rest</span>, '
+            f'run <span>1</span>.</a>')
+
+
+def func_body(session):
+    return f"""<div id="Functional"><h1>Functional</h1>
+<h2>Reports for: session <span>{session}</span>, task <span>rest</span>, run <span>1</span>.</h2>
+<h3 class="run-title">Susceptibility distortion correction</h3>
+<h3 class="run-title">BOLD Summary</h3></div>"""
+
+
+class TestSplitReports:
+    """fMRIPrep's split reports: anatomy apart past --aggregate-session-reports, or one full report per session."""
+
+    TOKEN = "t"
+
+    @staticmethod
+    def write_split(data_dir):
+        (data_dir / "sub-01_anat.html").write_text(nireports_page(ANAT_NAV, ANAT_BODY), encoding="utf-8")
+        for session in ["1", "2"]:
+            (data_dir / f"sub-01_ses-{session}_func.html").write_text(
+                nireports_page(func_nav(session), func_body(session)), encoding="utf-8")
+
+    @staticmethod
+    def write_sessionwise(data_dir):
+        for session in ["1", "2"]:
+            (data_dir / f"sub-01_ses-{session}.html").write_text(
+                nireports_page(ANAT_NAV + func_nav(session), ANAT_BODY + func_body(session)), encoding="utf-8")
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        app = FMRIPrepRatingApp(data_dir, tmp_path / "output", token=self.TOKEN)
+        client = app.app.test_client()
+        client.get(f"/01?token={self.TOKEN}")
+        return app, client
+
+    @staticmethod
+    def page_modules(client):
+        response = client.get("/01")
+        assert response.status_code == 200
+        page = response.get_data(as_text=True)
+        groups = json.loads(page.split("window.modulesByRunJson = ", 1)[1].split(";\n", 1)[0])
+        return page, [[m["id"] for m in group] for group in groups]
+
+    @staticmethod
+    def read_csv(app, name):
+        with (app.output_dir / name).open(newline="", encoding="utf-8") as f:
+            return next(csv.DictReader(f))
+
+    def test_anatomy_apart_from_each_session_is_rated_on_one_page(self, client):
+        app, client = client
+        self.write_split(app.data_dir)
+        page, groups = self.page_modules(client)
+
+        assert groups == [["T1mask_run-1", "Norm_run-1", "SurfRecon_run-1"],
+                          ["SDC_ses-1_run-1", "BOLD_ses-1_run-1", "Final_ses-1_run-1"],
+                          ["SDC_ses-2_run-1", "BOLD_ses-2_run-1", "Final_ses-2_run-1"]]
+        # The later reports' fixed navbars would cover the first one's
+        assert "navbarFunctional" not in page
+
+        ratings = {"T1mask_run-1": "good", "SDC_ses-1_run-1": "bad", "SDC_ses-2_run-1": "other"}
+        assert client.post("/save_ratings", json={"id": "01", "ratings": ratings, "notes": {}}).status_code == 200
+        ses1, ses2 = self.read_csv(app, "sub-01_ses-1_rest.csv"), self.read_csv(app, "sub-01_ses-2_rest.csv")
+        assert (ses1["T1mask_1_r"], ses1["SDC_1_r"]) == ("good", "bad")
+        assert (ses2["T1mask_1_r"], ses2["SDC_1_r"]) == ("good", "other")
+
+    def test_each_session_of_a_sessionwise_run_has_its_own_anatomy(self, client):
+        app, client = client
+        self.write_sessionwise(app.data_dir)
+        page, groups = self.page_modules(client)
+
+        assert groups == [["T1mask_ses-1_run-1", "Norm_ses-1_run-1", "SurfRecon_ses-1_run-1"],
+                          ["SDC_ses-1_run-1", "BOLD_ses-1_run-1", "Final_ses-1_run-1"],
+                          ["T1mask_ses-2_run-1", "Norm_ses-2_run-1", "SurfRecon_ses-2_run-1"],
+                          ["SDC_ses-2_run-1", "BOLD_ses-2_run-1", "Final_ses-2_run-1"]]
+        assert 'id="T1mask_ses-2_run-1"' in page
+
+        ratings = {"T1mask_ses-1_run-1": "good", "T1mask_ses-2_run-1": "bad"}
+        notes = {"T1mask_ses-2_run-1": "ghosting"}
+        assert client.post("/save_ratings", json={"id": "01", "ratings": ratings, "notes": notes}).status_code == 200
+        ses1, ses2 = self.read_csv(app, "sub-01_ses-1_rest.csv"), self.read_csv(app, "sub-01_ses-2_rest.csv")
+        assert (ses1["T1mask_1_r"], ses1["T1mask_1_c"]) == ("good", "")
+        assert (ses2["T1mask_1_r"], ses2["T1mask_1_c"]) == ("bad", "ghosting")
+
+    def test_the_newer_reports_win_over_leftovers_of_an_older_run(self, client):
+        app, client = client
+        (app.data_dir / "sub-01.html").write_text(HTML_WITH_SESSION, encoding="utf-8")
+        self.write_split(app.data_dir)
+        os.utime(app.data_dir / "sub-01.html", (1, 1))
+        assert self.page_modules(client)[1][1][0] == "SDC_ses-1_run-1"
+
+        for path in app.data_dir.glob("sub-01_*.html"):
+            os.utime(path, (1, 1))
+        os.utime(app.data_dir / "sub-01.html", None)
+        assert self.page_modules(client)[1][1][0] == "SDC_ses-01_run-1"

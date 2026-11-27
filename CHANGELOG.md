@@ -10,6 +10,7 @@
 - `fmriqc prep afni` names the task it searched for, instead of printing "task".
 - `fmriqc prep afni` keeps the multi-echo rating, and the dashboard shows a rating filter only for the ratings in the data.
 - `fmriqc prep fmriprep` no longer says a task has ratings when all of its rating files are split by an entity such as `dir`.
+- `fmriqc rating fmriprep` opens reports that fMRIPrep splits into several files (more than four sessions, or `--subject-anatomical-reference sessionwise`) as one page per participant; with sessionwise, the anatomy is rated for each session.
 
 
 ## [2.0.1] - 2026-11-26

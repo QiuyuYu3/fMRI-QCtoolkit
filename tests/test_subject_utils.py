@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import pytest
 import numpy as np
@@ -81,6 +82,26 @@ def test_validate_fmriprep_subjects_random(tmp_path: Path, random_subject_ids):
     
     assert len(found) == len(existing_subjects)
     assert set(missing) == set(missing_subjects)
+
+
+def test_validate_fmriprep_subjects_finds_split_reports(tmp_path: Path):
+    # One report; anatomy apart from each session; one report per session (sessionwise)
+    names = ["sub-01.html", "sub-02_anat.html", "sub-02_ses-1_func.html", "sub-02_ses-2_func.html",
+             "sub-03_ses-1.html", "sub-03_ses-2.html", "sub-04_ses-1_task-rest.html"]
+    for name in names:
+        (tmp_path / name).write_text("<html></html>")
+    found, missing = validate_fmriprep_subjects(tmp_path, ["01", "02", "03", "04"])
+    assert [[p.name for p in files] for files in found] == [names[:1], names[1:4], names[4:6]]
+    assert missing == ["04"]
+
+
+def test_validate_fmriprep_subjects_names_the_leftovers_it_skips(tmp_path: Path, capsys):
+    (tmp_path / "sub-01.html").write_text("<html></html>")
+    os.utime(tmp_path / "sub-01.html", (1, 1))
+    (tmp_path / "sub-01_ses-1.html").write_text("<html></html>")
+    found, _ = validate_fmriprep_subjects(tmp_path, ["01"])
+    assert [p.name for p in found[0]] == ["sub-01_ses-1.html"]
+    assert "sub-01.html" in capsys.readouterr().out
 
 # afni pipeline, prepare QC_*html files
 def test_validate_afni_subjects(tmp_path: Path):
