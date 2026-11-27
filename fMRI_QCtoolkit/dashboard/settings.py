@@ -10,9 +10,8 @@ import pandas as pd
 from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 
-from .config import (ID_COLUMNS, Config, ConfigError, Metric, backup_path, default_config_path, dump_config,
-                     load_config, parse_config, parse_entry, parse_table_columns, resolve_metrics, same_settings,
-                     save_config)
+from .config import (ID_COLUMNS, Config, ConfigError, Metric, backup_path, dump_config, parse_config, parse_entry,
+                     parse_table_columns, resolve_metrics, same_settings, save_config)
 from ..utils.filter_components_utils import ACCENT, slider_bounds
 from ..utils.status import (LEVELS, RULE_TIERS, assign_status, describe_levels, format_number, get_status_colors,
                             get_status_mapping, rated_tiers, rest_tier)
@@ -297,7 +296,7 @@ class SettingsTab:
                 html.Button("Discard changes", id='thr-discard', n_clicks=0,
                             style={**_BUTTON, 'background-color': '#6c757d', 'color': 'white'}),
                 html.Button("Use defaults", id='thr-defaults', n_clicks=0,
-                            title="The package's defaults; saved only when you press Save",
+                            title=f"{self.dashboard.DEFAULTS_NOTE}; saved only when you press Save",
                             style={**_BUTTON, 'background-color': '#6c757d', 'color': 'white'}),
                 html.Button("Download config", id='thr-download-button', n_clicks=0,
                             title="Save these settings as a file on this computer", style=DOWNLOAD_STYLE),
@@ -346,14 +345,11 @@ class SettingsTab:
             table_error = str(e)
         state = d.state
         changed = bool(errors) or bool(table_error) or not same_settings(Config(parsed, tuple(table)), state.config)
-        invalid = bool(errors) or bool(table_error) or not rows
-        if rows:
-            now = len(df) - int(state.status.eq('bad').any(axis=1).sum())
-            summary = f"Runs shown when the dashboard opens: {len(df) - int(hidden.sum())} of {len(df)} (now {now})."
-            if errors:
-                summary += " Rows with errors are left out."
-        else:
-            summary = "Add at least one metric."
+        invalid = bool(errors) or bool(table_error)
+        now = len(df) - int(state.status.eq('bad').any(axis=1).sum())
+        summary = f"Runs shown when the dashboard opens: {len(df) - int(hidden.sum())} of {len(df)} (now {now})."
+        if errors:
+            summary += " Rows with errors are left out."
         return {
             'counts': cells,
             'rest_defaults': [default_rest(row) for row in rows],
@@ -386,7 +382,7 @@ class SettingsTab:
         if trigger == 'thr-discard':
             return config_rows(self.dashboard.config.metrics)
         if trigger == 'thr-defaults':
-            return config_rows(load_config(default_config_path(self.dashboard.PIPELINE)).metrics)
+            return config_rows(self.dashboard.default_config().metrics)
         # Freshly drawn buttons report n_clicks 0, which is not a click
         if isinstance(trigger, dict) and clicked and trigger.get('key') in keys:
             i = keys.index(trigger['key'])
@@ -409,7 +405,7 @@ class SettingsTab:
         if trigger == 'thr-discard':
             return list(self.dashboard.config.table_columns)
         if trigger == 'thr-defaults':
-            return list(load_config(default_config_path(self.dashboard.PIPELINE)).table_columns)
+            return list(self.dashboard.default_config().table_columns)
         return no_update
 
     def save(self, rows, version, table=()):

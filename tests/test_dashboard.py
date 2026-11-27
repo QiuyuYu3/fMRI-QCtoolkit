@@ -14,6 +14,7 @@ import pytest
 from fMRI_QCtoolkit.dashboard.afni_app import AFNIDashboard
 from fMRI_QCtoolkit.dashboard.base_app import BaseDashboard
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
+from fMRI_QCtoolkit.dashboard.settings import config_rows
 from fMRI_QCtoolkit.data.base import read_csv_exact
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
 from tests.dashboard_helpers import (FD_MEAN_RANGE, afni_runs, dash_call, layout_components, layout_values,
@@ -419,3 +420,55 @@ class TestSelectedRows:
         panel = next(c for c in dashboard.build_layout()._traverse()
                      if any(getattr(child, "id", None) == "selected-rows-display" for child in getattr(c, "children", []) or []))
         assert "max-height" not in panel.style
+
+
+RATINGS = ["Align", "BOLD", "CompCor", "Corr", "Final", "Norm", "SDC", "SurfRecon", "T1mask", "Variance"]
+
+
+def example_runs():
+    return read_csv_exact(EXAMPLES / "df_final.csv", dtype={"ID": str, "session": str})
+
+
+def shown_parts(dashboard):
+    sections = {c.id: c for c in layout_components(dashboard) if isinstance(c.id, str) and c.id.endswith("-section")}
+    return {name.removesuffix("-section") for name, c in sections.items() if c.style.get("display") != "none"}
+
+
+class TestRatingFilters:
+
+    def test_each_offers_only_the_ratings_in_its_column(self, tmp_path):
+        df = pd.DataFrame({"ID": ["001", "002", "003"], "session": ["01"] * 3, "run": [1, 1, 1],
+                           "fd_mean": [0.1] * 3, "Final": ["good", "bad", "good"], "SDC": ["good", None, "other"]})
+        dashboard = make_dashboard(FMRIPrepDashboard, df, tmp_path)
+        named = {c.id: c for c in layout_components(dashboard) if isinstance(c.id, str)}
+        assert [o["value"] for o in named["Final_dropdown"].options] == ["good", "bad"]
+        assert [o["value"] for o in named["SDC_dropdown"].options] == ["good", "other", "NA"]
+        assert shown_ids(dashboard, *layout_values(dashboard)) == ["001", "002", "003"]
+
+
+class TestPlotParts:
+    """A part of the Plots tab with nothing to show is hidden."""
+
+    def test_ratings_and_metrics_show_every_part(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, example_runs(), tmp_path)
+        assert shown_parts(dashboard) == {"heatmap", "quantitative", "qualitative", "lollipop"}
+
+    def test_ratings_only_show_the_ratings_heatmap(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, example_runs()[["ID", "session", "run"] + RATINGS], tmp_path)
+        assert shown_parts(dashboard) == {"heatmap", "qualitative"}
+        assert dashboard.metrics == [] and len(shown_ids(dashboard, *layout_values(dashboard))) == 15
+
+    def test_metrics_only_show_no_ratings_heatmap_or_filter(self, tmp_path):
+        dashboard = make_dashboard(FMRIPrepDashboard, example_runs().drop(columns=RATINGS), tmp_path)
+        assert shown_parts(dashboard) == {"heatmap", "quantitative", "lollipop"}
+        assert dashboard.rating_columns() == [] and layout_values(dashboard)[2] == []
+
+    def test_the_metrics_heatmap_appears_once_a_threshold_is_saved(self, tmp_path):
+        config = tmp_path / "config.json"
+        config.write_text(json.dumps({"metrics": {"fd_mean": {}}}), encoding="utf-8")
+        dashboard = make_dashboard(FMRIPrepDashboard, example_runs().drop(columns=RATINGS), tmp_path, config=config)
+        assert shown_parts(dashboard) == {"lollipop"}
+
+        rows = [{**config_rows(dashboard.config.metrics)[0], "bad-op": ">=", "bad-value": 0.3}]
+        assert dashboard.settings.save(rows, version=0)[1]
+        assert shown_parts(dashboard) == {"heatmap", "quantitative", "lollipop"}

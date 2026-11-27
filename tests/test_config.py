@@ -39,7 +39,7 @@ class TestConfigErrors:
     @pytest.mark.parametrize("content,message", [
         ("{not json", "not valid JSON"),
         ({"quantitative_configs": []}, "1.x format"),
-        ({"metrics": {}}, "non-empty object"),
+        ({"metrics": []}, "'metrics' must be an object"),
         ({"metrics": {"x": {}}, "heatmap": []}, "unknown top-level field(s) ['heatmap']"),
         ({"metrics": {"cens_frac": {"lable": "C"}}}, "metrics.cens_frac: unknown field(s) ['lable']"),
         ({"metrics": {"cens_frac": {"bad": "=> 0.2"}}}, "metrics.cens_frac.bad: '=> 0.2' is not a rule"),
@@ -168,6 +168,16 @@ class TestWritingConfigs:
 
 
 class TestSavingConfigs:
+
+    @pytest.mark.parametrize("raw,text", [
+        ({"metrics": {}}, '{\n  "metrics": {}\n}\n'),
+        ({"metrics": {}, "table_columns": ["notes"]}, '{\n  "metrics": {},\n  "table_columns": ["notes"]\n}\n'),
+    ])
+    def test_a_config_without_metrics_is_saved_and_read_back(self, tmp_path, raw, text):
+        path = tmp_path / "ratings_only.json"
+        config = save_config(path, raw)
+        assert path.read_text(encoding="utf-8") == text
+        assert load_config(path) == config and config.metrics == {}
 
     def test_a_new_file_is_written_without_a_backup(self, tmp_path):
         path = tmp_path / "mine.json"

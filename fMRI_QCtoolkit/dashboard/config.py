@@ -88,8 +88,8 @@ def parse_config(raw, source="config"):
     if unknown:
         raise ConfigError(f"{source}: unknown top-level field(s) {unknown}; allowed: {', '.join(_TOP_FIELDS)}")
     metrics = raw["metrics"]
-    if not isinstance(metrics, dict) or not metrics:
-        raise ConfigError(f"{source}: 'metrics' must be a non-empty object keyed by df_final.csv column")
+    if not isinstance(metrics, dict):
+        raise ConfigError(f"{source}: 'metrics' must be an object keyed by df_final.csv column")
     metrics = {key: _parse_metric(key, entry, f"{source}: metrics.{key}") for key, entry in metrics.items()}
     return Config(metrics, parse_table_columns(raw.get("table_columns", []), metrics, f"{source}: table_columns"))
 
@@ -144,7 +144,7 @@ def dump_config(raw):
                  for f in _METRIC_FIELDS[:_METRIC_FIELDS.index(present[-1])]] if present else []
         cells += [fields[present[-1]]] if present else []
         lines.append(f"    {key.ljust(key_width)}{{{''.join(cells)}}}")
-    text = '{\n  "metrics": {\n' + ",\n".join(lines) + "\n  }"
+    text = '{\n  "metrics": {\n' + ",\n".join(lines) + "\n  }" if lines else '{\n  "metrics": {}'
     if raw.get("table_columns"):
         text += ',\n  "table_columns": ' + json.dumps(list(raw["table_columns"]), ensure_ascii=False)
     return text + "\n}\n"

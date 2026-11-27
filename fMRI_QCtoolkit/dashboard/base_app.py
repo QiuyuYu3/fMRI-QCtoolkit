@@ -42,6 +42,10 @@ ROW_HEIGHT = 32
 HEADER_HEIGHT = 36
 
 
+def _shown(visible):
+    return {} if visible else {'display': 'none'}
+
+
 class ConfigState(NamedTuple):
     """What apply_config derives from a config, replaced whole so that no request sees half of a save."""
     config: Config
@@ -58,6 +62,8 @@ class BaseDashboard:
     PIPELINE = None
     RATING_LABELS = {}
     GROUP_BY = None
+    # What Use defaults in the Settings tab brings back
+    DEFAULTS_NOTE = "The package's defaults"
     STATUS_TO_NUM = get_status_mapping()
     # The state in force; a method that reads several parts of it takes self.state once
     config = property(lambda self: self.state.config)
@@ -73,12 +79,12 @@ class BaseDashboard:
         # Saving needs --config; a --config file that does not exist yet starts from the default
         self.save_path = Path(config_path) if config_path else None
         self.config_path = (self.save_path if self.save_path and self.save_path.exists()
-                            else default_config_path(self.PIPELINE))
+                            else self.packaged_config())
         self.config_version = 0
         self.last_saved = None
         self.save_lock = threading.Lock()
         self._numeric = {}
-        self.apply_config(load_config(self.config_path))
+        self.apply_config(load_config(self.config_path) if self.config_path else self.default_config())
         self.settings = SettingsTab(self)
         self.app = dash.Dash(__name__)
         self.app.index_string = self.app.index_string.replace("{%css%}", "{%css%}" + ACCENT_STYLE)
@@ -86,6 +92,14 @@ class BaseDashboard:
         # A function, so every page load builds the sidebar from the thresholds in force
         self.app.layout = self.build_layout
         self.setup_callbacks()
+
+    def packaged_config(self):
+        """The package's config file for this pipeline; None where the defaults come from the data."""
+        return default_config_path(self.PIPELINE)
+
+    def default_config(self):
+        """The settings used until a config file is saved, and by Use defaults."""
+        return load_config(self.packaged_config())
 
     def numeric(self, column):
         if column not in self._numeric:
@@ -107,7 +121,11 @@ class BaseDashboard:
     def get_filter_components(self):
         state = self.state
         components = [create_metric_filter(m, state.bounds[m.column]) for m in state.metrics]
-        return components + [create_qualitative_dropdown(g) for g in self.rating_columns()]
+        df = self.processor.get_data()
+        return components + [create_qualitative_dropdown(g, self.rating_label(g), df[g]) for g in self.rating_columns()]
+
+    def rating_label(self, group):
+        return group.replace('_', ' ').title()
 
     def rating_columns(self):
         columns = self.processor.get_data().columns
@@ -153,7 +171,14 @@ class BaseDashboard:
                              'suppressFieldDotNotation': True, **options},
             **props)
 
+    def plot_sections(self):
+        """Which parts of the Plots tab have something to show; the others are hidden."""
+        return {'quantitative': any(m.rated for m in self.metrics),
+                'qualitative': bool(self.rating_columns()),
+                'lollipop': not self.processor.get_lollipop_data().empty}
+
     def build_layout(self):
+        shown = self.plot_sections()
         return html.Div([
             # Positions in the full table of the rows that pass the filters
             dcc.Store(id='filtered-rows'),
@@ -237,39 +262,46 @@ class BaseDashboard:
                         dcc.Tab(label='Plots', value=PLOTS_TAB, children=[
                             html.Div([
                                 # Heatmap section
+                                # A part with nothing to show is hidden, yet stays in the page as its callback's output
                                 html.Div([
                                     html.H4("Quality Control Heatmaps"),
                                     html.Div([
-                                        html.H5("Quantitative Metrics"),
-                                        self._loading(html.Div(
-                                            dcc.Graph(id='quantitative-heatmap'),
-                                            style={'overflowX': 'auto', 'width': '100%'}
-                                        )),
+                                        html.Div([
+                                            html.H5("Quantitative Metrics"),
+                                            self._loading(html.Div(
+                                                dcc.Graph(id='quantitative-heatmap'),
+                                                style={'overflowX': 'auto', 'width': '100%'}
+                                            )),
+                                        ], id='quantitative-section', style=_shown(shown['quantitative'])),
 
-                                        html.H5("Qualitative Ratings"),
-                                        self._loading(html.Div(
-                                            dcc.Graph(id='qualitative-heatmap'),
-                                            style={'overflowX': 'auto', 'width': '100%'}
-                                        ))
+                                        html.Div([
+                                            html.H5("Qualitative Ratings"),
+                                            self._loading(html.Div(
+                                                dcc.Graph(id='qualitative-heatmap'),
+                                                style={'overflowX': 'auto', 'width': '100%'}
+                                            ))
+                                        ], id='qualitative-section', style=_shown(shown['qualitative'])),
                                     ])
-                                ], style={
+                                ], id='heatmap-section', style={
                                     'background-color': '#f8f9fa',
                                     'padding': '15px',
                                     'border-radius': '5px',
                                     'border': '1px solid #dee2e6',
-                                    'margin': '20px 0'
+                                    'margin': '20px 0',
+                                    **_shown(shown['quantitative'] or shown['qualitative'])
                                 }),
 
                                 # Lollipop chart section
                                 html.Div([
                                     html.H4("Standardized Metrics Overview"),
                                     self._loading(dcc.Graph(id='lollipop-chart'))
-                                ], style={
+                                ], id='lollipop-section', style={
                                     'background-color': '#f8f9fa',
                                     'padding': '15px',
                                     'border-radius': '5px',
                                     'border': '1px solid #dee2e6',
-                                    'margin': '20px 0'
+                                    'margin': '20px 0',
+                                    **_shown(shown['lollipop'])
                                 })
                             ])
                         ]),
@@ -474,8 +506,8 @@ class BaseDashboard:
 
     def config_source(self):
         if self.save_path is None:
-            return (f"{self.config_path} (the package default; to save changes made in the Settings tab, "
-                    f"start the dashboard with --config FILE)")
+            default = f"{self.config_path} (the package default" if self.config_path else "the defaults (no file"
+            return f"{default}; to save changes made in the Settings tab, start the dashboard with --config FILE)"
         if self.save_path != self.config_path:
             return f"{self.save_path} (not created yet: starting from the default; the first save creates it)"
         return str(self.save_path)

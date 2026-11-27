@@ -1,16 +1,17 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from fMRI_QCtoolkit.dashboard.config import Metric
 from fMRI_QCtoolkit.utils.filter_components_utils import (
     RANGE,
-    RATING_OPTIONS,
     STATUS,
     create_metric_filter,
     create_qualitative_dropdown,
     create_rules_summary,
     default_statuses,
     mark_key,
+    rating_options,
     slider_bounds,
     status_options,
 )
@@ -120,10 +121,19 @@ class TestRulesSummary:
 
 class TestQualitativeDropdown:
 
-    def test_all_ratings_selected(self):
-        dropdown = by_id(create_qualitative_dropdown("FINAL_rating"), "FINAL_rating_dropdown")
-        assert dropdown.options == RATING_OPTIONS
-        assert dropdown.value == ["good", "other", "bad", "NA"]
+    def test_offers_the_ratings_in_the_column_all_selected(self):
+        values = pd.Series(["bad", None, "good", "good"])
+        dropdown = by_id(create_qualitative_dropdown("FINAL_rating", "Final", values), "FINAL_rating_dropdown")
+        assert [o["label"] for o in dropdown.options] == ["Good", "Bad", "NA"]
+        assert dropdown.value == ["good", "bad", "NA"]
+
+    @pytest.mark.parametrize("values,offered", [
+        (["other", "good", "bad"], ["good", "other", "bad"]),
+        (["bad", "good"], ["good", "bad"]),
+        ([None, None], ["NA"]),
+    ])
+    def test_na_is_offered_only_for_empty_cells(self, values, offered):
+        assert [o["value"] for o in rating_options(pd.Series(values, dtype=object))] == offered
 
 
 class TestMarkKeys:

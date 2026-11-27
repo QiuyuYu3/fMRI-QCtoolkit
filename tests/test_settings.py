@@ -306,8 +306,8 @@ class TestSaving:
     def test_an_invalid_form_leaves_the_file_alone(self, saved_to):
         original = {"metrics": {"fd_mean": {"bad": "> 1"}}}
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs(), original)
-        message, saved = dashboard.settings.save([], version=0)
-        assert not saved and "'metrics' must be a non-empty object" in message
+        message, saved = dashboard.settings.save([{**new_row("fd_mean"), "bad-value": 0.3}], version=0)
+        assert not saved and "metrics.fd_mean.bad: '0.3' is not a rule" in message
         assert json.loads(path.read_text(encoding="utf-8")) == original
         assert sorted(p.name for p in path.parent.iterdir()) == ["thresholds.json"]
 
@@ -333,6 +333,15 @@ class TestSaving:
         assert dashboard.settings.preview(rows_of(dashboard), table)['unsaved'] == ""
         assert dashboard.settings.save(rows_of(dashboard), 0, table) == (NOTHING_TO_SAVE, False)
         assert sorted(p.name for p in path.parent.iterdir()) == ["thresholds.json"]
+
+    def test_removing_every_metric_can_be_saved(self, saved_to):
+        dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())
+        shown = dashboard.settings.preview([])
+        assert shown['summary'] == "Runs shown when the dashboard opens: 4 of 4 (now 3)."
+        assert (shown['errors'], shown['save_style'], shown['unsaved']) == ([], SAVE_STYLE, "Unsaved changes")
+        assert dashboard.settings.save([], version=0)[1]
+        assert path.read_text(encoding="utf-8") == '{\n  "metrics": {}\n}\n'
+        assert dashboard.metrics == [] and len(shown_ids(dashboard, *layout_values(dashboard))) == 4
 
     def test_saving_an_untouched_form_creates_the_missing_file(self, saved_to):
         dashboard, path = saved_to(FMRIPrepDashboard, fmriprep_runs())

@@ -126,14 +126,21 @@ def create_metric_filter(metric, bounds):
     ], style={'margin-bottom': '15px'})
 
 
-def create_qualitative_dropdown(group):
-    """Create a qualitative variable dropdown component."""
+def rating_options(values):
+    """The ratings found in a column, NA if it has empty cells, in good, other, bad, NA order."""
+    found = set(values.dropna()) | ({'NA'} if values.isna().any() else set())
+    return [o for o in RATING_OPTIONS if o['value'] in found]
+
+
+def create_qualitative_dropdown(group, label, values):
+    """A rating filter offering the ratings in `values`, all selected."""
+    options = rating_options(values)
     return html.Div([
-        html.Label(group.replace('_', ' ').title(), style={'font-weight': 'bold'}),
+        html.Label(label, style={'font-weight': 'bold'}),
         dcc.Dropdown(
             id=f'{group}_dropdown',
-            options=RATING_OPTIONS,
-            value=[o['value'] for o in RATING_OPTIONS],
+            options=options,
+            value=[o['value'] for o in options],
             multi=True,
             style={'font-size': '12px'}
         )
