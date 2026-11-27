@@ -778,6 +778,18 @@ class TestFieldmapGroups:
         assert 'SDC_ses-01_run-1' in all_ids
 
 
+class TestOlderReports:
+    """Reports from fMRIPrep before 23.2 name the coregistration figure by its method."""
+
+    @pytest.mark.parametrize("method", ["surface driven", "volume based"])
+    def test_coregistration_is_rated(self, temp_app, method):
+        html = f"""<h2 class="sub-report-group">Reports for: task <span class="bids-entity">rest</span>, run <span class="bids-entity">1</span>.</h2>
+<h3 class="run-title">Alignment of functional and anatomical MRI data ({method})</h3>
+<h3 class="run-title">BOLD Summary</h3>"""
+        _, modules = temp_app.process_html_modules(html)
+        assert [m['id'] for group in modules for m in group] == ['Align_run-1', 'BOLD_run-1', 'Final_run-1']
+
+
 class TestRunNumbersFollowBIDS:
     """The run number in an id and in a CSV column is the BIDS run label."""
 

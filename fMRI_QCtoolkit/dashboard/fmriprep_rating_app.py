@@ -45,6 +45,9 @@ class FMRIPrepRatingApp:
         "Surface reconstruction": "SurfRecon",
         "Susceptibility distortion correction": "SDC",
         "Alignment of functional and anatomical MRI data (coregistration)": "Align",
+        # Before fMRIPrep 23.2 the title named the method
+        "Alignment of functional and anatomical MRI data (surface driven)": "Align",
+        "Alignment of functional and anatomical MRI data (volume based)": "Align",
         "Brain mask and (anatomical/temporal) CompCor ROIs": "CompCor",
         "Variance explained by t/aCompCor components": "Variance",
         "BOLD Summary": "BOLD",
