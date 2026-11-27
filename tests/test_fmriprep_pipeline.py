@@ -169,6 +169,42 @@ class TestCleanData:
         assert df[['ID', 'session', 'run', 'fd_mean', 'T1mask', 'Final']].values.tolist() == [
             ['01', '1', 1, 0.1, 'good', 'bad'], ['02', '1', 1, 0.2, 'other', 'good']]
 
+    @staticmethod
+    def rated(temp_dir, runs, csv_row):
+        bold_file = temp_dir / "group_bold.tsv"
+        bold_file.write_text("bids_name\tfd_mean\n" + "".join(
+            f"sub-01_ses-1_task-rest_run-{run}_bold\t0.{run}\n" for run in runs))
+        rating_dir = temp_dir / "ratings"
+        rating_dir.mkdir()
+        # The rating page writes NA for a box nobody clicked, and names run columns by the BIDS run label
+        (rating_dir / "sub-01_ses-1_rest.csv").write_text(csv_row)
+        df = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output").process().df_final
+        return df[['run', 'fd_mean', 'T1mask', 'Final']].values.tolist()
+
+    def test_a_run_left_unrated_still_gets_the_anatomy_ratings(self, temp_dir):
+        rows = self.rated(temp_dir, [1, 2], "ID,T1mask_1_r,T1mask_1_c,Final_1_r,Final_1_c,Final_2_r,Final_2_c\n"
+                                            "01,good,,bad,,NA,\n")
+        assert rows[0] == [1, 0.1, 'good', 'bad']
+        assert rows[1][:3] == [2, 0.2, 'good'] and pd.isna(rows[1][3])
+
+    def test_the_anatomy_ratings_add_no_run_of_their_own(self, temp_dir):
+        rows = self.rated(temp_dir, [2, 3], "ID,T1mask_1_r,T1mask_1_c,Final_2_r,Final_2_c,Final_3_r,Final_3_c\n"
+                                            "01,good,,good,,bad,\n")
+        assert rows == [[2, 0.2, 'good', 'good'], [3, 0.3, 'good', 'bad']]
+
+    def test_a_run_only_another_participant_has_is_not_added(self, temp_dir):
+        bold_file = temp_dir / "group_bold.tsv"
+        bold_file.write_text("bids_name\tfd_mean\nsub-01_task-rest_run-1_bold\t0.1\nsub-01_task-rest_run-2_bold\t0.2\n"
+                             "sub-02_task-rest_run-1_bold\t0.3\n")
+        rating_dir = temp_dir / "ratings"
+        rating_dir.mkdir()
+        (rating_dir / "sub-01_rest.csv").write_text("ID,T1mask_1_r,Final_1_r,Final_2_r\n01,good,good,good\n")
+        (rating_dir / "sub-02_rest.csv").write_text("ID,T1mask_1_r,Final_1_r\n02,bad,good\n")
+
+        df = FMRIPrepPipeline(bold_file, rating_dir, "rest", temp_dir / "output").process().df_final
+
+        assert df[['ID', 'run', 'T1mask']].values.tolist() == [['01', 1, 'good'], ['01', 2, 'good'], ['02', 1, 'bad']]
+
 
 class TestFromSavedData:
     

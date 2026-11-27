@@ -10,7 +10,6 @@ import pandas as pd
 import glob
 import re
 from pathlib import Path
-from collections import defaultdict
 from .base import BaseDataProcessor
 
 # sub-<ID>[_ses-<session>]_<task>.csv: a rating file prep can use, unlike one split by an entity after the task
@@ -116,53 +115,34 @@ class FMRIPrepPipeline(BaseDataProcessor):
 
             all_ratings.append(df)
         
-        fmriprep_raw = pd.concat(all_ratings, ignore_index=True)
-        
-        # Extract all rating columns (*_r) 
-        r_cols = [col for col in fmriprep_raw.columns if col.endswith('_r')]
-        
         # Convert wide to long format per run
         rows = []
-        
-        for _, row in fmriprep_raw.iterrows():
-            runs_data = defaultdict(dict)
-            common_module_values = {}
-            
-            # Get common modules
-            for col in r_cols:
-                match = re.match(r'(\w+?)_(\d+)_r', col)
-                if match:
-                    step, run = match.groups()
+
+        # File by file, so a run is one the file has columns for, not one another participant has
+        for df in all_ratings:
+            r_cols = [(col, *match.groups()) for col in df.columns
+                      if col.endswith('_r') and (match := re.match(r'(\w+?)_(\d+)_r', col))]
+            for _, row in df.iterrows():
+                runs_data = {}
+                common_module_values = {}
+                for col, step, run in r_cols:
                     value = row[col]
-                    
-                    if pd.notna(value) and step in self.COMMON_MODULES:
-                        common_module_values[step] = value
-            
-            # Get per-run modules, drop NaNs
-            for col in r_cols:
-                match = re.match(r'(\w+?)_(\d+)_r', col)
-                if match:
-                    step, run = match.groups()
+                    # The anatomy columns are numbered 1 whatever the runs, so they name no run
+                    if step in self.COMMON_MODULES:
+                        if pd.notna(value):
+                            common_module_values[step] = value
+                        continue
                     run = int(run)
-                    value = row[col]
-                    
+                    entry = runs_data.setdefault(run, {'ID': row['ID'], 'session': row['session'], 'run': run})
                     if pd.notna(value):
-                        key = (row['ID'], row['session'], run)
-                        runs_data[key]['ID'] = row['ID']
-                        runs_data[key]['session'] = row['session']
-                        runs_data[key]['run'] = run
-                        runs_data[key][step] = value
-            
-            # Fill in common module values for each run
-            for key in runs_data.keys():
-                for common_mod, common_val in common_module_values.items():
-                    if common_mod not in runs_data[key]:
-                        runs_data[key][common_mod] = common_val
-            
-            # Convert runs_data to list of rows
-            for run_row in runs_data.values():
-                rows.append(run_row)
-        
+                        entry[step] = value
+
+                # The session's anatomy ratings hold for each of its runs, rated or not
+                for entry in runs_data.values():
+                    entry.update(common_module_values)
+                    if len(entry) > 3:
+                        rows.append(entry)
+
         if not rows:
             raise ValueError("No valid rating data found after processing CSV files")
         
