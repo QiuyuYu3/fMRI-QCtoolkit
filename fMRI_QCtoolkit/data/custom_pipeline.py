@@ -90,7 +90,14 @@ class CustomPipeline(BaseDataProcessor):
         suffix = path.suffix.lower()
         if suffix not in (".csv", ".tsv"):
             raise ValueError(f"{path.name}: give a .csv or .tsv file")
-        df = read_csv_exact(path, sep="\t" if suffix == ".tsv" else ",", dtype=dict.fromkeys(KEYS, str))
+        sep = "\t" if suffix == ".tsv" else ","
+        df = read_csv_exact(path, sep=sep, dtype=dict.fromkeys(KEYS, str))
+        # pandas renames a repeated column name to name.1, so the names are read as a row of data
+        names = pd.read_csv(path, sep=sep, header=None, nrows=1, dtype=str).iloc[0].dropna()
+        repeated_names = sorted(set(names[names.duplicated()]))
+        if repeated_names:
+            raise ValueError(f"{path.name}: more than one column named {', '.join(repeated_names)}. "
+                             "Give each column its own name.")
         if "ID" not in df.columns:
             raise ValueError(f"{path.name}: no ID column; name the participant column ID")
         for key in [k for k in KEYS if k in df.columns]:

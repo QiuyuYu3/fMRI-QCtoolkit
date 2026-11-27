@@ -18,7 +18,7 @@ from dash.exceptions import PreventUpdate
 from .config import ID_COLUMNS, Config, default_config_path, load_config, resolve_metrics
 from .settings import SETTINGS_CSS, SETTINGS_TAB, SettingsTab
 from ..utils.access import AccessGate, url_host
-from ..utils.filter_components_utils import (ACCENT, RANGE, SIDEBAR_CSS, STATUS, create_metric_filter,
+from ..utils.filter_components_utils import (ACCENT, RANGE, RATING, SIDEBAR_CSS, STATUS, create_metric_filter,
                                              create_qualitative_dropdown, create_rules_summary, default_statuses,
                                              slider_bounds)
 from ..utils.plots import create_lollipop_plot, create_heatmap
@@ -367,7 +367,7 @@ class BaseDashboard:
             return create_lollipop_plot(self.processor.get_lollipop_data(), group_by=self.GROUP_BY), True
 
     def filtered_positions(self, ranges, statuses, ratings):
-        """Positions in the full table of the rows that pass every filter; `ranges` and `statuses` are keyed by column."""
+        """Positions in the full table of the rows that pass every filter; each argument is keyed by column."""
         df = self.processor.get_data()
         state = self.state
         keep = np.ones(len(df), dtype=bool)
@@ -377,7 +377,7 @@ class BaseDashboard:
             allowed = set(selected or []) | (set() if metric.rated else {'good'})
             keep &= state.status[metric.column].isin(allowed).to_numpy()
             keep &= self._in_range(state, metric.column, ranges.get(metric.column))
-        for group, selected in zip(self.rating_columns(), ratings):
+        for group, selected in ratings.items():
             selected = selected or []
             passed = df[group].isin([v for v in selected if v != 'NA'])
             if 'NA' in selected:
@@ -400,18 +400,15 @@ class BaseDashboard:
         return passed | np.isnan(values)
 
     def _setup_table_callback(self):
-        groups = self.rating_columns()
-
         # The grid keeps the selection of the rows that are still shown, since their row ids stay the same
         @self.app.callback(
             [Output('datatable', 'rowData'), Output('filtered-rows', 'data')],
-            [Input({'type': RANGE, 'column': ALL}, 'value'), Input({'type': STATUS, 'column': ALL}, 'value')]
-            + [Input(f'{g}_dropdown', 'value') for g in groups]
+            [Input({'type': kind, 'column': ALL}, 'value') for kind in (RANGE, STATUS, RATING)]
         )
-        def update_table(*args):
-            ranges, statuses = ({item['id']['column']: item.get('value') for item in items}
-                                for items in ctx.inputs_list[:2])
-            positions = self.filtered_positions(ranges, statuses, args[2:])
+        def update_table(*_):
+            ranges, statuses, ratings = ({item['id']['column']: item.get('value') for item in items}
+                                         for items in ctx.inputs_list)
+            positions = self.filtered_positions(ranges, statuses, ratings)
             return self.table_records(positions), positions
 
     def selected_data(self, selected_rows, positions=None):

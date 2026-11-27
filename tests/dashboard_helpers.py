@@ -13,7 +13,7 @@ from fMRI_QCtoolkit.dashboard.custom_app import CustomDashboard
 from fMRI_QCtoolkit.data.afni_pipeline import AFNIPipeline
 from fMRI_QCtoolkit.data.custom_pipeline import CustomPipeline
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
-from fMRI_QCtoolkit.utils.filter_components_utils import RANGE, STATUS
+from fMRI_QCtoolkit.utils.filter_components_utils import RANGE, RATING, STATUS
 
 
 def make_dashboard(cls, df, tmp_path, config=None):
@@ -34,9 +34,7 @@ def layout_values(dashboard):
     def by_column(kind):
         return {c.id["column"]: c.value for c in comps if isinstance(c.id, dict) and c.id["type"] == kind}
 
-    named = {c.id: c for c in comps if isinstance(c.id, str)}
-    ratings = [named[f"{g}_dropdown"].value for g in dashboard.rating_columns()]
-    return by_column(RANGE), by_column(STATUS), ratings
+    return by_column(RANGE), by_column(STATUS), by_column(RATING)
 
 
 def shown_ids(dashboard, ranges, statuses, ratings):
@@ -89,6 +87,16 @@ def dash_call(dashboard, output, values, changed, comps=None):
 
 
 FD_MEAN_RANGE = stringify_id({"type": RANGE, "column": "fd_mean"}) + ".value"
+
+
+def rating_filters(dashboard):
+    """The sidebar's rating filters, keyed by column."""
+    return {c.id["column"]: c for c in layout_components(dashboard)
+            if isinstance(c.id, dict) and c.id["type"] == RATING}
+
+
+def rating_filter_id(column):
+    return stringify_id({"type": RATING, "column": column})
 
 
 def afni_runs():

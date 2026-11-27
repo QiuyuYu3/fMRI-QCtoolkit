@@ -32,9 +32,10 @@ SIDEBAR_CSS = ('.dash-slider-mark[style*="bottom: auto"]::before '
 _OUTWARD = ('translateX(-100%)', 'translateX(0%)')
 # The dashboard's blue, muted so the controls do not outshine the data
 ACCENT = '#5289bd'
-# Component types of the sidebar's per-metric filters; the column names the instance
+# Component types of the sidebar's per-column filters; the column names the instance
 RANGE = 'metric-range'
 STATUS = 'metric-status'
+RATING = 'rating-filter'
 _NOTE_STYLE = {'font-size': '14px', 'color': '#555'}
 
 
@@ -138,7 +139,7 @@ def create_qualitative_dropdown(group, label, values):
     return html.Div([
         html.Label(label, style={'font-weight': 'bold'}),
         dcc.Dropdown(
-            id=f'{group}_dropdown',
+            id={'type': RATING, 'column': group},
             options=options,
             value=[o['value'] for o in options],
             multi=True,

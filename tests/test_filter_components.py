@@ -5,6 +5,7 @@ import pytest
 from fMRI_QCtoolkit.dashboard.config import Metric
 from fMRI_QCtoolkit.utils.filter_components_utils import (
     RANGE,
+    RATING,
     STATUS,
     create_metric_filter,
     create_qualitative_dropdown,
@@ -123,7 +124,8 @@ class TestQualitativeDropdown:
 
     def test_offers_the_ratings_in_the_column_all_selected(self):
         values = pd.Series(["bad", None, "good", "good"])
-        dropdown = by_id(create_qualitative_dropdown("FINAL_rating", "Final", values), "FINAL_rating_dropdown")
+        dropdown = by_id(create_qualitative_dropdown("FINAL_rating", "Final", values),
+                         {"type": RATING, "column": "FINAL_rating"})
         assert [o["label"] for o in dropdown.options] == ["Good", "Bad", "NA"]
         assert dropdown.value == ["good", "bad", "NA"]
 

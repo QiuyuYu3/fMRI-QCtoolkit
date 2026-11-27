@@ -62,6 +62,10 @@ class TestReading:
         assert df.to_dict("list") == {"ID": ["001", "002"], "Final": ["good", "bad"], "fd_mean": [0.1, 0.3]}
         assert (tmp_path / "out" / "df_final.csv").read_text().splitlines()[1] == "001,good,0.1"
 
+    def test_empty_names_left_by_a_spreadsheet_are_not_repeats(self, tmp_path):
+        df = prep(tmp_path, write(tmp_path / "qc.csv", "﻿ID,Final,,\n001,good,,\n002,bad,,\n"))
+        assert df["Final"].tolist() == ["good", "bad"]
+
     def test_a_tsv_is_read_with_tabs_and_bids_labels_lose_their_prefixes(self, tmp_path):
         df = prep(tmp_path, write(tmp_path / "qc.tsv", "ID\tsession\trun\tsnr\nsub-01\tses-pre\trun-02\t5\n"))
         assert df[["ID", "session", "run"]].values.tolist() == [["01", "pre", 2]]
@@ -73,6 +77,8 @@ class TestReading:
         ("qc.csv", "ID,run,snr\n001,a,5\n001,1.5,6\n", "qc.csv: run must be a whole number, not 1.5, a"),
         ("qc.csv", "ID,run,snr\n001,1,5\n001,run-1,6\n002,1,5\n002,1,6\n",
          "qc.csv: more than one row for ID 001, run 1; ID 002, run 1"),
+        ("qc.csv", "ID,Final,snr,Final,snr,snr\n001,good,5,bad,6,7\n",
+         "qc.csv: more than one column named Final, snr. Give each column its own name."),
     ])
     def test_a_file_that_cannot_be_used_is_named_with_the_problem(self, tmp_path, name, text, message):
         with pytest.raises(ValueError) as error:

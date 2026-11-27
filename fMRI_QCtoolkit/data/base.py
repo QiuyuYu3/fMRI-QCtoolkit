@@ -72,12 +72,13 @@ class BaseDataProcessor(ABC):
         
         # Pivot to long format for visualization (keep session/run for grouping)
         id_vars = ["ID"] + [c for c in ("session", "run") if c in scaled_data.columns]
-        lollipop_data = scaled_data.melt(
+        # melt refuses a value name that is also a column, so a column named Value goes in under another name
+        lollipop_data = scaled_data[id_vars + vars_of_interest].melt(
             id_vars=id_vars,
             value_vars=vars_of_interest,
             var_name="Variable",
-            value_name="Value"
-        )
+            value_name="_value"
+        ).rename(columns={"_value": "Value"})
         
         # Add metadata
         lollipop_data["mean_value"] = lollipop_data["Variable"].map(mean_values.to_dict())

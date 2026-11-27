@@ -20,7 +20,7 @@ from fMRI_QCtoolkit.data.base import read_csv_exact
 from fMRI_QCtoolkit.data.custom_pipeline import CustomPipeline
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
 from tests.dashboard_helpers import (FD_MEAN_RANGE, afni_runs, dash_call, layout_components, layout_values,
-                                     make_dashboard, shown_ids)
+                                     make_dashboard, rating_filter_id, rating_filters, shown_ids)
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "example_data" / "fmriprep"
 
@@ -67,19 +67,18 @@ class TestDefaultView:
                            "fd_mean": [0.1] * 3, "Final": ["good", "bad", None]})
         dashboard = make_dashboard(FMRIPrepDashboard, df, tmp_path)
         ranges, statuses, ratings = layout_values(dashboard)
-        final = dashboard.rating_columns().index("Final")
-        ratings[final] = ["good", "NA"]
+        ratings["Final"] = ["good", "NA"]
         assert shown_ids(dashboard, ranges, statuses, ratings) == ["001", "003"]
 
     def test_only_the_ratings_in_the_data_get_a_filter(self, tmp_path):
         df = afni_runs().assign(mot_rating="good", mecho_rating=["good"] * 7 + ["bad"])
         dashboard = make_dashboard(AFNIDashboard, df, tmp_path)
-        dropdowns = [c.id for c in layout_components(dashboard) if isinstance(c.id, str) and c.id.endswith("_dropdown")]
-        assert dropdowns == ["mot_rating_dropdown", "mecho_rating_dropdown"]
+        assert list(rating_filters(dashboard)) == ["mot_rating", "mecho_rating"]
         assert set(dashboard.RATING_LABELS) == set(dashboard.processor.checkbox_groups)
 
-        response = dash_call(dashboard, "datatable.rowData", {("mecho_rating_dropdown", "value"): ["good"]},
-                             "mecho_rating_dropdown.value").get_json()["response"]
+        mecho = rating_filter_id("mecho_rating")
+        response = dash_call(dashboard, "datatable.rowData", {(mecho, "value"): ["good"]},
+                             f"{mecho}.value").get_json()["response"]
         assert [row["ID"] for row in response["datatable"]["rowData"]] == ["001", "003", "005"]
 
     def test_an_infinite_value_is_rated_and_leaves_the_slider_and_lollipop_to_the_others(self, tmp_path):
@@ -442,9 +441,9 @@ class TestRatingFilters:
         df = pd.DataFrame({"ID": ["001", "002", "003"], "session": ["01"] * 3, "run": [1, 1, 1],
                            "fd_mean": [0.1] * 3, "Final": ["good", "bad", "good"], "SDC": ["good", None, "other"]})
         dashboard = make_dashboard(FMRIPrepDashboard, df, tmp_path)
-        named = {c.id: c for c in layout_components(dashboard) if isinstance(c.id, str)}
-        assert [o["value"] for o in named["Final_dropdown"].options] == ["good", "bad"]
-        assert [o["value"] for o in named["SDC_dropdown"].options] == ["good", "other", "NA"]
+        filters = rating_filters(dashboard)
+        assert [o["value"] for o in filters["Final"].options] == ["good", "bad"]
+        assert [o["value"] for o in filters["SDC"].options] == ["good", "other", "NA"]
         assert shown_ids(dashboard, *layout_values(dashboard)) == ["001", "002", "003"]
 
 
@@ -463,7 +462,7 @@ class TestPlotParts:
     def test_metrics_only_show_no_ratings_heatmap_or_filter(self, tmp_path):
         dashboard = make_dashboard(FMRIPrepDashboard, example_runs().drop(columns=RATINGS), tmp_path)
         assert shown_parts(dashboard) == {"heatmap", "quantitative", "lollipop"}
-        assert dashboard.rating_columns() == [] and layout_values(dashboard)[2] == []
+        assert dashboard.rating_columns() == [] and layout_values(dashboard)[2] == {}
 
     def test_the_metrics_heatmap_appears_once_a_threshold_is_saved(self, tmp_path):
         config = tmp_path / "config.json"
@@ -501,8 +500,7 @@ class TestCustomDashboard:
     def test_without_other_the_filter_offers_good_and_bad(self, tmp_path):
         df = example_runs()[["ID", "session", "run"] + RATINGS].replace("other", "bad")
         dashboard = make_dashboard(CustomDashboard, df, tmp_path)
-        dropdown = next(c for c in layout_components(dashboard) if c.id == "Final_dropdown")
-        assert [o["value"] for o in dropdown.options] == ["good", "bad"]
+        assert [o["value"] for o in rating_filters(dashboard)["Final"].options] == ["good", "bad"]
 
     def test_pass_and_fail_are_shown_in_the_table_only(self, tmp_path):
         df = example_runs()[["ID", "session", "run"] + RATINGS]
@@ -510,15 +508,34 @@ class TestCustomDashboard:
         dashboard = make_dashboard(CustomDashboard, df, tmp_path)
         assert "Final" not in dashboard.rating_columns() and dashboard.config.table_columns == ("Final",)
         assert "Final" in dashboard.table_column_ids()
-        assert not any(c.id == "Final_dropdown" for c in layout_components(dashboard))
+        assert "Final" not in rating_filters(dashboard)
         assert len(shown_ids(dashboard, *layout_values(dashboard))) == 15
 
     def test_ratings_in_any_case_are_filtered_as_lower_case(self, tmp_path):
         df = pd.DataFrame({"ID": ["001", "002", "003"], "Final": [" Good", "BAD", None]})
         dashboard = make_dashboard(CustomDashboard, df, tmp_path)
         ranges, statuses, ratings = layout_values(dashboard)
-        assert ratings == [["good", "bad", "NA"]]
-        assert shown_ids(dashboard, ranges, statuses, [["good"]]) == ["001"]
+        assert ratings == {"Final": ["good", "bad", "NA"]}
+        assert shown_ids(dashboard, ranges, statuses, {"Final": ["good"]}) == ["001"]
+
+    def test_a_rating_named_with_dots_filters_the_table(self, tmp_path):
+        df = pd.DataFrame({"ID": ["001", "002", "003"], "motion.rating": ["good", "bad", "good"],
+                           "fd.mean": [0.1, 0.2, 0.3]})
+        dashboard = make_dashboard(CustomDashboard, df, tmp_path)
+        column = rating_filter_id("motion.rating")
+        response = dash_call(dashboard, "datatable.rowData", {(column, "value"): ["bad"]},
+                             f"{column}.value").get_json()["response"]
+        assert [row["ID"] for row in response["datatable"]["rowData"]] == ["002"]
+
+    @pytest.mark.parametrize("kind", ["metric", "text"])
+    def test_a_column_named_value_is_drawn_like_any_other(self, tmp_path, kind):
+        df = pd.DataFrame({"ID": ["001", "002"], "fd_mean": [0.1, 0.3],
+                           "Value": [1.0, 3.0] if kind == "metric" else ["a", "b"]})
+        dashboard = make_dashboard(CustomDashboard, df, tmp_path)
+        lollipop = dashboard.processor.get_lollipop_data()
+        drawn = ["Value", "fd_mean"] if kind == "metric" else ["fd_mean"]
+        assert sorted(lollipop["Variable"].unique()) == drawn
+        assert lollipop.loc[lollipop["Variable"] == "fd_mean", "Value"].tolist() == [-0.707, 0.707]
 
     @pytest.mark.parametrize("keys,group_by", [
         (["session", "run"], ["session", "run"]), (["session"], "session"), (["run"], "run"), ([], None)])

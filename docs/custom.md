@@ -25,7 +25,7 @@ Each file has one row per participant, session or run, with these columns:
 
 The files are matched on the ID, session and run columns they share. A file with only `ID` (one row per participant) gives its values to each of that participant's runs. Rows found in only one file are kept, with the other files' columns left empty. The terminal says how many rows matched, and warns when none did.
 
-Two rows of one file with the same ID, session and run, or one column name in two files, stop the command with a message that names them.
+Two rows of one file with the same ID, session and run, or one column name used twice, in one file or across files, stop the command with a message that names them.
 
 ## How the columns are read
 
