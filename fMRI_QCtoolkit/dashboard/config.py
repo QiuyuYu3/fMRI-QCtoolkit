@@ -16,7 +16,7 @@ CONFIG_FILES = {"afni": "afni_config.json", "fmriprep": "fmriprep_config.json", 
 # Columns of df_final.csv that identify a run rather than measure it
 ID_COLUMNS = ("ID", "session", "run")
 _METRIC_FIELDS = ("label", *RULE_TIERS, "otherwise", "step")
-_TOP_FIELDS = ("metrics", "table_columns")
+_TOP_FIELDS = ("metrics", "table_columns", "autorate")
 
 
 class ConfigError(ValueError):
@@ -41,15 +41,17 @@ class Metric:
 
 @dataclass(frozen=True, eq=False)
 class Config:
-    """{config key: Metric}, and the columns the table shows after the metrics, without a filter or rating."""
+    """{config key: Metric}, the table-only columns, and the autorate settings, which the dashboard keeps as read."""
     metrics: dict
     table_columns: tuple = ()
+    autorate: dict = None
 
     def __eq__(self, other):
         # Metric order counts: it is the order of the sidebar and the table
         if not isinstance(other, Config):
             return NotImplemented
-        return (list(self.metrics.items()), self.table_columns) == (list(other.metrics.items()), other.table_columns)
+        return ((list(self.metrics.items()), self.table_columns, self.autorate)
+                == (list(other.metrics.items()), other.table_columns, other.autorate))
 
 
 def same_settings(a, b):
@@ -91,7 +93,11 @@ def parse_config(raw, source="config"):
     if not isinstance(metrics, dict):
         raise ConfigError(f"{source}: 'metrics' must be an object keyed by df_final.csv column")
     metrics = {key: _parse_metric(key, entry, f"{source}: metrics.{key}") for key, entry in metrics.items()}
-    return Config(metrics, parse_table_columns(raw.get("table_columns", []), metrics, f"{source}: table_columns"))
+    autorate = raw.get("autorate")
+    if autorate is not None and not isinstance(autorate, dict):
+        raise ConfigError(f"{source}: 'autorate' must be an object")
+    return Config(metrics, parse_table_columns(raw.get("table_columns", []), metrics, f"{source}: table_columns"),
+                  autorate)
 
 
 def parse_entry(key, entry):
@@ -125,28 +131,50 @@ def config_to_raw(config):
     raw = {"metrics": metrics}
     if config.table_columns:
         raw["table_columns"] = list(config.table_columns)
+    if config.autorate is not None:
+        raw["autorate"] = config.autorate
     return raw
+
+
+def _aligned_entries(entries, fields, indent):
+    """One line per entry, each field in its own column."""
+    rows = []
+    for key, entry in entries.items():
+        cells = {f: f"{json.dumps(f)}: {json.dumps(entry[f], ensure_ascii=False)}" for f in fields if f in entry}
+        rows.append((json.dumps(key, ensure_ascii=False) + ":", cells))
+    key_width = max((len(key) for key, _ in rows), default=0) + 1
+    widths = {f: max((len(cells[f]) + 2 for _, cells in rows if f in cells), default=0) for f in fields}
+    lines = []
+    for key, cells in rows:
+        present = [f for f in fields if f in cells]
+        line = [(cells[f] + "," if f in cells else "").ljust(widths[f])
+                for f in fields[:fields.index(present[-1])]] if present else []
+        line += [cells[present[-1]]] if present else []
+        lines.append(f"{indent}{key.ljust(key_width)}{{{''.join(line)}}}")
+    return lines
+
+
+def _dump_autorate(block):
+    """An object of objects with one entry per line, anything else on one line."""
+    lines = []
+    for key, value in block.items():
+        name = json.dumps(key, ensure_ascii=False)
+        if isinstance(value, dict) and value and all(isinstance(v, dict) for v in value.values()):
+            fields = list(dict.fromkeys(f for entry in value.values() for f in entry))
+            lines.append(f"    {name}: {{\n" + ",\n".join(_aligned_entries(value, fields, "      ")) + "\n    }")
+        else:
+            lines.append(f"    {name}: {json.dumps(value, ensure_ascii=False)}")
+    return "{\n" + ",\n".join(lines) + "\n  }" if lines else "{}"
 
 
 def dump_config(raw):
     """JSON text with one line per metric, each field in its own column, as the default files are laid out."""
-    rows = []
-    for key, entry in raw["metrics"].items():
-        fields = {f: f"{json.dumps(f)}: {json.dumps(entry[f], ensure_ascii=False)}"
-                  for f in _METRIC_FIELDS if f in entry}
-        rows.append((json.dumps(key, ensure_ascii=False) + ":", fields))
-    key_width = max((len(key) for key, _ in rows), default=0) + 1
-    widths = {f: max((len(fields[f]) + 2 for _, fields in rows if f in fields), default=0) for f in _METRIC_FIELDS}
-    lines = []
-    for key, fields in rows:
-        present = [f for f in _METRIC_FIELDS if f in fields]
-        cells = [(fields[f] + "," if f in fields else "").ljust(widths[f])
-                 for f in _METRIC_FIELDS[:_METRIC_FIELDS.index(present[-1])]] if present else []
-        cells += [fields[present[-1]]] if present else []
-        lines.append(f"    {key.ljust(key_width)}{{{''.join(cells)}}}")
+    lines = _aligned_entries(raw["metrics"], _METRIC_FIELDS, "    ")
     text = '{\n  "metrics": {\n' + ",\n".join(lines) + "\n  }" if lines else '{\n  "metrics": {}'
     if raw.get("table_columns"):
         text += ',\n  "table_columns": ' + json.dumps(list(raw["table_columns"]), ensure_ascii=False)
+    if raw.get("autorate") is not None:
+        text += ',\n  "autorate": ' + _dump_autorate(raw["autorate"])
     return text + "\n}\n"
 
 

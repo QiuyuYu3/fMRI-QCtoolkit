@@ -8,7 +8,8 @@ import subprocess
 from .data.fmriprep_pipeline import FMRIPrepPipeline
 from .data.afni_pipeline import AFNIPipeline
 from .data.custom_pipeline import CustomPipeline
-from .dashboard.config import ConfigError, config_beside, default_config_path
+from .autorate.afni import TABLE_FILE, CalibrationError, run as run_autorate
+from .dashboard.config import CONFIG_FILES, ConfigError, config_beside, default_config_path
 from .dashboard.fmriprep_app import FMRIPrepDashboard
 from .dashboard.afni_app import AFNIDashboard
 from .dashboard.custom_app import CustomDashboard
@@ -25,12 +26,14 @@ DASHBOARD_TASK_HELP = "Task name, used in the names of downloaded files"
 prep_app = typer.Typer(help="Data preparation")
 dashboard_app = typer.Typer(help="Dashboard visualization")
 rating_app = typer.Typer(help="Quality rating interface")
-config_app = typer.Typer(help="Write the default dashboard config (thresholds and filters) to edit")
+config_app = typer.Typer(help="Write the default config (dashboard thresholds and filters, autorate settings) to edit")
+autorate_app = typer.Typer(help="Sort runs into include, exclude and review by a person, from their metrics and your QC policy")
 
 app.add_typer(prep_app, name="prep")
 app.add_typer(dashboard_app, name="dashboard")
 app.add_typer(rating_app, name="rating")
 app.add_typer(config_app, name="config")
+app.add_typer(autorate_app, name="autorate")
 
 CONFIG_HELP = ("Dashboard config JSON with your thresholds; the Settings tab saves to it, and creates it from "
                "the default if it does not exist. Default: afni_config.json, fmriprep_config.json or "
@@ -246,6 +249,46 @@ def config_fmriprep(
     force: bool = typer.Option(False, help="Overwrite the file if it already exists"),
 ):
     export_config("fmriprep", output, force)
+
+# ----------------------------
+# Autorate Commands
+# ----------------------------
+@autorate_app.command("afni")
+def autorate_afni(
+    input_dir: Path = typer.Option(..., help="AFNI derivatives' root directory"),
+    task: str = typer.Option(..., help=AFNI_TASK_HELP),
+    prefix: str = typer.Option(..., help=PREFIX_HELP),
+    output_dir: Path = typer.Option(..., help="Output directory"),
+    config: Optional[Path] = typer.Option(None, help="Config JSON with the thresholds and the autorate settings. "
+                                          "Default: afni_config.json in --output-dir, the file the dashboard uses; "
+                                          "the package's default if it is not there"),
+    calibrate: bool = typer.Option(False, help="First choose the score cutoffs from the runs rated in APQC, "
+                                   "and save them to the config"),
+):
+    validate_dir_exists(input_dir, "Input directory")
+    ensure_output_dir(output_dir)
+    if config is None:
+        config = output_dir / CONFIG_FILES["afni"]
+    if config.is_dir():
+        typer.echo(f"Config file is a directory: {config}; give a file name such as {config / 'afni_config.json'}", err=True)
+        raise typer.Exit(code=1)
+
+    pipeline = AFNIPipeline(input_dir=input_dir, task=task, prefix=prefix, output_dir=output_dir)
+    try:
+        df = pipeline.load()
+    except (FileNotFoundError, ValueError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+    try:
+        text = run_autorate(df, config, output_dir, do_calibrate=calibrate)
+    except ConfigError as e:
+        typer.echo(f"Config error: {e}", err=True)
+        raise typer.Exit(code=1)
+    except CalibrationError as e:
+        typer.echo(f"Cannot calibrate: {e}", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(text)
+    typer.echo(f"Each run's decision and reason: {output_dir / TABLE_FILE}")
 
 # ----------------------------
 # Rating Commands

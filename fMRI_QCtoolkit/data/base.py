@@ -116,8 +116,8 @@ class BaseDataProcessor(ABC):
             self.df_final.to_csv(df_path, index=False)
             print(f"Saved final dataframe to: {df_path}")
 
-    def process(self):
-        """Main processing pipeline."""
+    def load(self):
+        """Read and clean the source files into df_final without writing anything."""
         print("Loading raw data...")
         self._load_raw_data()
 
@@ -126,6 +126,11 @@ class BaseDataProcessor(ABC):
 
         print("Processing final dataframe...")
         self._sort_by_id()
+        return self.df_final
+
+    def process(self):
+        """Main processing pipeline."""
+        self.load()
 
         # Save processed data
         self.save_data()

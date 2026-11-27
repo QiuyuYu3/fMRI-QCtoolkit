@@ -148,6 +148,15 @@ class TestWritingConfigs:
         }})
         assert parse_config(json.loads(dump_config(config_to_raw(config)))) == config
 
+    def test_the_autorate_block_is_kept_as_read_and_must_be_an_object(self):
+        raw = {"metrics": {"a": {"bad": "> 1"}},
+               "autorate": {"metrics": {"a": {"tolerance": "10%"}}, "cutoffs": {"bad": 1, "other": 0.5}}}
+        config = parse_config(raw)
+        assert config.autorate == raw["autorate"]
+        assert parse_config(json.loads(dump_config(config_to_raw(config)))) == config
+        with pytest.raises(ConfigError, match="'autorate' must be an object"):
+            parse_config({"metrics": {}, "autorate": []})
+
     def test_table_only_columns_read_back_the_same_on_one_line_after_the_metrics(self):
         config = parse_config({"metrics": {"fd_mean": {"bad": "> 0.5"}}, "table_columns": ["snr", "efc"]})
         text = dump_config(config_to_raw(config))

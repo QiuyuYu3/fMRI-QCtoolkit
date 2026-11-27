@@ -58,7 +58,8 @@ class TestFormEntries:
 
     def test_rows_read_back_as_the_config(self):
         config = load_config(default_config_path("afni"))
-        assert dump_config(form_raw(config_rows(config.metrics))) == default_config_path("afni").read_text(encoding="utf-8")
+        assert (dump_config(form_raw(config_rows(config.metrics), autorate=config.autorate))
+                == default_config_path("afni").read_text(encoding="utf-8"))
 
     def test_an_empty_label_falls_back_to_the_column_name(self):
         assert row_entry({**new_row("efc"), "label": "  "}) == {}
@@ -247,6 +248,16 @@ class TestSaving:
         assert dashboard.status["efc"].tolist() == ["good", "good", "bad", "bad"]
         assert shown_ids(dashboard, *layout_values(dashboard)) == ["001", "002"]
         assert dashboard.table_column_ids()[-2:] == ["efc", "Final"]
+
+    def test_saving_and_downloading_keep_the_autorate_settings(self, saved_to):
+        dashboard, path = saved_to(AFNIDashboard, afni_runs())
+        block = json.loads(default_config_path("afni").read_text(encoding="utf-8"))["autorate"]
+        rows = rows_of(dashboard)
+        row(rows, "cens_frac")["bad-value"] = 0.3
+        assert json.loads(dashboard.settings.config_file(rows)[1])["autorate"] == block
+        assert dashboard.settings.save(rows, version=0)[1]
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        assert saved["autorate"] == block and saved["metrics"]["cens_frac"]["bad"] == ">= 0.3"
 
     def test_a_folder_that_cannot_be_written_points_to_config_and_download(self, saved_to, monkeypatch):
         dashboard, _ = saved_to(FMRIPrepDashboard, fmriprep_runs())

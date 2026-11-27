@@ -1,6 +1,8 @@
 # Change Log
 
 ## [Unreleased]
+### Added
+- `fmriqc autorate afni` sorts AFNI runs into include, exclude and review by a person, from their metrics and the QC policy in `afni_config.json`, and can set its score cutoffs from runs you have rated in APQC.
 
 
 ## [2.1.0] - 2026-11-27

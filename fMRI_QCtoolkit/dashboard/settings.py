@@ -124,10 +124,13 @@ def default_rest(row):
     return rest_tier(dict.fromkeys(given))
 
 
-def form_raw(rows, table=()):
+def form_raw(rows, table=(), autorate=None):
+    """The config the form describes, with the autorate settings, which the form does not edit, as they were."""
     raw = {'metrics': {row['key']: row_entry(row) for row in rows}}
     if table:
         raw['table_columns'] = list(table)
+    if autorate is not None:
+        raw['autorate'] = autorate
     return raw
 
 
@@ -368,7 +371,7 @@ class SettingsTab:
         """(file name, text) of the form's settings as a config file; raises ConfigError if they are invalid."""
         d = self.dashboard
         name = d.save_path.name if d.save_path else f"{d.PIPELINE}_config.json"
-        raw = form_raw(rows, self.in_data_order(table))
+        raw = form_raw(rows, self.in_data_order(table), d.config.autorate)
         parse_config(raw, source=name)
         return name, dump_config(raw)
 
@@ -417,7 +420,7 @@ class SettingsTab:
             if version != d.config_version:
                 return "Not saved: settings were changed in another tab. Reload the page and try again.", False
             existed = d.save_path.exists()
-            raw = form_raw(rows, self.in_data_order(table))
+            raw = form_raw(rows, self.in_data_order(table), d.config.autorate)
             try:
                 # Writing the same settings again would replace the backup of the version before them
                 if existed and same_settings(parse_config(raw, source=str(d.save_path)), d.config):

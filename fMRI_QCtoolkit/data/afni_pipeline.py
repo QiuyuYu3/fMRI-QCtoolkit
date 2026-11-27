@@ -20,6 +20,8 @@ def _all_numbers(values):
 # AFNI writes a single value as plain text and several as a list; this one is per stimulus class even when there is one
 ALWAYS_LISTS = {"fraction TRs censored"}
 SESSION = re.compile(r"(?<![A-Za-z0-9])ses-([A-Za-z0-9]+)")
+# The sections of the APQC rating buttons; each rating is a <section> rating key, then a <section>_rating column
+APQC_SECTIONS = ("vorig", "ve2a", "va2t", "vstat", "mot", "mecho", "regr", "radcor", "warns", "qsumm", "FINAL")
 
 
 def _split_session(subject_id, folder):
@@ -50,11 +52,7 @@ class AFNIPipeline(BaseDataProcessor):
     
     def _set_variables(self):
         """Set AFNI-specific variables."""
-        self.checkbox_groups = [
-            "vorig_rating", "ve2a_rating", "va2t_rating", "vstat_rating",
-            "mot_rating", "mecho_rating", "regr_rating", "radcor_rating", "warns_rating",
-            "qsumm_rating", "FINAL_rating"
-        ]
+        self.checkbox_groups = [f"{section}_rating" for section in APQC_SECTIONS]
         
         # Get frac columns from dataframe if available
         if self.df_final is not None:
