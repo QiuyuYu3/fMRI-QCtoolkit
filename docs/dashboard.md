@@ -39,7 +39,7 @@ The top of the sidebar lists the thresholds. Below it, each metric has:
 - **a slider**, which keeps only the runs within its range. The green and red numbers above it are the good and bad thresholds.
 - **tick boxes** for the ratings to show. Bad starts unticked; tick it to show those runs again.
 
-At the bottom, a list for each section of the report keeps only the runs with the ratings you choose. A run is shown only if it passes every filter.
+At the bottom, a list for each section of the report keeps only the runs with the ratings you choose; it offers the ratings found in that section. A run is shown only if it passes every filter.
 
 ## Table
 
@@ -68,3 +68,5 @@ For AFNI, the fraction of TRs censored gets one row per stimulus class:
 ![The lollipop chart of standardized metrics](images/lollipop.png)
 
 **Standardized Metrics Overview** puts the main metrics on one scale (z-scores), one color per metric and one lollipop per run, so a run far from 0 stands out from the rest. It always shows every run, whatever the filters.
+
+A heatmap or chart with nothing to show is left out, such as the ratings heatmap when `df_final.csv` has no ratings.

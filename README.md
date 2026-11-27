@@ -61,6 +61,8 @@ fmriqc prep fmriprep \
     --output-dir /PATH/QC
 ```
 
+Ratings or metrics from other software can be opened from your own tables with `fmriqc prep custom` and `fmriqc dashboard custom` (see [Your own tables](https://qiuyuyu3.github.io/fMRI-QCtoolkit/custom.html)).
+
 ### 3. View
 
 ```bash

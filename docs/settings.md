@@ -57,7 +57,7 @@ Discard changes
 : Goes back to the saved settings.
 
 Use defaults
-: Fills in the package's defaults. They are saved only when you press Save.
+: Fills in the package's defaults, or for [your own tables](custom.md) every metric without thresholds. They are saved only when you press Save.
 
 Download config
 : Saves the settings in the form as a file on the computer running the browser, for example to keep with a study, to share, or to start from next time with `--config`. It works even when Save cannot write to the server.

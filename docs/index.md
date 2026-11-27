@@ -9,6 +9,8 @@ The toolkit works with two preprocessing pipelines:
 - **AFNI** (`afni_proc.py`): you rate the APQC HTML report, and the metrics come from the same QC folder.
 - **fMRIPrep**: you rate the fMRIPrep HTML report in the toolkit's rating page, and the metrics come from MRIQC's `group_bold.tsv`.
 
+Ratings and metrics from any other software can be opened from your own tables (see [Your own tables](custom.md)).
+
 Each step is one command:
 
 1. **Rate** (`fmriqc rating`): open each participant's QC report and rate its sections good, bad or other.
@@ -42,6 +44,7 @@ rating-fmriprep
 :maxdepth: 2
 
 prep
+custom
 ```
 
 ```{toctree}

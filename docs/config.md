@@ -4,9 +4,9 @@ The settings of the [Settings tab](settings.md) live in a JSON file. Most users 
 
 ## Where the settings are kept
 
-- Without `--config`, the dashboard reads and saves `afni_config.json` or `fmriprep_config.json` in the folder of `--data-file`. The next time you open the same data, it uses that file again.
+- Without `--config`, the dashboard reads and saves `afni_config.json`, `fmriprep_config.json` or `custom_config.json` in the folder of `--data-file`. The next time you open the same data, it uses that file again.
 - With `--config FILE`, it reads and saves `FILE` instead, for example to use one file for several datasets.
-- If the file does not exist yet, the dashboard starts from the package's defaults and creates the file the first time you save.
+- If the file does not exist yet, the dashboard starts from the package's defaults (for [your own tables](custom.md), every metric without thresholds) and creates the file the first time you save.
 
 When the dashboard starts, the terminal prints the file it uses, with a note when the file does not exist yet.
 

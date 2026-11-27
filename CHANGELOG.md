@@ -1,6 +1,13 @@
 # Change Log
 
 ## [Unreleased]
+### Added
+- `fmriqc prep custom` and `fmriqc dashboard custom` open ratings and metrics from any software, given as your own tables.
+
+### Changed
+- `fmriqc prep fmriprep` works without `--rating-dir`, for MRIQC metrics only.
+- Rating filters offer only the ratings found in the data, and the Plots tab leaves out a heatmap or chart with nothing to show.
+- The Settings tab can save settings without any metric.
 
 
 ## [2.0.2] - 2026-11-26

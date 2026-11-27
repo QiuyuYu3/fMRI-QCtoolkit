@@ -61,7 +61,7 @@ fmriqc prep fmriprep \
 : MRIQC's group table of functional metrics, `group_bold.tsv`.
 
 `--rating-dir`
-: The folder that `fmriqc rating fmriprep` saved the ratings to (its `--output-dir`).
+: Optional. The folder that `fmriqc rating fmriprep` saved the ratings to (its `--output-dir`). Without it, the table has the MRIQC metrics only.
 
 `--task`
 : The task to keep, as it appears in the file names (`task-rest` gives `rest`).
@@ -88,4 +88,4 @@ The rating columns are `T1mask`, `Norm`, `SurfRecon`, `SDC`, `Align`, `CompCor`,
 
 The dashboard shows a chosen set of these columns (see [Settings tab](settings.md)); downloads from the dashboard keep all of them.
 
-`fmriqc prep` is meant for users who prefer not to write code. If your data are arranged differently, you can write your own script that produces a `df_final.csv` with the same columns and open it with `fmriqc dashboard`.
+For ratings or metrics from other software, see [Your own tables](custom.md).
