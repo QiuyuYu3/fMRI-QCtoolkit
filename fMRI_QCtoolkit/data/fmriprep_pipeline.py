@@ -21,7 +21,7 @@ class FMRIPrepPipeline(BaseDataProcessor):
     def __init__(self, bold_file, rating_dir, task, output_dir, t1w_file=None):
         super().__init__(task, output_dir)
         self.bold_file = Path(bold_file)
-        self.rating_dir = Path(rating_dir)
+        self.rating_dir = Path(rating_dir) if rating_dir else None
         self.t1w_file = Path(t1w_file) if t1w_file else None
         self.task = task
 
@@ -206,14 +206,29 @@ class FMRIPrepPipeline(BaseDataProcessor):
     def _load_raw_data(self):
         """Load both BOLD and rating data."""
         self._load_bold_data()
-        self._load_rating_data()
+        if self.rating_dir:
+            self._load_rating_data()
+        else:
+            print("No rating directory given: the table has the MRIQC metrics only.")
         if self.t1w_file:
             self._load_t1w_data()
     
     def _clean_data(self):
         """Clean and merge fMRIPrep data."""
         print("\nCleaning and merging data...")
+        merged_data = self.bold_data if self.rating_data is None else self._merge_ratings()
 
+        if self.t1w_data is not None:
+            merged_data = self._merge_t1w(merged_data)
+
+        self.df_final = merged_data
+        print(f"Final merged dataset: {len(merged_data)} records")
+
+        print("\nFinal data summary:")
+        print(self.df_final.head())
+        print(f"\nColumns: {self.df_final.columns.tolist()}")
+
+    def _merge_ratings(self):
         # Check if session column exists in both dataframes
         merge_keys = ['ID', 'run']
         if 'session' in self.rating_data.columns and 'session' in self.bold_data.columns:
@@ -244,16 +259,7 @@ class FMRIPrepPipeline(BaseDataProcessor):
             for key in merge_keys:
                 print(f"  {key}: rating={sorted(self.rating_data[key].unique())[:8]} "
                       f"vs BOLD={sorted(self.bold_data[key].unique())[:8]}")
-
-        if self.t1w_data is not None:
-            merged_data = self._merge_t1w(merged_data)
-
-        self.df_final = merged_data
-        print(f"Final merged dataset: {len(merged_data)} records")
-
-        print("\nFinal data summary:")
-        print(self.df_final.head())
-        print(f"\nColumns: {self.df_final.columns.tolist()}")
+        return merged_data
 
     def get_data_summary(self):
         """Get summary of loaded data."""

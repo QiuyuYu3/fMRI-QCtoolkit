@@ -137,7 +137,7 @@ def prep_afni(
 @prep_app.command("fmriprep")
 def prep_fmriprep(
     bold_file: Path = typer.Option(..., help="Path to group_bold.tsv"),
-    rating_dir: Path = typer.Option(..., help="Directory with rating CSVs"),
+    rating_dir: Optional[Path] = typer.Option(None, help="Directory with rating CSVs; leave out for the metrics only"),
     task: str = typer.Option(..., help="Task name as in the file names (task-rest gives rest)"),
     output_dir: Path = typer.Option(..., help="Output directory"),
     t1w_file: Optional[Path] = typer.Option(None, help="Path to group_T1w.tsv, to add the anatomical metrics"),
@@ -145,7 +145,8 @@ def prep_fmriprep(
     validate_file_exists(bold_file, "BOLD file")
     if t1w_file:
         validate_file_exists(t1w_file, "T1w file")
-    validate_dir_exists(rating_dir, "Rating directory")
+    if rating_dir:
+        validate_dir_exists(rating_dir, "Rating directory")
     ensure_output_dir(output_dir)
 
     typer.echo("Running fMRIPrep data preparation...")

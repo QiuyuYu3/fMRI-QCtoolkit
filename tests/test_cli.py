@@ -112,6 +112,15 @@ def test_prep_fmriprep_runs_on_the_example_data(tmp_path):
     assert df["Final"].value_counts().to_dict() == {"good": 5, "other": 5, "bad": 5}
 
 
+def test_prep_fmriprep_without_a_rating_dir_keeps_the_metrics(tmp_path):
+    result = runner.invoke(cli.app, ["prep", "fmriprep", "--bold-file", str(EXAMPLES / "group_bold.tsv"),
+                                     "--task", "rest", "--output-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "the table has the MRIQC metrics only" in result.output
+    df = pd.read_csv(tmp_path / "df_final.csv")
+    assert len(df) == 15 and "Final" not in df.columns
+
+
 def test_prep_fmriprep_reports_missing_ratings_in_one_line(tmp_path):
     empty = tmp_path / "ratings"
     empty.mkdir()

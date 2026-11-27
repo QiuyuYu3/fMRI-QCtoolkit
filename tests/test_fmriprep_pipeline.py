@@ -206,6 +206,16 @@ class TestCleanData:
         assert df[['ID', 'run', 'T1mask']].values.tolist() == [['01', 1, 'good'], ['01', 2, 'good'], ['02', 1, 'bad']]
 
 
+class TestWithoutRatings:
+
+    def test_the_table_has_the_metrics_only(self, fmriprep_examples, tmp_path):
+        pipeline = FMRIPrepPipeline(fmriprep_examples / "group_bold.tsv", None, "rest", tmp_path)
+        df = pipeline.process().df_final
+        assert list(df.columns[:4]) == ["ID", "session", "run", "task"]
+        assert len(df) == 15 and "fd_mean" in df.columns and "Final" not in df.columns
+        assert (tmp_path / "df_final.csv").exists()
+
+
 class TestFromSavedData:
     
     def test_loads_from_csv(self, temp_dir, sample_fmriprep_data):
