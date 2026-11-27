@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from fMRI_QCtoolkit import cli
 from fMRI_QCtoolkit.dashboard.afni_app import AFNIDashboard
+from fMRI_QCtoolkit.dashboard.custom_app import CustomDashboard
 from fMRI_QCtoolkit.dashboard.config import default_config_path
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
 
@@ -20,7 +21,7 @@ runner = CliRunner()
 def launched(monkeypatch):
     calls = []
     monkeypatch.setattr(cli, "find_free_port", lambda **kwargs: 5123)
-    for cls in (AFNIDashboard, FMRIPrepDashboard):
+    for cls in (AFNIDashboard, FMRIPrepDashboard, CustomDashboard):
         monkeypatch.setattr(cls, "run", lambda self, **kwargs: calls.append((self, kwargs)))
     return calls
 
@@ -299,3 +300,62 @@ class TestConfigExport:
         result = runner.invoke(cli.app, ["config", "afni", "--output", str(tmp_path / "no" / "mine.json")])
         assert result.exit_code == 1
         assert "not found" in result.output
+
+
+class TestCustom:
+
+    @staticmethod
+    def tables(folder):
+        df = pd.read_csv(EXAMPLES / "df_final.csv", dtype={"ID": str, "session": str})
+        ratings, metrics = folder / "ratings.csv", folder / "metrics.tsv"
+        df[["ID", "session", "run", "Final", "SDC"]].to_csv(ratings, index=False)
+        df[["ID", "session", "run", "fd_mean", "tsnr"]].to_csv(metrics, sep="\t", index=False)
+        return ratings, metrics
+
+    def test_prep_merges_the_tables_and_says_how_to_open_them(self, tmp_path):
+        ratings, metrics = self.tables(tmp_path)
+        out = tmp_path / "out"
+        result = runner.invoke(cli.app, ["prep", "custom", "--input", str(ratings), "--input", str(metrics),
+                                         "--output-dir", str(out)])
+        assert result.exit_code == 0, result.output
+        assert "15 rows matched" in result.output
+        assert "Ratings (filter and heatmap): Final, SDC" in result.output
+        assert f"fmriqc dashboard custom --data-file {out}/df_final.csv" in result.output
+        assert "--task" not in result.output
+        assert list(pd.read_csv(out / "df_final.csv").columns) == ["ID", "session", "run", "Final", "SDC",
+                                                                    "fd_mean", "tsnr"]
+
+    def test_prep_reports_a_problem_in_one_line(self, tmp_path):
+        ratings, _ = self.tables(tmp_path)
+        result = runner.invoke(cli.app, ["prep", "custom", "--input", str(ratings), "--input", str(ratings),
+                                         "--output-dir", str(tmp_path / "out")])
+        assert result.exit_code == 1
+        assert "Error: Columns in more than one file: Final (ratings.csv, ratings.csv)" in result.output
+        assert "Traceback" not in result.output
+
+    def test_a_missing_input_is_refused(self, tmp_path):
+        result = runner.invoke(cli.app, ["prep", "custom", "--input", str(tmp_path / "no.csv"),
+                                         "--output-dir", str(tmp_path / "out")])
+        assert result.exit_code == 1
+        assert "Input file not found" in result.output
+
+    def test_dashboard_launches_without_a_task_and_saves_beside_the_data(self, launched, tmp_path):
+        data_file = tmp_path / "df_final.csv"
+        shutil.copyfile(EXAMPLES / "df_final.csv", data_file)
+        result = runner.invoke(cli.app, ["dashboard", "custom", "--data-file", str(data_file)])
+        assert result.exit_code == 0, result.output
+        dashboard = launched[0][0]
+        assert type(dashboard) is CustomDashboard and dashboard.task is None
+        assert dashboard.save_path == tmp_path / "custom_config.json" and dashboard.config_path is None
+
+    def test_dashboard_refuses_a_table_without_ids(self, launched, tmp_path):
+        data_file = tmp_path / "df_final.csv"
+        data_file.write_text("participant,fd_mean\n001,0.1\n")
+        result = runner.invoke(cli.app, ["dashboard", "custom", "--data-file", str(data_file)])
+        assert result.exit_code == 1
+        assert "Error: The table has no ID column" in result.output
+        assert launched == []
+
+    def test_there_is_no_packaged_config_to_export(self, tmp_path):
+        result = runner.invoke(cli.app, ["config", "custom", "--output", str(tmp_path / "c.json")])
+        assert result.exit_code == 2

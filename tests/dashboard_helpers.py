@@ -9,7 +9,9 @@ import pandas as pd
 from dash._utils import stringify_id
 
 from fMRI_QCtoolkit.dashboard.afni_app import AFNIDashboard
+from fMRI_QCtoolkit.dashboard.custom_app import CustomDashboard
 from fMRI_QCtoolkit.data.afni_pipeline import AFNIPipeline
+from fMRI_QCtoolkit.data.custom_pipeline import CustomPipeline
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
 from fMRI_QCtoolkit.utils.filter_components_utils import RANGE, STATUS
 
@@ -17,7 +19,7 @@ from fMRI_QCtoolkit.utils.filter_components_utils import RANGE, STATUS
 def make_dashboard(cls, df, tmp_path, config=None):
     data_file = tmp_path / "df_final.csv"
     df.to_csv(data_file, index=False)
-    pipeline_cls = AFNIPipeline if cls is AFNIDashboard else FMRIPrepPipeline
+    pipeline_cls = {AFNIDashboard: AFNIPipeline, CustomDashboard: CustomPipeline}.get(cls, FMRIPrepPipeline)
     return cls(pipeline_cls.from_saved_data(data_file, task="test"), task="test", config_path=config)
 
 

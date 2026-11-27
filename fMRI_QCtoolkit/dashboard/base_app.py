@@ -75,7 +75,7 @@ class BaseDashboard:
 
     def __init__(self, data_processor, task=None, token=None, config_path=None):
         self.processor = data_processor
-        self.task = task or "unknown"
+        self.task = task
         # Saving needs --config; a --config file that does not exist yet starts from the default
         self.save_path = Path(config_path) if config_path else None
         self.config_path = (self.save_path if self.save_path and self.save_path.exists()
@@ -502,7 +502,8 @@ class BaseDashboard:
             selected = self.selected_data(selected_rows, positions)
             if selected.empty:
                 selected = pd.DataFrame({"Message": ["No row selected."]})
-            return dcc.send_data_frame(selected.to_csv, f"{self.task}_MRI_QC_subj.csv", index=False)
+            name = f"{self.task}_MRI_QC_subj.csv" if self.task else "MRI_QC_subj.csv"
+            return dcc.send_data_frame(selected.to_csv, name, index=False)
 
     def config_source(self):
         if self.save_path is None:

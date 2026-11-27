@@ -2,14 +2,16 @@ import os
 import shutil
 import typer
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 import subprocess
 
 from .data.fmriprep_pipeline import FMRIPrepPipeline
 from .data.afni_pipeline import AFNIPipeline
+from .data.custom_pipeline import CustomPipeline
 from .dashboard.config import ConfigError, config_beside, default_config_path
 from .dashboard.fmriprep_app import FMRIPrepDashboard
 from .dashboard.afni_app import AFNIDashboard
+from .dashboard.custom_app import CustomDashboard
 from .dashboard.fmriprep_rating_app import FMRIPrepRatingApp
 from .utils.access import is_loopback
 from .utils.port_utils import find_free_port
@@ -31,8 +33,8 @@ app.add_typer(rating_app, name="rating")
 app.add_typer(config_app, name="config")
 
 CONFIG_HELP = ("Dashboard config JSON with your thresholds; the Settings tab saves to it, and creates it from "
-               "the default if it does not exist. Default: afni_config.json or fmriprep_config.json in the "
-               "folder of --data-file")
+               "the default if it does not exist. Default: afni_config.json, fmriprep_config.json or "
+               "custom_config.json in the folder of --data-file")
 
 # -------------------
 # Helper functions
@@ -74,7 +76,11 @@ def launch_dashboard(pipeline_cls, dashboard_cls, data_file: Path, task: str, ho
     validate_dir_exists(config.parent, "Config file's directory")
     check_bind_host(host, debug)
 
-    pipeline = pipeline_cls.from_saved_data(data_file=data_file, task=task)
+    try:
+        pipeline = pipeline_cls.from_saved_data(data_file=data_file, task=task)
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
     try:
         dashboard = dashboard_cls(pipeline, task=task, config_path=config)
     except ConfigError as e:
@@ -167,6 +173,27 @@ def prep_fmriprep(
     typer.echo(f"Output files saved to: {output_dir}")
     typer.echo(f"To launch dashboard:\n fmriqc dashboard fmriprep --data-file {output_dir}/df_final.csv --task {task}")
 
+@prep_app.command("custom")
+def prep_custom(
+    inputs: List[Path] = typer.Option(..., "--input", help="A .csv or .tsv table with an ID column; repeat for several"),
+    output_dir: Path = typer.Option(..., help="Output directory"),
+):
+    for path in inputs:
+        validate_file_exists(path, "Input file")
+    ensure_output_dir(output_dir)
+
+    typer.echo("Running custom data preparation...")
+    pipeline = CustomPipeline(inputs=inputs, output_dir=output_dir)
+    try:
+        pipeline.process()
+    except (FileNotFoundError, ValueError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo("Data preparation complete!")
+    typer.echo(f"Output files saved to: {output_dir}")
+    typer.echo(f"To launch dashboard:\n fmriqc dashboard custom --data-file {output_dir}/df_final.csv")
+
 # ----------------------------
 # Dashboard Commands
 # ----------------------------
@@ -190,6 +217,17 @@ def dashboard_fmriprep(
     debug: bool = typer.Option(False, help="Run in debug mode")
 ):
     launch_dashboard(FMRIPrepPipeline, FMRIPrepDashboard, data_file, task, host, debug, config)
+
+
+@dashboard_app.command("custom")
+def dashboard_custom(
+    data_file: Path = typer.Option(..., help="df_final.csv written by 'fmriqc prep custom'"),
+    task: Optional[str] = typer.Option(None, help="Task name, used in the names of downloaded files"),
+    config: Optional[Path] = typer.Option(None, help=CONFIG_HELP),
+    host: str = typer.Option("127.0.0.1", help="Host address"),
+    debug: bool = typer.Option(False, help="Run in debug mode")
+):
+    launch_dashboard(CustomPipeline, CustomDashboard, data_file, task, host, debug, config)
 
 # ----------------------------
 # Config Commands

@@ -12,7 +12,7 @@ from pathlib import Path
 from ..utils.status import (LEVELS, RULE_TIERS, format_number, format_rule, negate_rule, overlap, parse_rule,
                             rest_tier)
 
-CONFIG_FILES = {"afni": "afni_config.json", "fmriprep": "fmriprep_config.json"}
+CONFIG_FILES = {"afni": "afni_config.json", "fmriprep": "fmriprep_config.json", "custom": "custom_config.json"}
 # Columns of df_final.csv that identify a run rather than measure it
 ID_COLUMNS = ("ID", "session", "run")
 _METRIC_FIELDS = ("label", *RULE_TIERS, "otherwise", "step")

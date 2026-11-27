@@ -13,9 +13,11 @@ import pytest
 
 from fMRI_QCtoolkit.dashboard.afni_app import AFNIDashboard
 from fMRI_QCtoolkit.dashboard.base_app import BaseDashboard
+from fMRI_QCtoolkit.dashboard.custom_app import CustomDashboard
 from fMRI_QCtoolkit.dashboard.fmriprep_app import FMRIPrepDashboard
 from fMRI_QCtoolkit.dashboard.settings import config_rows
 from fMRI_QCtoolkit.data.base import read_csv_exact
+from fMRI_QCtoolkit.data.custom_pipeline import CustomPipeline
 from fMRI_QCtoolkit.data.fmriprep_pipeline import FMRIPrepPipeline
 from tests.dashboard_helpers import (FD_MEAN_RANGE, afni_runs, dash_call, layout_components, layout_values,
                                      make_dashboard, shown_ids)
@@ -472,3 +474,93 @@ class TestPlotParts:
         rows = [{**config_rows(dashboard.config.metrics)[0], "bad-op": ">=", "bad-value": 0.3}]
         assert dashboard.settings.save(rows, version=0)[1]
         assert shown_parts(dashboard) == {"heatmap", "quantitative", "lollipop"}
+
+
+class TestCustomDashboard:
+    """Ratings, metrics and the default settings come from the values in the table."""
+
+    def test_ratings_only(self, tmp_path):
+        df = example_runs()[["ID", "session", "run"] + RATINGS]
+        dashboard = make_dashboard(CustomDashboard, df, tmp_path)
+        assert dashboard.metrics == [] and dashboard.rating_columns() == RATINGS
+        assert shown_parts(dashboard) == {"heatmap", "qualitative"}
+        labels = [c.children for c in dashboard.build_layout()._traverse() if type(c).__name__ == "Label"]
+        assert labels == RATINGS
+        assert len(shown_ids(dashboard, *layout_values(dashboard))) == 15
+
+    def test_metrics_only_are_all_in_the_sidebar_without_thresholds(self, tmp_path):
+        df = example_runs().drop(columns=RATINGS)
+        dashboard = make_dashboard(CustomDashboard, df, tmp_path)
+        numeric = [c for c in df.columns if c not in ("ID", "session", "run", "task")]
+        assert [m.column for m in dashboard.metrics] == numeric and not any(m.rated for m in dashboard.metrics)
+        assert [m.label for m in dashboard.metrics] == numeric
+        assert dashboard.config.table_columns == ("task",)
+        assert shown_parts(dashboard) == {"lollipop"}
+        assert len(shown_ids(dashboard, *layout_values(dashboard))) == 15
+
+    def test_without_other_the_filter_offers_good_and_bad(self, tmp_path):
+        df = example_runs()[["ID", "session", "run"] + RATINGS].replace("other", "bad")
+        dashboard = make_dashboard(CustomDashboard, df, tmp_path)
+        dropdown = next(c for c in layout_components(dashboard) if c.id == "Final_dropdown")
+        assert [o["value"] for o in dropdown.options] == ["good", "bad"]
+
+    def test_pass_and_fail_are_shown_in_the_table_only(self, tmp_path):
+        df = example_runs()[["ID", "session", "run"] + RATINGS]
+        df["Final"] = df["Final"].map({"good": "pass", "other": "fail", "bad": "fail"})
+        dashboard = make_dashboard(CustomDashboard, df, tmp_path)
+        assert "Final" not in dashboard.rating_columns() and dashboard.config.table_columns == ("Final",)
+        assert "Final" in dashboard.table_column_ids()
+        assert not any(c.id == "Final_dropdown" for c in layout_components(dashboard))
+        assert len(shown_ids(dashboard, *layout_values(dashboard))) == 15
+
+    def test_ratings_in_any_case_are_filtered_as_lower_case(self, tmp_path):
+        df = pd.DataFrame({"ID": ["001", "002", "003"], "Final": [" Good", "BAD", None]})
+        dashboard = make_dashboard(CustomDashboard, df, tmp_path)
+        ranges, statuses, ratings = layout_values(dashboard)
+        assert ratings == [["good", "bad", "NA"]]
+        assert shown_ids(dashboard, ranges, statuses, [["good"]]) == ["001"]
+
+    @pytest.mark.parametrize("keys,group_by", [
+        (["session", "run"], ["session", "run"]), (["session"], "session"), (["run"], "run"), ([], None)])
+    def test_panels_follow_the_session_and_run_columns(self, tmp_path, keys, group_by):
+        df = example_runs()[["ID"] + keys + ["fd_mean"]].drop_duplicates(["ID"] + keys)
+        assert make_dashboard(CustomDashboard, df, tmp_path).GROUP_BY == group_by
+
+    def test_use_defaults_and_saving_start_from_the_data(self, tmp_path):
+        config = tmp_path / "custom_config.json"
+        df = example_runs().drop(columns=RATINGS)[["ID", "session", "run", "task", "fd_mean", "fd_perc"]]
+        dashboard = make_dashboard(CustomDashboard, df, tmp_path, config=config)
+        assert dashboard.config_path is None and "starting from the default" in dashboard.config_source()
+        tab = dashboard.settings
+        assert [r["key"] for r in tab.edit([], "thr-defaults", 1, None)] == ["fd_mean", "fd_perc"]
+        assert tab.edit_table([], "thr-defaults", None, []) == ["task"]
+
+        rows = [{**config_rows(dashboard.config.metrics)[0], "bad-op": ">=", "bad-value": 0.3}]
+        assert tab.save(rows, version=0, table=["task"])[1]
+        assert json.loads(config.read_text(encoding="utf-8")) == {
+            "metrics": {"fd_mean": {"label": "fd_mean", "bad": ">= 0.3"}}, "table_columns": ["task"]}
+        assert shown_parts(dashboard) == {"heatmap", "quantitative", "lollipop"}
+
+        reopened = make_dashboard(CustomDashboard, df, tmp_path, config=config)
+        assert reopened.config_path == config and [m.column for m in reopened.metrics] == ["fd_mean"]
+
+    def test_plots_draw_a_participant_without_runs(self, tmp_path):
+        df = pd.concat([example_runs()[["ID", "session", "run", "fd_mean", "Final"]],
+                        pd.DataFrame({"ID": ["099"], "fd_mean": [0.1]})], ignore_index=True)
+        dashboard = make_dashboard(CustomDashboard, df, tmp_path)
+        heatmaps = dash_call(dashboard, "quantitative-heatmap.figure",
+                             {("filtered-rows", "data"): list(range(16)), ("main-tabs", "value"): "plots-tab"},
+                             "filtered-rows.data")
+        lollipop = dash_call(dashboard, "lollipop-chart.figure", {("main-tabs", "value"): "plots-tab"},
+                             "main-tabs.value")
+        assert heatmaps.status_code == 200 and lollipop.status_code == 200
+
+    @pytest.mark.parametrize("task,name", [("rest", "rest_MRI_QC_subj.csv"), (None, "MRI_QC_subj.csv")])
+    def test_the_download_is_named_after_the_task_if_given(self, tmp_path, task, name):
+        data_file = tmp_path / "df_final.csv"
+        precise_runs().to_csv(data_file, index=False)
+        dashboard = CustomDashboard(CustomPipeline.from_saved_data(data_file), task=task)
+        resp = dash_call(dashboard, "download-dataframe-csv.data",
+                         {("download-button", "n_clicks"): 1, ("datatable", "selectedRows"): dashboard.table_records([0]),
+                          ("filtered-rows", "data"): [0, 1, 2]}, "download-button.n_clicks")
+        assert resp.get_json()["response"]["download-dataframe-csv"]["data"]["filename"] == name
