@@ -372,69 +372,19 @@ def temp_app_debug():
 # Helper Functions
 # ============================================================================
 
-def save_ratings_direct(app, participant_id, ratings, notes, html_content):
-    """Direct save method for testing (bypasses Flask); mirrors FMRIPrepRatingApp.save_ratings."""
-    tasks = app.parse_tasks_from_html(html_content)
-
-    if not tasks:
-        raise ValueError("No tasks found")
-
-    all_combined_data = {}
-
-    for task_info in tasks:
-        session = task_info['session']
-        task_name = task_info['name']
-
-        row_data = {"ID": participant_id}
-
-        for mod in app.COMMON_MODULES:
-            frontend_key = f"{mod}_run-1"
-            row_data[f"{mod}_1_r"] = ratings.get(frontend_key, "NA")
-            row_data[f"{mod}_1_c"] = notes.get(frontend_key, "")
-
-        for run_label, suffix in zip(task_info['runs'], task_info['suffixes']):
-            for mod in app.FUNCTIONAL_MODULES + ["Final"]:
-                frontend_key = f"{mod}{suffix}"
-                row_data[f"{mod}_{run_label}_r"] = ratings.get(frontend_key, "NA")
-                row_data[f"{mod}_{run_label}_c"] = notes.get(frontend_key, "")
-
-        name_parts = []
-        if session is not None:
-            name_parts.append(f"ses-{session}")
-        name_parts.append(task_name)
-        name_parts += [f"{k}-{v}" for k, v in task_info['extras'].items()]
-        csv_prefix = "_".join(name_parts)
-        csv_file = app.output_dir / f"sub-{participant_id}_{csv_prefix}.csv"
-
-        with csv_file.open("w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=list(row_data.keys()))
-            writer.writeheader()
-            writer.writerow(row_data)
-
-        for key, value in row_data.items():
-            if key != "ID":
-                all_combined_data[f"{csv_prefix}_{key}"] = value
-    
-    combined_csv = app.output_dir / f"sub-{participant_id}.csv"
-    combined_row = {"ID": participant_id, **all_combined_data}
-
-    with combined_csv.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(combined_row.keys()))
-        writer.writeheader()
-        writer.writerow(combined_row)
-
-    # JSON sidecar: replicate the frontend payload (all module ids default to NA/"")
+def save_through_route(app, participant_id, ratings, notes, html_content):
+    """Save through the real /save_ratings route, sending what the page sends: every module it shows."""
+    (app.data_dir / f"sub-{participant_id}.html").write_text(html_content, encoding="utf-8")
     _, modules_by_run = app.process_html_modules(html_content)
-    full_ratings = {}
-    full_notes = {}
-    for group in modules_by_run:
-        for mod in group:
-            full_ratings[mod['id']] = ratings.get(mod['id'], "NA")
-            full_notes[mod['id']] = notes.get(mod['id'], "")
-
-    json_file = app.output_dir / f"sub-{participant_id}.json"
-    with json_file.open("w", encoding="utf-8") as f:
-        json.dump({"ratings": full_ratings, "notes": full_notes}, f, ensure_ascii=False, indent=2)
+    shown = [mod['id'] for group in modules_by_run for mod in group]
+    client = app.app.test_client()
+    client.get(f"/{participant_id}?token={app.gate.token}")
+    response = client.post("/save_ratings", json={
+        "id": participant_id,
+        "ratings": {**{i: "NA" for i in shown}, **ratings},
+        "notes": {**{i: "" for i in shown}, **notes},
+    })
+    assert response.status_code == 200, response.get_json()
 
 
 def verify_ratings_match(loaded_ratings, expected_ratings):
@@ -524,7 +474,7 @@ class TestSaveAndLoadRatings:
     def test_roundtrip_with_session(self, temp_app):
         participant_id = "001"
         
-        save_ratings_direct(temp_app, participant_id, MOCK_RATINGS_WITH_SESSION, 
+        save_through_route(temp_app, participant_id, MOCK_RATINGS_WITH_SESSION, 
                           MOCK_NOTES_WITH_SESSION, HTML_WITH_SESSION)
         
         # Check CSV files created
@@ -539,7 +489,7 @@ class TestSaveAndLoadRatings:
     def test_roundtrip_no_session(self, temp_app):
         participant_id = "002"
         
-        save_ratings_direct(temp_app, participant_id, MOCK_RATINGS_NO_SESSION,
+        save_through_route(temp_app, participant_id, MOCK_RATINGS_NO_SESSION,
                           MOCK_NOTES_NO_SESSION, HTML_NO_SESSION)
         
         loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id)
@@ -548,7 +498,7 @@ class TestSaveAndLoadRatings:
     
     def test_empty_ratings(self, temp_app):
         participant_id = "003"
-        save_ratings_direct(temp_app, participant_id, {}, {}, HTML_WITH_SESSION)
+        save_through_route(temp_app, participant_id, {}, {}, HTML_WITH_SESSION)
         
         loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id)
         assert all(v == "NA" for v in loaded_ratings.values())
@@ -570,7 +520,7 @@ class TestEdgeCases:
             "SurfRecon_run-1": "1",
         }
         
-        save_ratings_direct(temp_app, participant_id, anat_ratings, {}, HTML_WITH_SESSION)
+        save_through_route(temp_app, participant_id, anat_ratings, {}, HTML_WITH_SESSION)
         loaded, _ = temp_app.load_existing_ratings(participant_id)
         
         assert loaded["T1mask_run-1"] == "1"
@@ -584,7 +534,7 @@ class TestEdgeCases:
             "Final_ses-01_run-1": "2",
         }
         
-        save_ratings_direct(temp_app, participant_id, partial_ratings, {}, HTML_WITH_SESSION)
+        save_through_route(temp_app, participant_id, partial_ratings, {}, HTML_WITH_SESSION)
         loaded, _ = temp_app.load_existing_ratings(participant_id)
         
         assert loaded["Align_ses-01_run-1"] == "1"
@@ -595,7 +545,7 @@ class TestEdgeCases:
         participant_id = "006"
         notes = {"Align_ses-01_run-1": "Note without rating"}
         
-        save_ratings_direct(temp_app, participant_id, {}, notes, HTML_WITH_SESSION)
+        save_through_route(temp_app, participant_id, {}, notes, HTML_WITH_SESSION)
         loaded_ratings, loaded_notes = temp_app.load_existing_ratings(participant_id)
         
         assert loaded_notes["Align_ses-01_run-1"] == "Note without rating"
@@ -619,7 +569,7 @@ class TestIntegration:
         ratings = {id_: "1" for id_ in all_ids if "Align" in id_ or "T1mask" in id_}
         
         # Save and load
-        save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_WITH_SESSION)
+        save_through_route(temp_app, participant_id, ratings, {}, HTML_WITH_SESSION)
         loaded_ratings, _ = temp_app.load_existing_ratings(participant_id)
         
         for key in ratings:
@@ -630,8 +580,8 @@ class TestIntegration:
         ratings_p1 = {"T1mask_run-1": "1", "Align_ses-01_run-1": "2"}
         ratings_p2 = {"T1mask_run-1": "2", "Align_ses-01_run-1": "1"}
         
-        save_ratings_direct(temp_app, "p1", ratings_p1, {}, HTML_WITH_SESSION)
-        save_ratings_direct(temp_app, "p2", ratings_p2, {}, HTML_WITH_SESSION)
+        save_through_route(temp_app, "p1", ratings_p1, {}, HTML_WITH_SESSION)
+        save_through_route(temp_app, "p2", ratings_p2, {}, HTML_WITH_SESSION)
         
         loaded_p1, _ = temp_app.load_existing_ratings("p1")
         loaded_p2, _ = temp_app.load_existing_ratings("p2")
@@ -713,7 +663,7 @@ class TestMultiTaskWithBIDSRuns:
         ratings = {m['id']: "1" for group in modules for m in group}
         rendered = {m['id'].split('_', 1)[0] for group in modules for m in group}
 
-        save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_MULTITASK_WITH_RUNS)
+        save_through_route(temp_app, participant_id, ratings, {}, HTML_MULTITASK_WITH_RUNS)
 
         for task in ("rest", "nback"):
             csv_file = temp_app.output_dir / f"sub-{participant_id}_ses-01_{task}.csv"
@@ -751,7 +701,7 @@ class TestExtraEntitiesBetweenTaskAndRun:
         _, modules = temp_app.process_html_modules(HTML_ACQ_BETWEEN_TASK_AND_RUN)
         ratings = {m['id']: "1" for group in modules for m in group}
 
-        save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_ACQ_BETWEEN_TASK_AND_RUN)
+        save_through_route(temp_app, participant_id, ratings, {}, HTML_ACQ_BETWEEN_TASK_AND_RUN)
 
         for acq in ("seq", "mb"):
             csv_file = temp_app.output_dir / f"sub-{participant_id}_ses-01_rest_acq-{acq}.csv"
@@ -777,6 +727,25 @@ class TestFieldmapGroups:
         all_ids = [m['id'] for group in modules for m in group]
 
         assert 'SDC_ses-01_run-1' in all_ids
+
+
+class TestNavbarHeadings:
+    """nireports repeats every group heading as a navbar link, which must not count as another run."""
+
+    HTML = """<nav class="navbar fixed-top"><a href="#Summary">Summary</a>
+<a class="dropdown-item" href="#g">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>.</a></nav>
+<h2 class="sub-report-group">Reports for: session <span class="bids-entity">01</span>, task <span class="bids-entity">rest</span>.</h2>
+<h3 class="run-title">BOLD Summary</h3>"""
+
+    def test_a_task_without_runs_stays_run_1(self, temp_app):
+        _, modules = temp_app.process_html_modules(self.HTML)
+        assert [m['id'] for group in modules for m in group] == ['BOLD_ses-01_run-1', 'Final_ses-01_run-1']
+
+        save_through_route(temp_app, "01", {"BOLD_ses-01_run-1": "good"}, {}, self.HTML)
+        with (temp_app.output_dir / "sub-01_ses-01_rest.csv").open(newline="", encoding="utf-8") as f:
+            row = next(csv.DictReader(f))
+        assert sorted(c for c in row if c.startswith("BOLD_")) == ["BOLD_1_c", "BOLD_1_r"]
+        assert row["BOLD_1_r"] == "good"
 
 
 class TestOlderReports:
@@ -807,7 +776,7 @@ class TestRunNumbersFollowBIDS:
         _, modules = temp_app.process_html_modules(HTML_GAPPED_RUNS)
         ratings = {m['id']: "1" for group in modules for m in group}
 
-        save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_GAPPED_RUNS)
+        save_through_route(temp_app, participant_id, ratings, {}, HTML_GAPPED_RUNS)
 
         csv_file = temp_app.output_dir / f"sub-{participant_id}_ses-01_rest.csv"
         with csv_file.open(newline="", encoding="utf-8") as f:
@@ -843,7 +812,7 @@ class TestParticipantIdIsPreserved:
         _, modules = temp_app.process_html_modules(HTML_WITH_SESSION)
         ratings = {m['id']: "1" for group in modules for m in group}
 
-        save_ratings_direct(temp_app, participant_id, ratings, {}, HTML_WITH_SESSION)
+        save_through_route(temp_app, participant_id, ratings, {}, HTML_WITH_SESSION)
 
         csv_file = temp_app.output_dir / f"sub-{participant_id}_ses-01_rest.csv"
         with csv_file.open(newline="", encoding="utf-8") as f:
@@ -885,7 +854,7 @@ HTML_ANAT_ONLY = """
 
 
 class TestSaveRoute:
-    """The real /save_ratings endpoint, not the save_ratings_direct mirror."""
+    """The /save_ratings endpoint on its own: what it writes, and how it fails."""
 
     TOKEN = "t"
 
@@ -909,6 +878,26 @@ class TestSaveRoute:
         assert json.loads((app.output_dir / "sub-0030.json").read_text())["ratings"] == {"T1mask_run-1": "1"}
         with (app.output_dir / "sub-0030.csv").open(newline="", encoding="utf-8") as f:
             assert next(csv.DictReader(f))["T1mask_1_r"] == "1"
+
+    def test_comments_reach_the_csv_of_their_run(self, client_for):
+        app, client = client_for(HTML_WITH_SESSION)
+        notes = {"BOLD_ses-01_run-2": "spikes", "Final_ses-02_run-1": "keep"}
+        assert client.post("/save_ratings", json={"id": "0030", "ratings": {}, "notes": notes}).status_code == 200
+        with (app.output_dir / "sub-0030_ses-01_rest.csv").open(newline="", encoding="utf-8") as f:
+            rest = next(csv.DictReader(f))
+        with (app.output_dir / "sub-0030_ses-02_motor.csv").open(newline="", encoding="utf-8") as f:
+            motor = next(csv.DictReader(f))
+        assert (rest["BOLD_1_c"], rest["BOLD_2_c"], motor["Final_1_c"]) == ("", "spikes", "keep")
+
+    def test_a_reopened_page_shows_what_was_saved(self, client_for):
+        app, client = client_for(HTML_WITH_SESSION)
+        ratings, notes = {"SDC_ses-01_run-1": "bad", "T1mask_run-1": "good"}, {"SDC_ses-01_run-1": "warped"}
+        assert client.post("/save_ratings", json={"id": "0030", "ratings": ratings, "notes": notes}).status_code == 200
+
+        page = client.get("/0030").get_data(as_text=True)
+        shown = {name: json.loads(page.split(f"window.{name} = ", 1)[1].split(";\n", 1)[0])
+                 for name in ("initialRatingsJson", "initialNotesJson")}
+        assert shown == {"initialRatingsJson": ratings, "initialNotesJson": notes}
 
     def test_sidecar_survives_a_failed_csv_export(self, client_for):
         app, client = client_for(HTML_WITH_SESSION)
