@@ -879,6 +879,26 @@ class TestSaveRoute:
         with (app.output_dir / "sub-0030.csv").open(newline="", encoding="utf-8") as f:
             assert next(csv.DictReader(f))["T1mask_1_r"] == "1"
 
+    SAVED = '{"ratings": {"T1mask_run-1": "bad"}, "notes": {}}'
+
+    @pytest.mark.parametrize("text, where", [
+        (SAVED + "}", f"line 1, column {len(SAVED) + 1}"),
+        (SAVED[:30], None),
+        ("[]", None),
+        ('{"ratings": [], "notes": {}}', None),
+    ])
+    def test_a_damaged_sidecar_is_named_with_how_to_repair_it(self, client_for, text, where):
+        app, client = client_for(HTML_ANAT_ONLY)
+        sidecar = app.output_dir / "sub-0030.json"
+        sidecar.write_text(text, encoding="utf-8")
+
+        response = client.get("/0030")
+        page = response.get_data(as_text=True)
+        assert response.status_code == 500
+        assert str(sidecar) in page and "Do not delete" in page
+        assert where is None or where in page
+        assert sidecar.read_text(encoding="utf-8") == text
+
     def test_comments_reach_the_csv_of_their_run(self, client_for):
         app, client = client_for(HTML_WITH_SESSION)
         notes = {"BOLD_ses-01_run-2": "spikes", "Final_ses-02_run-1": "keep"}

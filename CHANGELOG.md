@@ -14,6 +14,7 @@
 - `fmriqc prep fmriprep` gives every run the anatomy ratings, also a run left unrated, and no longer adds an empty run 1 when a task's runs start at 2.
 - The fMRIPrep rating page shows the coregistration box for reports from fMRIPrep versions before 23.2.
 - Quick clicks in the fMRIPrep rating page no longer save an earlier rating than the one shown, or leave a ratings file that stops the page from opening.
+- When a participant's saved ratings file cannot be read, the fMRIPrep rating page names it and says how to repair it, instead of showing an internal server error.
 
 
 ## [2.0.1] - 2026-11-26

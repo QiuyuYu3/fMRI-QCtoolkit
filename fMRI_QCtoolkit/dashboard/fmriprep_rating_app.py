@@ -28,12 +28,18 @@ import webbrowser
 import threading
 import logging
 from flask import Flask, render_template, request, jsonify, send_from_directory
-from markupsafe import Markup
+from markupsafe import Markup, escape
 from pathlib import Path
 from typing import Dict, List, Tuple
 from ..utils.access import AccessGate
 from ..utils.port_utils import find_free_port
 from ..utils.subject_utils import fmriprep_reports
+
+
+class UnreadableSidecar(Exception):
+    def __init__(self, path: Path, error: ValueError):
+        super().__init__(f"Cannot read {path}: {error}")
+        self.path, self.error = path, error
 
 
 class FMRIPrepRatingApp:
@@ -371,14 +377,32 @@ class FMRIPrepRatingApp:
             self.logger.debug(f"No JSON ratings found for sub-{participant_id}")
             return {}, {}
 
-        with json_file.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        ratings = data.get("ratings", {})
-        notes = data.get("notes", {})
+        try:
+            data = json.loads(json_file.read_text(encoding="utf-8"))
+            ratings = data.get("ratings", {}) if isinstance(data, dict) else None
+            notes = data.get("notes", {}) if isinstance(data, dict) else None
+            if not isinstance(ratings, dict) or not isinstance(notes, dict):
+                raise ValueError("expected an object holding the ratings and the notes")
+        except ValueError as e:
+            raise UnreadableSidecar(json_file, e) from e
 
         self.logger.info(f"Loaded {len(ratings)} ratings for sub-{participant_id}")
         return ratings, notes
+
+    @staticmethod
+    def _unreadable_page(participant_id: str, damage: UnreadableSidecar) -> str:
+        path, error = escape(str(damage.path)), damage.error
+        if isinstance(error, json.JSONDecodeError) and error.msg == "Extra data":
+            # What two saves written over each other used to leave
+            repair = (f"<p>{path} has extra text from line {error.lineno}, column {error.colno} on, left over from "
+                      "an earlier save. Open it in a text editor, delete that extra text, save it and reload this "
+                      "page.</p>")
+        else:
+            repair = (f"<p>{path} cannot be read ({escape(str(error))}). Repair it in a text editor, or put back "
+                      "a copy, and reload this page.</p>")
+        return (f"<h2>Cannot read the saved ratings of participant {escape(participant_id)}</h2>{repair}"
+                "<p>Do not delete the file: the next click on an empty page would replace this participant's "
+                "CSV files with that single rating.</p>")
 
     def _report_pages(self, participant_id: str) -> List[Tuple[str, str]]:
         """The participant's report files, read in page order, each with its anatomy's session (None: shared)."""
@@ -414,8 +438,11 @@ class FMRIPrepRatingApp:
             self.logger.error(f"HTML file not found for sub-{pid_clean}")
             return f"<h2>HTML file not found for participant {pid_clean}</h2>", 404
 
-        # Load existing ratings
-        all_ratings, all_notes = self.load_existing_ratings(pid_clean)
+        try:
+            all_ratings, all_notes = self.load_existing_ratings(pid_clean)
+        except UnreadableSidecar as e:
+            self.logger.error(str(e))
+            return self._unreadable_page(pid_clean, e), 500
 
         # Extract navigation
         nav_matches = re.findall(r'(<nav[\s\S]*?</nav>)', pages[0][0], re.IGNORECASE)
