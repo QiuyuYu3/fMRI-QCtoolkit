@@ -1,6 +1,8 @@
 # Change Log
 
 ## [Unreleased]
+### Added
+- Ratings and metrics from a public dataset in `examples/aomic_piop2`, to try the AFNI and fMRIPrep dashboards on real data.
 
 
 ## [2.1.0] - 2026-11-27
