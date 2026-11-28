@@ -63,6 +63,7 @@ thresholds
 :hidden:
 :maxdepth: 1
 
+commands
 troubleshooting
 training
 citation
